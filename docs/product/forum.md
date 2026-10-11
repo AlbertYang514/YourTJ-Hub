@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-07
+> Last verified: 2026-10-11
 
 ## Content and publishing
 
@@ -72,6 +72,11 @@ their separate rules.
 普通话题紧随其后。卡片支持点赞、收藏和进入回复；乐观更新失败按字段回滚。
 关注频道、个人备注与资料内容预览的权限和
 投影规则见[契约与数据](../architecture/contracts-and-data.md)。
+
+`Current`：登录读者的首页、分类页、关注流与话题/Wiki 详情侧栏热门不显示与其存在任一方向屏蔽
+关系的作者（与推荐、私信、通知同一双向语义，见[信息流排序](feed-ranking.md)与
+[决策 0079](../decisions/0079-feed-block-exclusion.md)）；被屏蔽作者的帖子仍可经直接链接与
+聚合搜索访问，其在他人帖子下的回复楼层不受影响。
 
 `Current`：Web 首页桌面工具栏提供刷新入口，45 秒探测非推荐排序第一页；只有 ID 高于已加载
 最大 ID 的条目计为新话题，排序变化本身不算新增。点击提示后新第一页置顶去重并保留旧条目；

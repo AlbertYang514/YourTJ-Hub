@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-03
+> Last verified: 2026-10-11
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
@@ -1504,8 +1504,11 @@ push disclosure; account closure remains inside account settings rather than the
 
 `Current`: profiles and conversation headers expose reversible user blocking; Settings → Account
 lists the caller's blocks. Server enforcement stops new private messages and interaction
-notifications in both directions. Public content, message history and already delivered notifications
-remain available. Pending activation does not prevent managing a block.
+notifications in both directions, and the reader's public feeds (home, category, following and the
+topic-detail hot list) hide authors with a block relation in either direction. Blocked topics remain
+reachable through direct links and search, and their replies in other topics stay visible. Public
+content, message history and already delivered notifications remain available. Pending activation
+does not prevent managing a block.
 
 `Current`: the message action menu exposes a report action for received messages, with explicit
 disclosure of the selected message to administrators; the report entry is no longer rendered under
