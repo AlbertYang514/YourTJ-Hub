@@ -137,8 +137,7 @@ async function govern() {
     await load()
     // A governed row may leave the current filter, shrinking the last page
     // out from under us; converge instead of showing an out-of-range empty state.
-    if (epoch !== session || total.value === 0 || page.value <= pages.value)
-      return
+    if (epoch !== session || page.value <= pages.value) return
     page.value = pages.value
     await load()
   } catch (e) {
