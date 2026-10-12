@@ -55,7 +55,8 @@ void expectAbsorbing(WidgetTester tester, bool absorbing) {
   );
 }
 
-void expectRestoredSystemUi(WidgetTester tester) {  final rootRegion = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(
+void expectRestoredSystemUi(WidgetTester tester) {
+  final rootRegion = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(
     find
         .descendant(
           of: find.byType(AppSystemUiOverlay),

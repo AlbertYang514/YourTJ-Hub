@@ -208,6 +208,9 @@ class _StartupExperienceState extends State<StartupExperience>
 
   @override
   void dispose() {
+    // A mid-cover disposal (tests, future teardowns) must not leave the gate
+    // suppressing its blocking page behind a gone brand layer.
+    startupBrandCovering.value = false;
     _captionTimer?.cancel();
     _startupTimeoutTimer?.cancel();
     _brandController.dispose();

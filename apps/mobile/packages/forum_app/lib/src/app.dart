@@ -51,10 +51,13 @@ class GfApp extends ConsumerWidget {
     final bootstrap = ref.watch(storageBootstrapProvider);
     final reset = ref.watch(storageResetStateProvider);
     // The brand layer holds on top of the storage gate until local data is
-    // prepared, so cold start shows one waiting surface instead of two.
+    // prepared, so cold start shows one waiting surface instead of two. The
+    // failed branch mirrors StorageGate: a refreshing value may carry an old
+    // error, so only a settled error counts.
+    final storageLoading = bootstrap.isLoading || reset?.isLoading == true;
     final readiness = storageReady
         ? StartupReadiness.ready
-        : (bootstrap.hasError || reset?.hasError == true)
+        : (!storageLoading && (bootstrap.hasError || reset?.hasError == true))
         ? StartupReadiness.failed
         : StartupReadiness.loading;
 
