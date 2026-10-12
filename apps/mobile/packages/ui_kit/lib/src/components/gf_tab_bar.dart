@@ -322,9 +322,16 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
                     color: active ? colors.baseContent : colors.iconMuted,
                     fontWeight: active ? FontWeight.w600 : FontWeight.w400,
                   ),
-                  child: IconTheme.merge(
-                    data: IconThemeData(
-                      color: active ? colors.baseContent : colors.iconMuted,
+                  // The glyph shares the label's color transition.
+                  child: TweenAnimationBuilder<Color?>(
+                    tween: ColorTween(
+                      end: active ? colors.baseContent : colors.iconMuted,
+                    ),
+                    duration: noAnimation ? Duration.zero : duration,
+                    curve: curve,
+                    builder: (context, color, child) => IconTheme.merge(
+                      data: IconThemeData(color: color),
+                      child: child!,
                     ),
                     child: label(tabs[index]),
                   ),
