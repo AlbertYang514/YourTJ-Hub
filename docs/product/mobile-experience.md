@@ -628,6 +628,13 @@ identity survive this layout change. The header keeps a small outer margin for i
   while earlier photos upload in order. Each article photo lands where the caret was when it was
   picked, following later edits; a compact thumbnail tray above the writing row shows progress,
   retry and removal. Save, publish, type switching and leaving still wait for pending photos.
+- `Current`: the article editor follows the caret through the page while typing. The editor body
+  itself does not scroll; once the caret line reaches the bottom of the visible page the page
+  scrolls it back into view with a small margin, and opening the software keyboard re-reveals the
+  line under the shrunken viewport. The course-review sheet keeps its own internal editor scroll,
+  and simple text bodies keep Flutter's built-in caret scrolling. Article body images render at the
+  editor's available width and shrink proportionally under a height cap of 0.6× the viewport
+  height, centred, so a tall photo cannot push the block height — and the caret — far out of view.
 - `Current`: a long-pressed article image lifts as a small card above the fingertip; a drop line
   marks the slot below the paragraph under the finger, with a light haptic tick when that slot
   changes. Near the viewport edges the page auto-scrolls faster the deeper the finger sits. The move
