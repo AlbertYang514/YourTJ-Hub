@@ -497,11 +497,6 @@ void main() {
       // VISIBLE_PASSWORD inputType,ColorOS 据此强制安全键盘并禁用粘贴。
       usePhoneViewport(tester);
       await pumpPublishPage(tester, editing: false, contentType: 3);
-      tester.widget<QuillEditor>(find.byType(QuillEditor)).focusNode
-          .requestFocus();
-      await tester.pump();
-      await tester.tap(find.text('文字格式'));
-      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('插入链接'));
       await tester.pumpAndSettle();
 

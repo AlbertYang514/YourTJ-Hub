@@ -450,4 +450,31 @@ void main() {
       l.settingsDeviceUnknown,
     );
   });
+
+  testWidgets(
+    'profile url and text fields stay plain text fields (issue #1111)',
+    (tester) async {
+      // enableSuggestions:false 会被 Flutter Android 引擎映射为密码类
+      // inputType,ColorOS 据此强制安全键盘并禁用粘贴;资料页没有密码字段,
+      // 所有输入框(网址/社交链接/昵称/简介/签名)都必须保持默认。
+      await openEditor(
+        tester,
+        ProfileEditPage(user: user(), onSave: (_) async {}),
+      );
+
+      for (final type in [TextInputType.url, TextInputType.text]) {
+        final fields = find.byWidgetPredicate(
+          (w) => w is TextField && w.keyboardType == type,
+        );
+        expect(fields, findsWidgets);
+        for (final element in fields.evaluate()) {
+          expect(
+            (element.widget as TextField).enableSuggestions,
+            isTrue,
+            reason: 'keyboardType=$type must not carry the password marking',
+          );
+        }
+      }
+    },
+  );
 }

@@ -453,6 +453,28 @@ void main() {
     expect(h.user.disabledCodes, ['123456', '123456']);
   });
 
+  testWidgets(
+    'TOTP disable field masks password-capable input and keeps suggestions off (#1111)',
+    (tester) async {
+      // Disable accepts a TOTP code or the account password; the field must be
+      // obscured so a typed password never enters the keyboard dictionary, and
+      // the credential-dialog conditional then keeps suggestions off for it.
+      final h = await _mount(
+        tester,
+        signedIn: true,
+        section: 'security',
+        language: 'en',
+      );
+      h.user.totpEnabled = true;
+      await tester.tap(find.text('Enable').first);
+      await tester.pumpAndSettle();
+
+      final field = tester.widget<TextField>(input('Enter the 6-digit code'));
+      expect(field.obscureText, isTrue);
+      expect(field.enableSuggestions, isFalse);
+    },
+  );
+
   testWidgets('email dialog drops private inputs when the account changes', (
     tester,
   ) async {

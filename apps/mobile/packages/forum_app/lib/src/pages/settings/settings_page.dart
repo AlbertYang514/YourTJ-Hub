@@ -680,8 +680,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             fields: [
               // Disable also accepts the account password; retain its full
               // keyboard instead of forcing the numeric setup-code keypad.
+              // Obscure it so a typed password never enters the keyboard
+              // dictionary; the credential dialog then keeps suggestions off
+              // for this field (issue #1111).
               _SettingsCredentialField(
                 label: l10n.settingsTotpCode,
+                obscureText: true,
                 autofillHints: const [AutofillHints.oneTimeCode],
               ),
             ],

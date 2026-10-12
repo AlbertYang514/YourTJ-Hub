@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:auth/auth.dart';
+import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +11,7 @@ import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/auth/login_page.dart';
 import 'package:forum_app/src/pages/settings/username_edit_dialog.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:image/image.dart' as img;
 import 'package:ui_kit/ui_kit.dart';
 import 'fixtures/page_fixtures.dart';
 import 'pages_behavior_test.dart' show NoopCache;
@@ -59,7 +62,10 @@ class _LoginOptions implements HttpClientAdapter {
 /// blocks pasting. Only real password fields may keep `enableSuggestions: false`;
 /// every other auth field must stay a plain text field.
 void main() {
-  Future<void> pumpLogin(WidgetTester tester) async {
+  Future<void> pumpLogin(
+    WidgetTester tester, {
+    AuthController? auth,
+  }) async {
     await tester.binding.setSurfaceSize(const Size(390, 1100));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final storage = MemoryTokenStorage();
@@ -83,7 +89,7 @@ void main() {
           locale: const Locale('en'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: LoginPage(authController: null, authTokenStorage: staged),
+          home: LoginPage(authController: auth, authTokenStorage: staged),
         ),
       ),
     );
@@ -154,4 +160,48 @@ void main() {
       expect(field.enableSuggestions, isTrue);
     },
   );
+
+  testWidgets('login captcha input stays a plain text field (issue #1111)', (
+    tester,
+  ) async {
+    final storage = MemoryTokenStorage();
+    final client = GfApiClient(
+      dio: Dio()..httpClientAdapter = _LoginOptions(),
+      tokenStorage: storage,
+      baseUrl: 'http://fake.local',
+    );
+    await pumpLogin(tester, auth: _CaptchaAuth(client, storage));
+    final l10n = AppLocalizations.of(tester.element(find.byType(LoginPage)));
+
+    final captcha = fieldByLabel(l10n.authCaptcha);
+    expect(captcha, findsOneWidget);
+    expect(enableSuggestionsOf(tester, captcha), isTrue);
+  });
+}
+
+/// Controller that starts in the needsCaptcha phase with a loaded challenge,
+/// so the captcha row renders without driving the password handoff.
+class _CaptchaAuth extends AuthController {
+  _CaptchaAuth(GfApiClient client, TokenStorage storage)
+    : super(
+        authRepository: AuthRepository(client),
+        apiClient: client,
+        tokenStorage: storage,
+      );
+
+  @override
+  LoginPhase get phase => LoginPhase.needsCaptcha;
+
+  @override
+  CaptchaPayload? get captcha => CaptchaPayload(
+    captchaId: 'captcha-0',
+    captchaImg:
+        'data:image/png;base64,${base64Encode(img.encodePng(img.Image(width: 1, height: 2)))}',
+  );
+
+  @override
+  Future<void> loadCaptcha({
+    bool preservePhaseOnError = false,
+    bool silentOnError = false,
+  }) async {}
 }
