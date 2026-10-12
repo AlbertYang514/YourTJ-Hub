@@ -12,10 +12,15 @@ class PreferencesRepository extends PushRepository {
     : super(GfApiClient(dio: Dio(), tokenStorage: _Storage()));
   PushPreferences value = const PushPreferences(chat: false, activity: true);
   final updates = <Map<String, bool>>[];
+  bool offline = false;
   @override
   Future<PushRepository> forSession() async => this;
   @override
-  Future<PushPreferences> preferences() async => value;
+  Future<PushPreferences> preferences() async {
+    if (offline) throw StateError('offline');
+    return value;
+  }
+
   @override
   Future<PushPreferences> updatePreferences(Map<String, bool> changes) async {
     updates.add(changes);
@@ -34,6 +39,53 @@ class _Storage implements TokenStorage {
 }
 
 void main() {
+  testWidgets('German error and retry fit 320 pixels at 200% text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final repository = PreferencesRepository()..offline = true;
+    final container = ProviderContainer(
+      overrides: [pushRepositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          locale: const Locale('de'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(2)),
+            child: child!,
+          ),
+          home: const Scaffold(
+            body: SingleChildScrollView(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 32),
+                child: PushPreferencesPanel(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(PushPreferencesPanel)),
+    );
+    expect(find.text(l10n.commonRetry), findsOneWidget);
+    repository.offline = false;
+    await tester.tap(find.text(l10n.commonRetry));
+    await tester.pumpAndSettle();
+    expect(find.byType(Switch), findsNWidgets(5));
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('push switches use server preferences and update one group', (
     tester,
   ) async {

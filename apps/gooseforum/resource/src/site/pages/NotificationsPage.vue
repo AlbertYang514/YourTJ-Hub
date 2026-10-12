@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { notificationText as describeNotification } from '@/runtime/notification-text'
 import { authorURL } from '@/runtime/anonymous-identity'
+import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { Award, Bell, Clock, Check, CheckCheck, CheckCircle2, Info, MessageCircle, ShieldAlert, UserPlus } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
@@ -213,12 +214,18 @@ function notificationIcon(item: NotificationPayload) {
   return MessageCircle
 }
 
+// Private contact labels belong only to the authenticated list, never push copy.
+function notificationDescription(item: NotificationPayload) {
+  const actor = item.actor
+  return describeNotification(actor ? { ...item, actor: { ...actor, username: userDisplayName(actor.id, actor.username, actor.nickname) } } : item, t)
+}
+
 function notificationText(item: NotificationPayload) {
-  return item.topic?.title || describeNotification(item, t)
+  return item.topic?.title || notificationDescription(item)
 }
 
 function notificationTitleText(item: NotificationPayload) {
-  return describeNotification(item, t)
+  return notificationDescription(item)
 }
 
 function notificationTone(item: NotificationPayload) {
@@ -354,8 +361,8 @@ function markItemReadAndNavigate(item: NotificationPayload) {
                 <span class="w-full font-semibold">{{ notificationTitleText(item) }}</span>
                 <a v-if="targetURL(item)" :href="targetURL(item)" class="min-w-0 truncate font-medium text-primary" @click="markItemReadAndNavigate(item)">{{ item.payload.topicTitle || t('contentReview.view') }}</a>
               </template>
-              <a v-else-if="targetURL(item)" :href="targetURL(item)" class="min-w-0 font-semibold text-base-content hover:text-primary" @click="markItemReadAndNavigate(item)">{{ describeNotification(item, t) }}</a>
-              <span v-else class="min-w-0 font-semibold">{{ describeNotification(item, t) }}</span>
+              <a v-else-if="targetURL(item)" :href="targetURL(item)" class="min-w-0 font-semibold text-base-content hover:text-primary" @click="markItemReadAndNavigate(item)">{{ notificationDescription(item) }}</a>
+              <span v-else class="min-w-0 font-semibold">{{ notificationDescription(item) }}</span>
               <span v-if="!item.isRead" class="h-1.5 w-1.5 rounded-full bg-primary" />
             </div>
             <p v-if="isReviewResult(item)" class="mt-0.5 text-xs text-base-content/55">

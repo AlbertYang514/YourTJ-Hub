@@ -1,6 +1,6 @@
 import type { NotificationPayload } from '@gooseforum/client'
 
-// Only public presentation fields belong in browser and list notification copy.
+// System notification callers must pass only public presentation fields.
 export function notificationText(item: Pick<NotificationPayload, 'eventType' | 'payload'> & Partial<NotificationPayload>, t: (key: string, params?: Record<string, string>) => string): string {
   const actor = item.actor?.username || item.payload.actorName || item.payload.metadata?.followerName || t('notifications.actorFallback')
   const topic = item.topic?.title || item.payload.topicTitle || ''

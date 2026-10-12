@@ -6,6 +6,7 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../l10n/app_localizations.dart';
 import '../providers.dart';
 import '../server_messages.dart';
+import '../widgets/status_views.dart';
 
 final pushPreferencesProvider = FutureProvider.autoDispose<PushPreferences>((
   ref,
@@ -65,12 +66,9 @@ class _PushPreferencesPanelState extends ConsumerState<PushPreferencesPanel> {
             padding: EdgeInsets.all(16),
             child: GfLoadingIndicator(small: true),
           ),
-          error: (error, _) => ListTile(
-            title: Text(resolveErrorMessage(l10n, error)),
-            trailing: TextButton(
-              onPressed: () => ref.invalidate(pushPreferencesProvider),
-              child: Text(l10n.commonRetry),
-            ),
+          error: (error, _) => GfErrorRetry(
+            message: resolveErrorMessage(l10n, error),
+            onRetry: () => ref.invalidate(pushPreferencesProvider),
           ),
           data: (preferences) => AbsorbPointer(
             absorbing: _saving,
