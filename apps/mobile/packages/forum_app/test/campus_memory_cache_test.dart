@@ -347,7 +347,7 @@ void main() {
       addTearDown(controller.dispose);
       final refreshing = controller.refresh();
       await Future<void>.delayed(Duration.zero);
-      cache.didChangeAppLifecycleState(AppLifecycleState.inactive);
+      cache.didChangeAppLifecycleState(AppLifecycleState.paused);
       repo.pending['profile']!.complete(campusFixture('profile'));
       await refreshing;
       cache.didChangeAppLifecycleState(AppLifecycleState.resumed);
@@ -470,7 +470,7 @@ void main() {
       switch (boundary) {
         case 'background':
           tester.binding.handleAppLifecycleStateChanged(
-            AppLifecycleState.inactive,
+            AppLifecycleState.paused,
           );
           await tester.pumpAndSettle();
           tester.binding.handleAppLifecycleStateChanged(
