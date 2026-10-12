@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-11
+> Last verified: 2026-10-12
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
@@ -26,9 +26,13 @@ corresponding planned ownership and lifecycle contracts.
 
 `Current`: Android and iOS display a static YourTJ brand mark in their native launch surface.
 Android selects light/dark launch resources using the saved app appearance; Flutter continues with
-the resolved app theme, a transparent animated mark and the caption “未济非终，皆有可能”. The
-animation yields to the interactive app within 1.2 seconds and is skipped for reduced motion.
-Session and Home requests run beneath the launch surface. Home mounts its base sort tabs before
+the resolved app theme, a transparent animated mark and the caption “未济非终，皆有可能”. Local
+storage preparation (database open plus recovery or a pending reset) runs beneath this brand layer:
+the layer holds after its animation until storage is ready, then yields to the interactive app, so
+cold start shows a single waiting surface instead of a separate data-preparation page. A failed
+bootstrap reveals the storage gate's retry UI, and a bootstrap that never settles falls back to the
+same gate after a safety cap. The animation is skipped for reduced motion, which exposes the gate
+states directly. Session and Home requests run beneath the launch surface. Home mounts its base sort tabs before
 server navigation arrives, then fills the existing skeleton. Initial cached/network rows prefetch
 at most four author avatars with a 240-millisecond ceiling using the same image keys as the visible
 avatars. Avatar decode sizes snap to a ladder (24/40/48/64/96 logical pixels; larger avatars round up

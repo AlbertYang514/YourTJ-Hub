@@ -23,6 +23,22 @@ Widget startupApp({
   home: child,
 );
 
+Widget startupAppWithReadiness(
+  ValueNotifier<StartupReadiness> readiness, {
+  Widget child = const Scaffold(body: Text('Ready')),
+}) => MaterialApp(
+  theme: gfThemeData(Brightness.light),
+  darkTheme: gfThemeData(Brightness.dark),
+  builder: (context, route) => AppSystemUiOverlay(
+    child: ValueListenableBuilder<StartupReadiness>(
+      valueListenable: readiness,
+      builder: (_, value, _) =>
+          StartupExperience(readiness: value, child: route!),
+    ),
+  ),
+  home: child,
+);
+
 void expectRestoredSystemUi(WidgetTester tester) {
   final rootRegion = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(
     find
@@ -166,6 +182,96 @@ void main() {
       await tester.pumpWidget(startupApp());
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 1500));
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
+
+  testWidgets(
+    'holds the brand layer while readiness is loading, then reveals once ready',
+    (tester) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1;
+      tester.view.padding = const FakeViewPadding(top: 44, bottom: 24);
+      addTearDown(tester.view.reset);
+      final readiness = ValueNotifier(StartupReadiness.loading);
+      addTearDown(readiness.dispose);
+      var taps = 0;
+      await tester.pumpWidget(
+        startupAppWithReadiness(
+          readiness,
+          child: Scaffold(
+            body: Center(
+              child: TextButton(
+                onPressed: () => taps++,
+                child: const Text('Ready'),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.text('未济非终，皆有可能'), findsOneWidget);
+      expect(startupBrandCovering.value, isTrue);
+      // Play the brand motion past its ~800 ms duration while still loading.
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 900));
+      // The brand layer holds instead of revealing a second waiting page.
+      expect(find.text('未济非终，皆有可能'), findsOneWidget);
+      expect(startupBrandCovering.value, isTrue);
+      await tester.tap(find.text('Ready'), warnIfMissed: false);
+      expect(taps, 0);
+      readiness.value = StartupReadiness.ready;
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
+      expect(find.text('未济非终，皆有可能'), findsNothing);
+      expect(startupBrandCovering.value, isFalse);
+      await tester.tap(find.text('Ready'));
+      expect(taps, 1);
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
+
+  testWidgets(
+    'failed readiness dismisses the brand layer for the gate UI',
+    (tester) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final readiness = ValueNotifier(StartupReadiness.loading);
+      addTearDown(readiness.dispose);
+      await tester.pumpWidget(startupAppWithReadiness(readiness));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 900));
+      expect(find.text('未济非终，皆有可能'), findsOneWidget);
+      readiness.value = StartupReadiness.failed;
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+      expect(find.text('未济非终，皆有可能'), findsNothing);
+      expect(startupBrandCovering.value, isFalse);
+      expect(tester.hasRunningAnimations, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
+
+  testWidgets(
+    'readiness arriving during the brand motion still exits normally',
+    (tester) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final readiness = ValueNotifier(StartupReadiness.loading);
+      addTearDown(readiness.dispose);
+      await tester.pumpWidget(startupAppWithReadiness(readiness));
+      await tester.pump(const Duration(milliseconds: 100));
+      // Flip to ready while the brand motion is still running.
+      readiness.value = StartupReadiness.ready;
+      await tester.pump(const Duration(milliseconds: 900));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
+      expect(find.text('未济非终，皆有可能'), findsNothing);
+      expect(startupBrandCovering.value, isFalse);
       expect(tester.takeException(), isNull);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.android),
