@@ -907,3 +907,10 @@ func PendingByAuthor(userID uint64, limit int) (entities []*Entity) {
 		Order("updated_at desc").Limit(limit).Find(&entities)
 	return
 }
+
+// GetPushSource returns only currently public topic metadata.
+func GetPushSource(id uint64) (Entity, error) {
+	var topic Entity
+	err := builder().Select("id", "title").Where("id = ? AND status = 1 AND process_status = ? AND visibility_status = ? AND retention_status <> ? AND deleted_at IS NULL", id, ProcessStatusNormal, VisibilityActive, RetentionPurged).Where(firstPostVisibleSQL, ProcessStatusNormal).First(&topic).Error
+	return topic, err
+}

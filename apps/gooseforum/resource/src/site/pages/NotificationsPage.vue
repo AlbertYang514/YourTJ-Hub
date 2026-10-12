@@ -1,6 +1,6 @@
 <script setup lang="ts">
+import { notificationText as describeNotification } from '@/runtime/notification-text'
 import { authorURL } from '@/runtime/anonymous-identity'
-import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { Award, Bell, Clock, Check, CheckCheck, CheckCircle2, Info, MessageCircle, ShieldAlert, UserPlus } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
@@ -9,7 +9,7 @@ import { formatDateTime } from '@/runtime/format'
 import { useUnreadStatus } from '@/runtime/unread-status'
 import EmptyState from '@/site/components/EmptyState.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
-import type { LayoutPayload, NotificationFilter, NotificationPayload, NotificationsPageProps } from '@gooseforum/client'
+import type { LayoutPayload, NotificationCategory, NotificationFilter, NotificationPayload, NotificationsPageProps } from '@gooseforum/client'
 
 const page = defineProps<{
   layout: LayoutPayload
@@ -25,7 +25,11 @@ interface NotificationListState {
 }
 
 const pageSize = 20
-const activeFilter = ref<NotificationFilter>('all')
+const activeFilter = ref<NotificationFilter>(page.props.filter ?? 'all')
+const activeCategory = ref<NotificationCategory>(page.props.category ?? 'all')
+const categories: NotificationCategory[] = ['all', 'mentions', 'replies', 'likes', 'following', 'system']
+let categoryGeneration = 0
+let propsCategoryUpdate = false
 const unreadCount = ref(page.props.unreadCount)
 const markingAllRead = ref(false)
 const actionError = ref('')
@@ -36,18 +40,18 @@ let loadObserver: IntersectionObserver | undefined
 
 const lists = reactive<Record<NotificationFilter, NotificationListState>>({
   all: {
-    items: copyNotifications(page.props.notifications),
+    items: page.props.filter === 'unread' ? [] : copyNotifications(page.props.notifications),
     nextCursor: initialNextCursor(),
     hasNext: page.props.pagination.hasNext,
     loading: false,
-    loaded: true,
+    loaded: page.props.filter !== 'unread',
   },
   unread: {
-    items: [],
-    nextCursor: 0,
-    hasNext: true,
+    items: page.props.filter === 'unread' ? copyNotifications(page.props.notifications) : [],
+    nextCursor: page.props.filter === 'unread' ? initialNextCursor() : 0,
+    hasNext: page.props.filter === 'unread' ? page.props.pagination.hasNext : true,
     loading: false,
-    loaded: false,
+    loaded: page.props.filter === 'unread',
   },
 })
 
@@ -65,16 +69,21 @@ if (page.props.unreadCount === 0) {
 watch(
   () => page.props.notifications,
   () => {
-    lists.all.items = copyNotifications(page.props.notifications)
-    lists.all.nextCursor = initialNextCursor()
-    lists.all.hasNext = page.props.pagination.hasNext
-    lists.all.loaded = true
-    lists.all.loading = false
-    lists.unread.items = []
-    lists.unread.nextCursor = 0
-    lists.unread.hasNext = true
-    lists.unread.loaded = false
-    lists.unread.loading = false
+    categoryGeneration++
+    const incomingCategory = page.props.category ?? 'all'
+    const incomingFilter = page.props.filter ?? 'all'
+    propsCategoryUpdate = activeCategory.value !== incomingCategory
+    activeCategory.value = incomingCategory
+    activeFilter.value = incomingFilter
+    for (const filter of ['all', 'unread'] as const) {
+      Object.assign(lists[filter], {
+        items: filter === incomingFilter ? copyNotifications(page.props.notifications) : [],
+        nextCursor: filter === incomingFilter ? initialNextCursor() : 0,
+        hasNext: filter === incomingFilter ? page.props.pagination.hasNext : true,
+        loaded: filter === incomingFilter,
+        loading: false,
+      })
+    }
     unreadCount.value = page.props.unreadCount
     actionError.value = ''
     if (page.props.unreadCount === 0) {
@@ -83,6 +92,15 @@ watch(
     void nextTick(observeLoadMore)
   },
 )
+
+watch(activeCategory, async () => {
+ if (propsCategoryUpdate) { propsCategoryUpdate = false; return }
+ categoryGeneration++
+ for (const filter of ['all', 'unread'] as const) {
+ Object.assign(lists[filter], {items: [],nextCursor:0,hasNext:true,loading:false,loaded:false})
+ }
+ await loadNotifications(activeFilter.value, true)
+})
 
 watch(activeFilter, async (filter) => {
   actionError.value = ''
@@ -141,10 +159,12 @@ async function loadNotifications(filter: NotificationFilter, reset = false) {
   if (list.loading) return
   if (!reset && !list.hasNext) return
 
+  const generation = categoryGeneration
   list.loading = true
   actionError.value = ''
   try {
-    const payload = await fetchNotifications(filter, reset ? 0 : list.nextCursor, pageSize)
+    const payload = await fetchNotifications(filter, reset ? 0 : list.nextCursor, pageSize, activeCategory.value)
+    if (generation !== categoryGeneration) return
     const nextItems = payload.items.map((item) => ({ ...item }))
     list.items = reset ? nextItems : mergeNotifications(list.items, nextItems)
     list.nextCursor = payload.nextCursor
@@ -153,8 +173,10 @@ async function loadNotifications(filter: NotificationFilter, reset = false) {
     unreadCount.value = payload.unreadCount
     unreadStatus.setNotifications(payload.unreadCount > 0)
   } catch (error) {
+    if (generation !== categoryGeneration) return
     actionError.value = error instanceof Error ? error.message : t('api.notificationsLoadFailed')
   } finally {
+    if (generation !== categoryGeneration) return
     list.loading = false
     await nextTick()
     observeLoadMore()
@@ -192,69 +214,11 @@ function notificationIcon(item: NotificationPayload) {
 }
 
 function notificationText(item: NotificationPayload) {
-  const templateText = notificationTemplateText(item)
-  if (item.eventType === 'badge') {
-    return templateText || (item.payload.metadata?.badgeName
-      ? t('notifications.badgeEarned', { badge: item.payload.metadata.badgeName })
-      : item.content || item.payload.content || t('notifications.fallback'))
-  }
-  if (item.eventType === 'follow') {
-    return templateText || item.content || item.payload.content || t('notifications.followDescription', { actor: actorName(item) })
-  }
-  // 无标题瞬间：无标题时回退到模板文案/正文，避免渲染空通知文本。
-  if (item.topic?.title) {
-    return item.topic.title
-  }
-  if (templateText) return templateText
-  return item.content || item.payload.content || t('notifications.fallback')
+  return item.topic?.title || describeNotification(item, t)
 }
 
 function notificationTitleText(item: NotificationPayload) {
-  if (isReviewResult(item)) return notificationTemplateText(item) || t('notifications.fallback')
-  return item.title || t('notifications.fallback')
-}
-
-function notificationTemplateText(item: NotificationPayload) {
-  const templateKey = item.payload.templateKey
-  switch (templateKey) {
-    case 'notifications.templates.comment':
-      return t('notifications.templates.comment')
-    case 'notifications.templates.mention':
-      return t('notifications.templates.mention')
-    case 'notifications.templates.postReply':
-      return t('notifications.templates.postReply')
-    case 'notifications.templates.topicPost':
-      return t('notifications.templates.topicPost')
-    case 'notifications.templates.follow':
-      return t('notifications.templates.follow')
-    case 'notifications.templates.badge': {
-      // 兼容旧数据：模板参数中的 badgeName 已随收敛移除（简化落地中候选1），
-      // 历史通知可能仍带该字段，运行时继续读取；新数据统一走 metadata。
-      const legacyParams = item.payload.templateParams as { badgeName?: string } | undefined
-      return t('notifications.templates.badge', { badge: legacyParams?.badgeName || item.payload.metadata?.badgeName || '' })
-    }
-    case 'notifications.templates.wikiUpdated':
-      return t('notifications.templates.wikiUpdated')
-    case 'notifications.templates.reviewPending':
-      return t('notifications.templates.reviewPending')
-    case 'notifications.templates.reviewApproved':
-      return t('notifications.templates.reviewApproved')
-    case 'notifications.templates.reviewRejected':
-      return t('notifications.templates.reviewRejected')
-    default:
-      return ''
-  }
-}
-
-function notificationVerb(item: NotificationPayload) {
-  const templateText = notificationTemplateText(item)
-  if (templateText && item.eventType !== 'badge') return templateText
-  if (item.eventType === 'follow') return t('notifications.verb.follow')
-  if (item.eventType === 'badge') return ''
-  if (item.eventType === 'mention') return t('notifications.templates.mention')
-  if (item.eventType === 'post_reply') return t('notifications.verb.reply')
-  if (item.eventType === 'comment' || item.eventType === 'topic_post') return t('notifications.verb.comment')
-  return notificationTitleText(item)
+  return describeNotification(item, t)
 }
 
 function notificationTone(item: NotificationPayload) {
@@ -264,11 +228,6 @@ function notificationTone(item: NotificationPayload) {
   if (item.eventType === 'badge') return item.isRead ? 'text-base-content/55' : 'text-warning'
   if (item.eventType === 'system') return item.isRead ? 'text-base-content/55' : 'text-warning'
   return item.isRead ? 'text-base-content/55' : 'text-primary'
-}
-
-function actorName(item: NotificationPayload) {
-  if (item.eventType === 'badge') return notificationTemplateText(item) || item.title || t('notifications.actorFallback')
-  return userDisplayName(item.actor.id, item.actor.username || item.payload.actorName || item.payload.metadata?.followerName || t('notifications.actorFallback'), item.actor.nickname)
 }
 
 function actorURL(item: NotificationPayload) {
@@ -286,32 +245,18 @@ function targetURL(item: NotificationPayload) {
 async function markAllRead() {
   if (!hasUnread.value || markingAllRead.value) return
 
-  const previousAll = copyNotifications(lists.all.items)
-  const previousUnread = copyNotifications(lists.unread.items)
-  const previousUnreadState = {
-    nextCursor: lists.unread.nextCursor,
-    hasNext: lists.unread.hasNext,
-    loaded: lists.unread.loaded,
-  }
-  const previousUnreadCount = unreadCount.value
   markingAllRead.value = true
   actionError.value = ''
-  lists.all.items = lists.all.items.map((item) => ({ ...item, isRead: true }))
-  lists.unread.items = []
-  lists.unread.nextCursor = 0
-  lists.unread.hasNext = false
-  lists.unread.loaded = true
-  unreadCount.value = 0
   try {
     await markAllNotificationsRead()
+    lists.all.items = lists.all.items.map((item) => ({ ...item, isRead: true }))
+    lists.unread.items = []
+    lists.unread.nextCursor = 0
+    lists.unread.hasNext = false
+    lists.unread.loaded = true
+    unreadCount.value = 0
     unreadStatus.clearNotifications()
   } catch (error) {
-    lists.all.items = previousAll
-    lists.unread.items = previousUnread
-    lists.unread.nextCursor = previousUnreadState.nextCursor
-    lists.unread.hasNext = previousUnreadState.hasNext
-    lists.unread.loaded = previousUnreadState.loaded
-    unreadCount.value = previousUnreadCount
     actionError.value = error instanceof Error ? error.message : t('notifications.markAllReadFailed')
   } finally {
     markingAllRead.value = false
@@ -321,6 +266,7 @@ async function markAllRead() {
 function markItemRead(item: NotificationPayload) {
   if (item.isRead) return
 
+  const generation = categoryGeneration
   const previousAll = copyNotifications(lists.all.items)
   const previousUnread = copyNotifications(lists.unread.items)
   const previousUnreadCount = unreadCount.value
@@ -332,8 +278,10 @@ function markItemRead(item: NotificationPayload) {
   unreadStatus.setNotifications(unreadCount.value > 0)
 
   void markNotificationRead(notificationId).catch(() => {
-    lists.all.items = previousAll
-    lists.unread.items = previousUnread
+    if (generation === categoryGeneration) {
+      lists.all.items = previousAll
+      lists.unread.items = previousUnread
+    }
     unreadCount.value = previousUnreadCount
     void unreadStatus.refresh(true).catch(() => undefined)
   })
@@ -369,24 +317,15 @@ function markItemReadAndNavigate(item: NotificationPayload) {
     </PageHeader>
 
     <section class="gf-card overflow-hidden">
-      <div class="flex items-center gap-1 border-b border-line bg-base-200/60 p-2">
-        <button
-          type="button"
-          class="gf-tab"
-          :class="activeFilter === 'all' ? 'bg-base-100 text-base-content shadow-sm ring-1 ring-line' : 'text-base-content/55 hover:bg-base-100/70 hover:text-base-content'"
-          @click="setActiveFilter('all')"
-        >
-          {{ t('notifications.tabs.all') }}
-        </button>
-        <button
-          type="button"
-          class="gf-tab gap-1.5"
-          :class="activeFilter === 'unread' ? 'bg-base-100 text-base-content shadow-sm ring-1 ring-line' : 'text-base-content/55 hover:bg-base-100/70 hover:text-base-content'"
-          @click="setActiveFilter('unread')"
-        >
+      <div class="flex flex-wrap items-center gap-1 border-b border-line bg-base-200/60 p-2">
+        <button v-for="category in categories" :key="category" type="button" class="gf-tab"
+          :aria-pressed="activeCategory === category"
+          :class="activeCategory === category ? 'bg-base-100 text-base-content shadow-sm ring-1 ring-line' : 'text-base-content/55 hover:bg-base-100/70'"
+          @click="activeCategory = category">{{ t(`notifications.tabs.${category}`) }}</button>
+        <label class="ml-auto flex items-center gap-2 px-2 text-sm">
+          <input type="checkbox" :checked="activeFilter === 'unread'" @change="setActiveFilter(activeFilter === 'unread' ? 'all' : 'unread')" />
           {{ t('notifications.tabs.unread') }}
-          <span v-if="unreadCount" class="gf-badge gf-badge-info px-1.5 text-[11px] font-bold tabular-nums">{{ unreadCount }}</span>
-        </button>
+        </label>
       </div>
 
       <div class="hidden grid-cols-[34px_minmax(0,1fr)_116px_40px] gap-3 border-b border-line bg-base-200/60 px-3 py-2 text-[11px] font-bold uppercase text-base-content/75 md:grid">
@@ -411,44 +350,19 @@ function markItemReadAndNavigate(item: NotificationPayload) {
           </div>
           <div class="min-w-0">
             <div class="flex min-w-0 items-center gap-1.5 text-sm leading-5" :class="{ 'flex-wrap': isReviewResult(item) }">
-              <a v-if="actorURL(item) && item.eventType !== 'badge'" :href="actorURL(item)" class="max-w-[42%] shrink-0 truncate font-semibold text-base-content hover:text-primary" @click="markItemReadAndNavigate(item)">
-                {{ actorName(item) }}
-              </a>
-              <span v-else class="shrink-0 font-semibold text-base-content" :class="isReviewResult(item) ? 'w-full' : 'max-w-[42%] truncate'">{{ item.eventType === 'follow' ? actorName(item) : notificationTitleText(item) }}</span>
-              <span class="shrink-0 text-base-content/55">{{ item.actor.id || item.actor.publicUid || item.eventType === 'follow' ? notificationVerb(item) : '' }}</span>
-              <a v-if="isReviewResult(item) && targetURL(item)" :href="targetURL(item)" class="min-w-0 truncate font-medium text-primary" @click="markItemReadAndNavigate(item)">{{ item.payload.topicTitle || t('contentReview.view') }}</a>
-              <span v-else-if="isReviewResult(item)" class="min-w-0 truncate font-medium text-base-content/75">{{ item.payload.topicTitle }}</span>
-              <a
-                v-else-if="item.topic"
-                :href="item.topic.url"
-                class="min-w-0 max-w-full truncate font-semibold text-primary hover:text-primary"
-                @click="markItemReadAndNavigate(item)"
-              >
-                {{ notificationText(item) }}
-              </a>
-              <a
-                v-else-if="item.eventType === 'badge' && targetURL(item)"
-                :href="targetURL(item)"
-                class="font-semibold text-warning hover:text-warning"
-                @click="markItemReadAndNavigate(item)"
-              >
-                {{ notificationText(item) }}
-              </a>
-              <a
-                v-else-if="item.eventType === 'follow' && actorURL(item)"
-                :href="actorURL(item)"
-                class="font-semibold text-success hover:text-success/90"
-                @click="markItemReadAndNavigate(item)"
-              >
-                {{ t('notifications.viewProfile') }}
-              </a>
-              <span v-else-if="item.actor.id || item.actor.publicUid || item.eventType === 'follow'" class="font-medium text-base-content/75">{{ notificationText(item) }}</span>
+              <template v-if="isReviewResult(item)">
+                <span class="w-full font-semibold">{{ notificationTitleText(item) }}</span>
+                <a v-if="targetURL(item)" :href="targetURL(item)" class="min-w-0 truncate font-medium text-primary" @click="markItemReadAndNavigate(item)">{{ item.payload.topicTitle || t('contentReview.view') }}</a>
+              </template>
+              <a v-else-if="targetURL(item)" :href="targetURL(item)" class="min-w-0 font-semibold text-base-content hover:text-primary" @click="markItemReadAndNavigate(item)">{{ describeNotification(item, t) }}</a>
+              <span v-else class="min-w-0 font-semibold">{{ describeNotification(item, t) }}</span>
               <span v-if="!item.isRead" class="h-1.5 w-1.5 rounded-full bg-primary" />
             </div>
             <p v-if="isReviewResult(item)" class="mt-0.5 text-xs text-base-content/55">
               {{ item.eventType === 'review_pending' ? t('notifications.reviewPendingDetail') : item.eventType === 'review_approved' ? t('notifications.reviewApprovedDetail') : t('notifications.reviewRejectedDetail') }}
             </p>
             <p v-else-if="item.content && item.content !== notificationText(item)" class="mt-0.5 line-clamp-1 text-xs text-base-content/55">{{ item.content }}</p>
+            <p v-if="!targetURL(item)" class="mt-0.5 text-xs text-base-content/55">{{ t('notifications.noDirectTarget') }}</p>
             <time class="mt-1 block text-xs text-base-content/55 md:hidden">{{ formatDateTime(item.createdAt) }}</time>
           </div>
           <time class="hidden text-right text-xs font-medium tabular-nums text-base-content/55 md:block">{{ formatDateTime(item.createdAt) }}</time>

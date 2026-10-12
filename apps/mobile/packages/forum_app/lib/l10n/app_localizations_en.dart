@@ -1903,7 +1903,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String notificationTopicPost(String actor) {
-    return '$actor posted in a topic you watch';
+    return '$actor posted a reply in a topic you follow';
   }
 
   @override
@@ -1917,9 +1917,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String notificationWikiUpdated(String actor) {
-    return '$actor updated a wiki page you watch';
-  }
+  String get notificationWikiUpdated => 'A Wiki page you follow was updated';
 
   @override
   String notificationBadge(String badge) {
@@ -1927,7 +1925,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get notificationNew => 'New notification';
+  String get notificationNew => 'You have a new system notification';
 
   @override
   String get notificationSomeone => 'Someone';
@@ -3720,4 +3718,54 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get anonymousViewProfile => 'View anonymous profile';
+
+  @override
+  String get notificationsMentions => 'Mentions';
+
+  @override
+  String get notificationsReplies => 'Replies';
+
+  @override
+  String get notificationsLikes => 'Likes';
+
+  @override
+  String get notificationsFollowing => 'Following';
+
+  @override
+  String get notificationsSystem => 'System';
+
+  @override
+  String get pushChat => 'Direct messages';
+
+  @override
+  String get pushMentionsAndReplies => 'Mentions and replies';
+
+  @override
+  String get pushActivity => 'Likes and activity';
+
+  @override
+  String get pushFollowing => 'Following updates';
+
+  @override
+  String get pushSystem => 'System notifications';
+
+  @override
+  String notificationMentionTopic(String actor, String topic) {
+    return '$actor mentioned you in “$topic”';
+  }
+
+  @override
+  String notificationCommentTopic(String actor, String topic) {
+    return '$actor commented on “$topic”';
+  }
+
+  @override
+  String notificationTopicPostTopic(String actor, String topic) {
+    return '$actor posted a reply in “$topic”, which you follow';
+  }
+
+  @override
+  String notificationWikiTopic(String topic) {
+    return '“$topic” was updated';
+  }
 }

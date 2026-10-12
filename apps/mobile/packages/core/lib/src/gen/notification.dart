@@ -64,6 +64,7 @@ abstract class NotificationInnerPayload with _$NotificationInnerPayload {
     required int actorId,
     String? actorName,
     String? actorPersonaUid,
+    @Default(false) bool hasDirectMention,
     int? topicId,
     int? postId,
     int? postNo,

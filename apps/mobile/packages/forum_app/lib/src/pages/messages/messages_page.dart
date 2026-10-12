@@ -676,7 +676,18 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
         );
   }
 
+  void _publishPushVisibility() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final peer = _canObserve ? widget.conv.peerId : 0;
+      if (peer > 0 || visibleChatPeer.value == widget.conv.peerId) {
+        visibleChatPeer.value = peer;
+      }
+    });
+  }
+
   void _visibilityChanged() {
+    _publishPushVisibility();
     if (!_sessionCurrent) return;
     _visibleReads.suspend();
     _visibleReads.changed(restartDwell: true);
@@ -697,6 +708,10 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) unawaited(_drafts.flush());
     _foreground = state == AppLifecycleState.resumed;
+    if (!_foreground && visibleChatPeer.value == widget.conv.peerId) {
+      visibleChatPeer.value = 0;
+    }
+    _publishPushVisibility();
     _visibleReads.suspend();
     _syncPolling(
       _foreground &&
@@ -846,6 +861,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
 
   @override
   void dispose() {
+    if (visibleChatPeer.value == widget.conv.peerId) visibleChatPeer.value = 0;
     WidgetsBinding.instance.removeObserver(this);
     _input.removeListener(_draftChanged);
     _drafts.removeListener(_restoreDraft);
@@ -1939,6 +1955,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     });
     if (!_drafts.current) return const SizedBox.shrink();
     _visibleReads.changed();
+    _publishPushVisibility();
     final List<ChatTimelineItem> timeline = buildChatTimeline(_messages);
 
     return PopScope(

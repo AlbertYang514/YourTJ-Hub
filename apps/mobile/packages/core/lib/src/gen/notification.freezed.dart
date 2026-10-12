@@ -923,6 +923,7 @@ mixin _$NotificationInnerPayload {
   int get actorId => throw _privateConstructorUsedError;
   String? get actorName => throw _privateConstructorUsedError;
   String? get actorPersonaUid => throw _privateConstructorUsedError;
+  bool get hasDirectMention => throw _privateConstructorUsedError;
   int? get topicId => throw _privateConstructorUsedError;
   int? get postId => throw _privateConstructorUsedError;
   int? get postNo => throw _privateConstructorUsedError;
@@ -954,6 +955,7 @@ abstract class $NotificationInnerPayloadCopyWith<$Res> {
     int actorId,
     String? actorName,
     String? actorPersonaUid,
+    bool hasDirectMention,
     int? topicId,
     int? postId,
     int? postNo,
@@ -990,6 +992,7 @@ class _$NotificationInnerPayloadCopyWithImpl<
     Object? actorId = null,
     Object? actorName = freezed,
     Object? actorPersonaUid = freezed,
+    Object? hasDirectMention = null,
     Object? topicId = freezed,
     Object? postId = freezed,
     Object? postNo = freezed,
@@ -1026,6 +1029,10 @@ class _$NotificationInnerPayloadCopyWithImpl<
                 ? _value.actorPersonaUid
                 : actorPersonaUid // ignore: cast_nullable_to_non_nullable
                       as String?,
+            hasDirectMention: null == hasDirectMention
+                ? _value.hasDirectMention
+                : hasDirectMention // ignore: cast_nullable_to_non_nullable
+                      as bool,
             topicId: freezed == topicId
                 ? _value.topicId
                 : topicId // ignore: cast_nullable_to_non_nullable
@@ -1099,6 +1106,7 @@ abstract class _$$NotificationInnerPayloadImplCopyWith<$Res>
     int actorId,
     String? actorName,
     String? actorPersonaUid,
+    bool hasDirectMention,
     int? topicId,
     int? postId,
     int? postNo,
@@ -1137,6 +1145,7 @@ class __$$NotificationInnerPayloadImplCopyWithImpl<$Res>
     Object? actorId = null,
     Object? actorName = freezed,
     Object? actorPersonaUid = freezed,
+    Object? hasDirectMention = null,
     Object? topicId = freezed,
     Object? postId = freezed,
     Object? postNo = freezed,
@@ -1173,6 +1182,10 @@ class __$$NotificationInnerPayloadImplCopyWithImpl<$Res>
             ? _value.actorPersonaUid
             : actorPersonaUid // ignore: cast_nullable_to_non_nullable
                   as String?,
+        hasDirectMention: null == hasDirectMention
+            ? _value.hasDirectMention
+            : hasDirectMention // ignore: cast_nullable_to_non_nullable
+                  as bool,
         topicId: freezed == topicId
             ? _value.topicId
             : topicId // ignore: cast_nullable_to_non_nullable
@@ -1209,6 +1222,7 @@ class _$NotificationInnerPayloadImpl implements _NotificationInnerPayload {
     required this.actorId,
     this.actorName,
     this.actorPersonaUid,
+    this.hasDirectMention = false,
     this.topicId,
     this.postId,
     this.postNo,
@@ -1234,6 +1248,9 @@ class _$NotificationInnerPayloadImpl implements _NotificationInnerPayload {
   @override
   final String? actorPersonaUid;
   @override
+  @JsonKey()
+  final bool hasDirectMention;
+  @override
   final int? topicId;
   @override
   final int? postId;
@@ -1246,7 +1263,7 @@ class _$NotificationInnerPayloadImpl implements _NotificationInnerPayload {
 
   @override
   String toString() {
-    return 'NotificationInnerPayload(title: $title, content: $content, templateKey: $templateKey, templateParams: $templateParams, actorId: $actorId, actorName: $actorName, actorPersonaUid: $actorPersonaUid, topicId: $topicId, postId: $postId, postNo: $postNo, topicTitle: $topicTitle, metadata: $metadata)';
+    return 'NotificationInnerPayload(title: $title, content: $content, templateKey: $templateKey, templateParams: $templateParams, actorId: $actorId, actorName: $actorName, actorPersonaUid: $actorPersonaUid, hasDirectMention: $hasDirectMention, topicId: $topicId, postId: $postId, postNo: $postNo, topicTitle: $topicTitle, metadata: $metadata)';
   }
 
   @override
@@ -1265,6 +1282,8 @@ class _$NotificationInnerPayloadImpl implements _NotificationInnerPayload {
                 other.actorName == actorName) &&
             (identical(other.actorPersonaUid, actorPersonaUid) ||
                 other.actorPersonaUid == actorPersonaUid) &&
+            (identical(other.hasDirectMention, hasDirectMention) ||
+                other.hasDirectMention == hasDirectMention) &&
             (identical(other.topicId, topicId) || other.topicId == topicId) &&
             (identical(other.postId, postId) || other.postId == postId) &&
             (identical(other.postNo, postNo) || other.postNo == postNo) &&
@@ -1285,6 +1304,7 @@ class _$NotificationInnerPayloadImpl implements _NotificationInnerPayload {
     actorId,
     actorName,
     actorPersonaUid,
+    hasDirectMention,
     topicId,
     postId,
     postNo,
@@ -1318,6 +1338,7 @@ abstract class _NotificationInnerPayload implements NotificationInnerPayload {
     required final int actorId,
     final String? actorName,
     final String? actorPersonaUid,
+    final bool hasDirectMention,
     final int? topicId,
     final int? postId,
     final int? postNo,
@@ -1342,6 +1363,8 @@ abstract class _NotificationInnerPayload implements NotificationInnerPayload {
   String? get actorName;
   @override
   String? get actorPersonaUid;
+  @override
+  bool get hasDirectMention;
   @override
   int? get topicId;
   @override
