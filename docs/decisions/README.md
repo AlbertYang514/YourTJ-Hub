@@ -169,3 +169,4 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0078](0078-for-you-viewport-seen-and-browsing-sessions.md) — 可视卡片已见的30天聚合、同步确认和For You历史会话恢复，保持有限候选与统计边界。
 - [0079](0079-feed-block-exclusion.md) — 公开列表与推荐统一的双向屏蔽排除；带屏蔽关系读者绕过共享列表缓存，搜索与回复楼层为文档边界。
 - [0080](0080-personal-sticker-pre-review.md) — 个人上传表情先审核后使用，AI 未决结果进入站点管理员专属队列。
+- [0081](0081-campus-background-unload-trigger.md) — 校园隐私卸载阈值收紧到 paused/hidden/detached，inactive 瞬时遮挡保留内容；记录切换器缩略图取舍。
