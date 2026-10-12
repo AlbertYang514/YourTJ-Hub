@@ -15,7 +15,7 @@ func EnsureAppendOnlyGuards(db *gorm.DB) error {
 			return fmt.Errorf("XP append-only table missing: %T", model)
 		}
 	}
-	switch db.Dialector.Name() {
+	switch db.Name() {
 	case "sqlite":
 		for _, table := range []string{"xp_entries", "xp_rule_sets", "xp_reward_rules"} {
 			for _, operation := range []string{"UPDATE", "DELETE"} {
@@ -43,7 +43,7 @@ func EnsureAppendOnlyGuards(db *gorm.DB) error {
 			}
 		}
 	default:
-		return fmt.Errorf("unsupported database dialect for XP append-only guards: %s", db.Dialector.Name())
+		return fmt.Errorf("unsupported database dialect for XP append-only guards: %s", db.Name())
 	}
 	return nil
 }
