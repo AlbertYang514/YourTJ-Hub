@@ -12,6 +12,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userOAuth"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	xpmodel "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/xp"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -44,6 +45,9 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 	}
 	if err := db.AutoMigrate(SchemaModels()...); err != nil {
 		t.Fatalf("AutoMigrate on postgres failed: %v", err)
+	}
+	if err := xpmodel.EnsureAppendOnlyGuards(db); err != nil {
+		t.Fatalf("install XP append-only guards on postgres: %v", err)
 	}
 
 	// 关键新表必须存在（issue #8 回归点；agents 为本仓库 Agent 模型新增表）
@@ -80,6 +84,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 		"push_device",
 		"sticker_library_owners",
 		"user_stickers",
+		"xp_balances", "xp_entries", "xp_rule_sets", "xp_reward_rules", "xp_daily_usage", "xp_daily_rule_usage",
 		// 站内信域（issue #770）：7 表。
 		"inbox_message",
 		"inbox_message_version",
@@ -211,6 +216,9 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if err := db.AutoMigrate(SchemaModels()...); err != nil {
 		t.Fatalf("upgrade AutoMigrate on postgres failed: %v", err)
 	}
+	if err := xpmodel.EnsureAppendOnlyGuards(db); err != nil {
+		t.Fatalf("install XP append-only guards on upgraded postgres: %v", err)
+	}
 	if !db.Migrator().HasColumn(&userOAuth.Entity{}, "apple_refresh_token") {
 		t.Fatal("Apple revocation column missing after upgrade")
 	}
@@ -238,6 +246,7 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 		"push_device",
 		"sticker_library_owners",
 		"user_stickers",
+		"xp_balances", "xp_entries", "xp_rule_sets", "xp_reward_rules", "xp_daily_usage", "xp_daily_rule_usage",
 		// 站内信域（issue #770）：存量库升级也必须补齐 7 表。
 		"inbox_message",
 		"inbox_message_version",

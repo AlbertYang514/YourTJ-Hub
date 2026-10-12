@@ -6,7 +6,7 @@
 >
 > Owner: Product owner, Platform maintainers
 >
-> Last verified: 2026-08-06
+> Last verified: 2026-10-13
 
 ## Positioning
 
@@ -48,11 +48,18 @@ Forum built-in OIDC Provider (numeric sub = users.id)
 
 ## Current boundary
 
-- **Forum-local ledger mechanics are `Current`**: accepted topic/reply events update the local
+- **Legacy forum-local point mechanics are `Current`**: accepted topic/reply events update the local
   `user_points` balance and visible `users.prestige`; source keys make rewards idempotent, reply deletion
   reverses its reward in the same transaction, and migration v14 reconstructs missing legacy balance rows.
 - **Forum-local delivery is `Partial`**: reward events use the in-memory event bus, so process loss after
   content persistence can lose a reward; no durable outbox or reconciliation job currently repairs it.
+- **Forum XP core is `Partial`**: `xp_balances` is a projection of the append-only `xp_entries` ledger;
+  versioned reward rules track per-event, per-rule daily, and optional per-user daily positive XP limits
+  on Asia/Shanghai dates. XP levels are derived from the current balance and account eligibility. The
+  confirmed daily base rule is +5 XP and does not depend on activity; automatic server-side daily
+  settlement and business-event integration are not yet connected. Reversals append a negative entry
+  and do not restore consumed daily quota. XP uses the numeric forum `users.id` and does not modify the
+  legacy points or prestige path.
 - **Cross-platform credit is `Planned`**: services/credit is a deployment placeholder; it is
   not deployed or wired, and the local ledger is not presented as the future settlement source.
 - No top-up/withdrawal/fiat exchange/free transfers.
