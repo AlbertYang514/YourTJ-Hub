@@ -335,6 +335,18 @@ class RecordingWritingCleanup extends WritingStore {
   }
 }
 
+/// Simulates the generation fence rejecting a stale write: [forget] advances
+/// the cache epoch (as an account switch does) before throwing.
+class _FailingForgetStore extends WritingStore {
+  _FailingForgetStore(this.onForget);
+  final void Function() onForget;
+  @override
+  Future<void> forget(String scope, String query) async {
+    onForget();
+    throw StateError('Local work operation invalidated');
+  }
+}
+
 class DelayedChatRepository extends RecordingChatRepository {
   DelayedChatRepository(super.client);
   final acknowledgement = Completer<int>();
@@ -2718,6 +2730,45 @@ void main() {
     expect(find.text('选课'), findsOneWidget);
     expect(await store.history('site:1'), ['选课']);
   });
+
+  testWidgets(
+    'a failed recent-search removal during an account switch does not toast',
+    (tester) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      ProviderContainer? holder;
+      final failing = _FailingForgetStore(() {
+        holder!.read(offlineCacheEpochProvider.notifier).invalidate();
+      });
+      final container = await makeContainer(
+        pageRepo: CountingPageRepository(client),
+        extraOverrides: [
+          writingScopeProvider.overrideWith((ref) async => 'site:1'),
+          writingStoreProvider.overrideWithValue(failing),
+        ],
+      );
+      holder = container;
+      await failing.remember('site:1', '选课');
+      await tester.pumpWidget(app(container, const SearchPage()));
+      await tester.pumpAndSettle();
+      expect(find.text('选课'), findsOneWidget);
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const ValueKey('search-recent-选课')),
+          matching: find.byTooltip('从最近搜索中移除'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // The epoch advanced mid-write, so no meaningless error toast is shown.
+      expect(
+        find.text('Bad state: Local work operation invalidated'),
+        findsNothing,
+      );
+    },
+  );
 
   testWidgets('short search screen keeps the field usable above the keyboard', (
     tester,

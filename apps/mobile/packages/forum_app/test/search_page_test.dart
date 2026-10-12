@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
@@ -253,7 +254,10 @@ void main() {
 
     for (final (brightness, hex) in [
       (Brightness.light, '#FFF7ED'),
+      (Brightness.light, '#FF00FF'),
+      (Brightness.light, '#FFC000'),
       (Brightness.dark, '#123456'),
+      (Brightness.dark, '#606060'),
     ]) {
       final repo = _SearchRepository();
       await tester.pumpWidget(
@@ -296,7 +300,14 @@ void main() {
       final surface = brightness == Brightness.light
           ? GfColors.light.base100
           : GfColors.dark.base100;
-      expect(contrast(mark.style!.color!, surface), greaterThanOrEqualTo(3));
+      // The mark sits on a 14% wash of its own tone; judge against that
+      // blended background, matching the implementation.
+      final markColor = mark.style!.color!;
+      final background = Color.alphaBlend(
+        markColor.withValues(alpha: 0.14),
+        surface,
+      );
+      expect(contrast(markColor, background), greaterThanOrEqualTo(3));
       await tester.pumpWidget(const SizedBox.shrink());
     }
   });
@@ -463,6 +474,36 @@ void main() {
     },
   );
 
+  testWidgets('partial failure banner coexists with See all', (tester) async {
+    final repo = await pumpSearch(tester);
+    repo.calls.first.result.complete(
+      _result(
+        repo.calls.first,
+        users: 1,
+        topics: 1,
+        failedScopes: ['categories'],
+      ).copyWith(usersTotal: 50),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Search unavailable: Categories'), findsOneWidget);
+    expect(find.text('See all'), findsOneWidget);
+    expect(find.text('Topic 1'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('partial failure with every scope empty shows the empty state', (
+    tester,
+  ) async {
+    final repo = await pumpSearch(tester);
+    repo.calls.first.result.complete(
+      _result(repo.calls.first, failedScopes: ['users', 'categories']),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Search unavailable: Users, Categories'), findsOneWidget);
+    expect(find.text('No results for “original”'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'unavailable topic page keeps prior results and retries the same page',
     (tester) async {
@@ -591,6 +632,29 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
+        final seeAll = AppLocalizations.of(
+          tester.element(find.byType(SearchPage)),
+        ).searchSeeAll;
+
+        // The action must render and not be silently ellipsized: its Text folds to
+        // two lines under a width cap, and overflow is silent (no exception).
+        void expectSeeAllIntact() {
+          final finder = find.text(seeAll);
+          expect(finder, findsWidgets);
+          for (final element in finder.evaluate()) {
+            final text = element.widget as Text;
+            final paragraph = tester.renderObject<RenderParagraph>(
+              find.byWidget(text),
+            );
+            expect(
+              paragraph.didExceedMaxLines,
+              isFalse,
+              reason: 'See all must not be ellipsized ($language, $width)',
+            );
+          }
+        }
+
+        expectSeeAllIntact();
         await tester.scrollUntilVisible(
           find.text('Category 0'),
           200,
@@ -603,6 +667,7 @@ void main() {
         );
         expect(find.text('Category 0'), findsOneWidget);
         expect(tester.takeException(), isNull);
+        expectSeeAllIntact();
       });
 
       testWidgets('search types at 200% in $language on $width', (

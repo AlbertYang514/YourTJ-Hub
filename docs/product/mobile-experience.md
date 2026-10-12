@@ -529,7 +529,8 @@ validation; simulator/debug execution does not establish production frame-rate g
   catalog, global search, Wiki and scheduler. Search fields provide a localized clear action and keyboard
   submission where applicable. Clearing global search resets results, scope and pagination, and
   invalidates pending requests; account and publishing forms retain their separate form styling.
-- `Current`: global search opens with its field focused beside a back action. The empty field shows
+- `Current`: global search opens with its field focused beside a back action when entered from
+  inside the app; a deep link to search opens without one. The empty field shows
   two equal tiles that carry the current input to the native course catalog and Wiki search, followed
   by recent searches. Recent searches keep up to ten distinct queries per site and account (with a
   separate guest list), in device preferences only; users can remove one or clear all. Storage
@@ -544,8 +545,9 @@ validation; simulator/debug execution does not establish production frame-rate g
   type and shows displayed rows separately from matching totals; in the all view, See all switches
   to that type when more matches exist. Unqueried scopes are not labelled as zero, and the all-scope
   view does not treat the topic total as an aggregate total. Empty results name the submitted keyword
-  in every type; the all and topics views also offer course and Wiki search. Category marks keep at
-  least 3:1 contrast against the surface, darkening pale site colors toward the text color.
+  in every type; the all and topics views also offer course and Wiki search, and a results-bearing
+  all view keeps a compact course/Wiki row above its groups. Category marks keep at least 3:1
+  contrast against the tinted wash they sit on, shifting the tone toward the text color.
   Users, topics and categories build one row at a time near the viewport. Only topics paginate;
   appending a page retains the other groups, and a failed page keeps the current rows with a retry.
 - `Current`: topic view/reply metrics remain below the body; reply, like, bookmark and watch actions

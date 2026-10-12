@@ -617,10 +617,19 @@ class _ElsewhereTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final bool dark = Theme.of(context).brightness == Brightness.dark;
+    final double tintAlpha = dark ? 0.16 : 0.08;
+    // The glyph sits on the tile's own wash; keep it readable against that
+    // blended surface, matching the category-mark rule.
+    final Color tileTone = _readableTone(
+      tone,
+      surface: colors.base100,
+      ink: colors.baseContent,
+      tintAlpha: tintAlpha,
+    );
     return Semantics(
       button: true,
       child: Material(
-        color: tone.withValues(alpha: dark ? 0.16 : 0.08),
+        color: tileTone.withValues(alpha: tintAlpha),
         borderRadius: BorderRadius.circular(16),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -632,7 +641,7 @@ class _ElsewhereTile extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: <Widget>[
-                  GfSymbol(symbol, size: 20, color: tone),
+                  GfSymbol(symbol, size: 20, color: tileTone),
                   const SizedBox(width: 8),
                   Flexible(
                     child: Text(
@@ -1081,37 +1090,34 @@ class _SectionHeader extends StatelessWidget {
       ),
       child: onSeeAll == null
           ? Align(alignment: AlignmentDirectional.centerStart, child: heading)
-          : LayoutBuilder(
-              // The heading keeps the remaining width; the action is capped
-              // so long translations and large text truncate it instead of
-              // squeezing the title or overflowing the row.
-              builder: (context, constraints) => Row(
-                children: <Widget>[
-                  Expanded(child: heading),
-                  const SizedBox(width: 8),
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: constraints.maxWidth * 0.4,
-                    ),
-                    child: TextButton(
-                      onPressed: onSeeAll,
-                      style: TextButton.styleFrom(
-                        minimumSize: const Size(48, 44),
-                        foregroundColor: colors.primary,
-                        textStyle: type.caption.copyWith(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      child: Text(
-                        AppLocalizations.of(context).searchSeeAll,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+          : Wrap(
+              // The heading keeps the remaining width on one line; when a long
+              // translation or large text would otherwise ellipsize the action,
+              // it wraps below and folds onto two lines instead of truncating.
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                heading,
+                TextButton(
+                  onPressed: onSeeAll,
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(48, 44),
+                    foregroundColor: colors.primary,
+                    textStyle: type.caption.copyWith(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                ],
-              ),
+                  child: Text(
+                    AppLocalizations.of(context).searchSeeAll,
+                    maxLines: 2,
+                    softWrap: true,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
     );
   }
@@ -1227,9 +1233,16 @@ class _TopicRow extends StatelessWidget {
 }
 
 /// Category colors are site-configured. Blend toward the text color until the
-/// mark keeps 3:1 contrast with the surface (WCAG non-text contrast), so a
-/// pale color in light mode or a dark one in dark mode stays visible.
-Color _readableTone(Color tone, {required Color surface, required Color ink}) {
+/// mark keeps 3:1 contrast with the tinted wash it is drawn on (WCAG non-text
+/// contrast). The wash drags the background toward the tone, so a pale color
+/// in light mode or a dark one in dark mode is measured against that blended
+/// surface, not the bare one.
+Color _readableTone(
+  Color tone, {
+  required Color surface,
+  required Color ink,
+  double tintAlpha = 0.14,
+}) {
   double contrast(Color a, Color b) {
     final double la = a.computeLuminance();
     final double lb = b.computeLuminance();
@@ -1239,7 +1252,11 @@ Color _readableTone(Color tone, {required Color surface, required Color ink}) {
   final Color opaque = tone.withValues(alpha: 1);
   for (var step = 0; step <= 10; step++) {
     final Color candidate = Color.lerp(opaque, ink, step / 10)!;
-    if (contrast(candidate, surface) >= 3) return candidate;
+    final Color background = Color.alphaBlend(
+      candidate.withValues(alpha: tintAlpha),
+      surface,
+    );
+    if (contrast(candidate, background) >= 3) return candidate;
   }
   return ink;
 }
