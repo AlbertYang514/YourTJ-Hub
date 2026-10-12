@@ -619,12 +619,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchHint => 'Search topics, users, categories…';
 
   @override
-  String get searchNoUsers => 'No matching users';
-
-  @override
-  String get searchNoCategories => 'No matching categories';
-
-  @override
   String get searchUnavailable => 'Search unavailable';
 
   @override

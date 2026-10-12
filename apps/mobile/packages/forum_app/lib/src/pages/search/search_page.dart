@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../../private_notes.dart';
 
 import 'package:flutter/material.dart';
@@ -84,7 +86,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
       await ref.read(writingStoreProvider).forget(owner, query);
     } catch (error) {
-      if (mounted) {
+      // An account switch invalidates the write; the new session reloads.
+      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
         showGfToast(
           context,
           resolveErrorMessage(AppLocalizations.of(context), error),
@@ -108,7 +111,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         setState(() => _recent = []);
       }
     } catch (error) {
-      if (mounted) {
+      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
         showGfToast(
           context,
           resolveErrorMessage(AppLocalizations.of(context), error),
@@ -943,17 +946,19 @@ class _SearchResults extends StatelessWidget {
         index--;
       }
       if (!hasResults) {
+        // Name the submitted keyword, not unsent input. Course and Wiki are
+        // useful next steps for content searches, not for a people or
+        // category filter.
+        final bool contentScope = scope == 'all' || scope == 'topics';
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 32),
           child: GfEmpty(
             symbol: 'search',
-            message: scope == 'users'
-                ? l10n.searchNoUsers
-                : scope == 'categories'
-                ? l10n.searchNoCategories
-                : l10n.searchNoResults(props.query),
-            description: l10n.searchNoResultsHint,
-            action: _ElsewhereShortcuts(onCourses: onCourses, onWiki: onWiki),
+            message: l10n.searchNoResults(props.query),
+            description: contentScope ? l10n.searchNoResultsHint : null,
+            action: contentScope
+                ? _ElsewhereShortcuts(onCourses: onCourses, onWiki: onWiki)
+                : null,
           ),
         );
       }
@@ -1053,6 +1058,20 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfTypography type = GfTheme.typographyOf(context);
+    final Widget heading = Wrap(
+      spacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.end,
+      children: <Widget>[
+        Semantics(header: true, child: Text(title, style: type.title3)),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 1),
+          child: Text(
+            count,
+            style: type.caption.copyWith(color: colors.iconMuted),
+          ),
+        ),
+      ],
+    );
     return Padding(
       padding: EdgeInsetsDirectional.fromSTEB(
         16,
@@ -1060,41 +1079,40 @@ class _SectionHeader extends StatelessWidget {
         onSeeAll == null ? 16 : 4,
         4,
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: <Widget>[
-          Flexible(
-            child: Wrap(
-              spacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.end,
-              children: <Widget>[
-                Semantics(header: true, child: Text(title, style: type.title3)),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 1),
-                  child: Text(
-                    count,
-                    style: type.caption.copyWith(color: colors.iconMuted),
+      child: onSeeAll == null
+          ? Align(alignment: AlignmentDirectional.centerStart, child: heading)
+          : LayoutBuilder(
+              // The heading keeps the remaining width; the action is capped
+              // so long translations and large text truncate it instead of
+              // squeezing the title or overflowing the row.
+              builder: (context, constraints) => Row(
+                children: <Widget>[
+                  Expanded(child: heading),
+                  const SizedBox(width: 8),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: constraints.maxWidth * 0.4,
+                    ),
+                    child: TextButton(
+                      onPressed: onSeeAll,
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(48, 44),
+                        foregroundColor: colors.primary,
+                        textStyle: type.caption.copyWith(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      child: Text(
+                        AppLocalizations.of(context).searchSeeAll,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          if (onSeeAll != null) ...<Widget>[
-            const Spacer(),
-            TextButton(
-              onPressed: onSeeAll,
-              style: TextButton.styleFrom(
-                foregroundColor: colors.primary,
-                textStyle: type.caption.copyWith(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
+                ],
               ),
-              child: Text(AppLocalizations.of(context).searchSeeAll),
             ),
-          ],
-        ],
-      ),
     );
   }
 }
@@ -1208,6 +1226,24 @@ class _TopicRow extends StatelessWidget {
   }
 }
 
+/// Category colors are site-configured. Blend toward the text color until the
+/// mark keeps 3:1 contrast with the surface (WCAG non-text contrast), so a
+/// pale color in light mode or a dark one in dark mode stays visible.
+Color _readableTone(Color tone, {required Color surface, required Color ink}) {
+  double contrast(Color a, Color b) {
+    final double la = a.computeLuminance();
+    final double lb = b.computeLuminance();
+    return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05);
+  }
+
+  final Color opaque = tone.withValues(alpha: 1);
+  for (var step = 0; step <= 10; step++) {
+    final Color candidate = Color.lerp(opaque, ink, step / 10)!;
+    if (contrast(candidate, surface) >= 3) return candidate;
+  }
+  return ink;
+}
+
 class _CategoryRow extends StatelessWidget {
   const _CategoryRow({super.key, required this.category});
   final CategorySearchPayload category;
@@ -1216,7 +1252,11 @@ class _CategoryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfTypography type = GfTheme.typographyOf(context);
-    final Color tone = colorFromHex(category.color);
+    final Color tone = _readableTone(
+      colorFromHex(category.color),
+      surface: colors.base100,
+      ink: colors.baseContent,
+    );
     return InkWell(
       onTap: () => context.push('/c/${category.slug}/${category.id}'),
       child: Padding(

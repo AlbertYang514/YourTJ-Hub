@@ -604,12 +604,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get searchHint => 'トピック、ユーザー、カテゴリを検索…';
 
   @override
-  String get searchNoUsers => '該当するユーザーはいません';
-
-  @override
-  String get searchNoCategories => '該当するカテゴリはありません';
-
-  @override
   String get searchUnavailable => '検索サービスを利用できません';
 
   @override

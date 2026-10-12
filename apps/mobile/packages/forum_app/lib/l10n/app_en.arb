@@ -316,8 +316,6 @@
   "notificationsAll": "All",
   "notificationsUnread": "Unread",
   "searchHint": "Search topics, users, categories…",
-  "searchNoUsers": "No matching users",
-  "searchNoCategories": "No matching categories",
   "searchUnavailable": "Search unavailable",
   "searchResultCount": "{shown} shown · {total} matches",
   "@searchResultCount": {

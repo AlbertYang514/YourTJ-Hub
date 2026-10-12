@@ -602,12 +602,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchHint => '搜索帖子、用户、分类…';
 
   @override
-  String get searchNoUsers => '没有匹配的用户';
-
-  @override
-  String get searchNoCategories => '没有匹配的分类';
-
-  @override
   String get searchUnavailable => '搜索暂不可用';
 
   @override

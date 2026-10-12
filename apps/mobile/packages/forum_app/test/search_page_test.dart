@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
@@ -195,6 +196,109 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Topic 1'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('See all narrows the aggregate view to that type', (
+    tester,
+  ) async {
+    final repo = await pumpSearch(tester);
+    repo.calls.first.result.complete(
+      _result(repo.calls.first, users: 1, topics: 1).copyWith(usersTotal: 50),
+    );
+    await tester.pumpAndSettle();
+    // Only the users group has more matches than it shows.
+    expect(find.text('See all'), findsOneWidget);
+    await tester.tap(find.text('See all'));
+    await tester.pump();
+    expect(repo.calls.last.scope, 'users');
+    expect(repo.calls.last.query, 'original');
+    repo.calls.last.result.complete(
+      _result(repo.calls.last, users: 1).copyWith(usersTotal: 50),
+    );
+    await tester.pumpAndSettle();
+    final tabBar = tester.widget<TabBar>(
+      find.byKey(const ValueKey('gf-tab-bar')),
+    );
+    expect(tabBar.controller!.index, 2);
+    expect(find.text('See all'), findsNothing);
+  });
+
+  testWidgets('empty results name the submitted keyword in every type', (
+    tester,
+  ) async {
+    final repo = await pumpSearch(tester);
+    repo.calls.first.result.complete(_result(repo.calls.first));
+    await tester.pumpAndSettle();
+    expect(find.text('No results for “original”'), findsOneWidget);
+    expect(find.text('Search courses'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'unsent');
+    for (final label in ['Users', 'Categories']) {
+      await tester.tap(find.text(label));
+      await tester.pump();
+      repo.calls.last.result.complete(_result(repo.calls.last));
+      await tester.pumpAndSettle();
+      expect(find.text('No results for “original”'), findsOneWidget);
+      expect(find.text('No results for “unsent”'), findsNothing);
+      // People and category filters do not suggest course or Wiki search.
+      expect(find.text('Search courses'), findsNothing);
+    }
+  });
+
+  testWidgets('site category colors keep a readable mark', (tester) async {
+    double contrast(Color a, Color b) {
+      final la = a.computeLuminance();
+      final lb = b.computeLuminance();
+      return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05);
+    }
+
+    for (final (brightness, hex) in [
+      (Brightness.light, '#FFF7ED'),
+      (Brightness.dark, '#123456'),
+    ]) {
+      final repo = _SearchRepository();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            topicRepositoryProvider.overrideWithValue(repo),
+            writingScopeProvider.overrideWith((ref) async => 'test:guest'),
+          ],
+          child: MaterialApp(
+            theme: gfThemeData(brightness),
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const SearchPage(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'original');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pump();
+      final call = repo.calls.last;
+      call.result.complete(
+        _result(call).copyWith(
+          categories: [
+            CategorySearchPayload(
+              id: 1,
+              name: 'Pale',
+              slug: 'pale',
+              icon: '',
+              color: hex,
+              desc: '',
+            ),
+          ],
+          categoriesTotal: 1,
+        ),
+      );
+      await tester.pumpAndSettle();
+      final mark = tester.widget<Text>(find.text('#'));
+      final surface = brightness == Brightness.light
+          ? GfColors.light.base100
+          : GfColors.dark.base100;
+      expect(contrast(mark.style!.color!, surface), greaterThanOrEqualTo(3));
+      await tester.pumpWidget(const SizedBox.shrink());
+    }
   });
 
   testWidgets(
@@ -467,6 +571,40 @@ void main() {
 
   for (final language in ['zh', 'en', 'ja', 'de']) {
     for (final width in [320.0, 390.0, 768.0, 1024.0]) {
+      testWidgets('See all headers fit at 200% in $language on $width', (
+        tester,
+      ) async {
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.devicePixelRatio = 1;
+        tester.platformDispatcher.textScaleFactorTestValue = 2;
+        addTearDown(tester.view.reset);
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        final repo = await pumpSearch(tester, locale: Locale(language));
+        // Totals above the shown rows render the See all action.
+        repo.calls.first.result.complete(
+          _result(
+            repo.calls.first,
+            users: 1,
+            topics: 1,
+            categories: 1,
+          ).copyWith(usersTotal: 50, categoriesTotal: 50),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        await tester.scrollUntilVisible(
+          find.text('Category 0'),
+          200,
+          scrollable: find
+              .descendant(
+                of: find.byType(ListView),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        );
+        expect(find.text('Category 0'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+
       testWidgets('search types at 200% in $language on $width', (
         tester,
       ) async {

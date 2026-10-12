@@ -192,8 +192,6 @@
   "notificationsAll": "Alle",
   "notificationsUnread": "Ungelesen",
   "searchHint": "Themen, Nutzer, Kategorien suchen …",
-  "searchNoUsers": "Keine passenden Nutzer",
-  "searchNoCategories": "Keine passenden Kategorien",
   "searchUnavailable": "Suche nicht verfügbar",
   "searchResultCount": "{shown} angezeigt · {total} Treffer",
   "searchAll": "Alle",

@@ -538,12 +538,14 @@ validation; simulator/debug execution does not establish production frame-rate g
   is sent until a row or keyboard submission is chosen.
   Result type tabs pair each label with its symbol, share the width evenly and scroll horizontally
   when they no longer fit, such as at larger text sizes; they stay available during loading, empty
-  results and failures. Swiping the results moves to the adjacent type with the shared tab gesture. Switching type or retrying uses the last submitted keyword;
-  typing a different keyword does not search it until submission. Each result section identifies its
+  results and failures. Swiping the results moves to the adjacent type with the shared tab gesture,
+  normalized to the width of the results area. Switching type or retrying uses the last submitted
+  keyword; typing a different keyword does not search it until submission. Each result section identifies its
   type and shows displayed rows separately from matching totals; in the all view, See all switches
   to that type when more matches exist. Unqueried scopes are not labelled as zero, and the all-scope
-  view does not treat the topic total as an aggregate total. Empty results name the keyword and
-  offer course and Wiki search.
+  view does not treat the topic total as an aggregate total. Empty results name the submitted keyword
+  in every type; the all and topics views also offer course and Wiki search. Category marks keep at
+  least 3:1 contrast against the surface, darkening pale site colors toward the text color.
   Users, topics and categories build one row at a time near the viewport. Only topics paginate;
   appending a page retains the other groups, and a failed page keeps the current rows with a retry.
 - `Current`: topic view/reply metrics remain below the body; reply, like, bookmark and watch actions

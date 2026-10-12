@@ -1212,18 +1212,6 @@ abstract class AppLocalizations {
   /// **'Search topics, users, categories…'**
   String get searchHint;
 
-  /// No description provided for @searchNoUsers.
-  ///
-  /// In en, this message translates to:
-  /// **'No matching users'**
-  String get searchNoUsers;
-
-  /// No description provided for @searchNoCategories.
-  ///
-  /// In en, this message translates to:
-  /// **'No matching categories'**
-  String get searchNoCategories;
-
   /// No description provided for @searchUnavailable.
   ///
   /// In en, this message translates to:
