@@ -9063,7 +9063,7 @@ AdminReviewQueueRequest:
   properties:
     kind:
       type: string
-      enum: [topic, post]
+      enum: [topic, post, sticker]
       description: Any other value (including empty) fails validation with HTTP 200 `common.request.invalidParams`.
     page:
       type: integer
@@ -9090,13 +9090,13 @@ AdminReviewQueueItem:
     id:
       type: integer
       format: uint64
-      description: Topic id when kind=topic, post id when kind=post.
+      description: Topic id when kind=topic, post id when kind=post, sticker asset id when kind=sticker.
     title:
       type: string
-      description: Topic title; for posts, the title of the containing topic (empty when the topic is missing).
+      description: Topic title; for posts, the title of the containing topic (empty when the topic is missing); for stickers, the asset token name (the generated `u_` name; this queue is site-manager only, and the uploader also sees their own name in library responses).
     excerpt:
       type: string
-      description: Topic excerpt (falling back to the title) or the post content truncated to 120 bytes.
+      description: Topic excerpt (falling back to the title) or the post content truncated to 120 bytes; empty for stickers (the client localizes the queue row title by kind).
     userId:
       type: integer
       format: uint64
@@ -9126,7 +9126,12 @@ AdminReviewQueueItem:
       maxItems: 9
       items:
         type: string
-      description: Image URLs referenced by the pending content (topic gallery/inline images or post Markdown images). Pending images are readable by reviewers through the authorized `/file/img` preview; anonymous readers receive 404.
+      description: >-
+        Image URLs referenced by pending content or the uploaded image when kind=sticker.
+        Pending topic/post images are readable by authorized reviewers through /file/img and
+        return 404 for anonymous readers (issue #975). Sticker images are additionally visible
+        to the uploader in their own library while pending; after approval the file becomes
+        publicly readable.
     aiReview:
       $ref: '#/AiModerationDecisionItem'
       description: Present only when AI moderation sent this item to review (issue #975); carries triggered policies, raw probabilities and the truncated evidence summary.
@@ -9177,7 +9182,7 @@ AdminReviewActionRequest:
       description: Optional author-visible rejection reason.
     kind:
       type: string
-      enum: [topic, post]
+      enum: [topic, post, sticker]
     id:
       type: integer
       format: uint64
@@ -10388,6 +10393,10 @@ StickerItem:
       type: boolean
       default: true
       description: False for temporarily unavailable assets retained in a private library. Clients must prevent insertion while permitting removal or reordering. Older servers omit this field and clients assume true.
+    reviewStatus:
+      type: string
+      enum: [pending, approved, rejected]
+      description: Personal upload review state. Omitted by older servers and treated as approved for compatibility. Clients must prevent insertion unless approved and enabled.
   additionalProperties: false
 
 ForumStickerListSuccess:

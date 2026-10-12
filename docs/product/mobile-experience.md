@@ -628,6 +628,13 @@ identity survive this layout change. The header keeps a small outer margin for i
   while earlier photos upload in order. Each article photo lands where the caret was when it was
   picked, following later edits; a compact thumbnail tray above the writing row shows progress,
   retry and removal. Save, publish, type switching and leaving still wait for pending photos.
+- `Current`: the article editor follows the caret through the page while typing. The editor body
+  itself does not scroll; once the caret line reaches the bottom of the visible page the page
+  scrolls it back into view with a small margin, and opening the software keyboard re-reveals the
+  line under the shrunken viewport. The course-review sheet keeps its own internal editor scroll,
+  and simple text bodies keep Flutter's built-in caret scrolling. Article body images render at the
+  editor's available width and shrink proportionally under a height cap of 0.6× the viewport
+  height, centred, so a tall photo cannot push the block height — and the caret — far out of view.
 - `Current`: a long-pressed article image lifts as a small card above the fingertip; a drop line
   marks the slot below the paragraph under the finger, with a light haptic tick when that slot
   changes. Near the viewport edges the page auto-scrolls faster the deeper the finger sits. The move
@@ -1418,7 +1425,8 @@ servers that omit interaction fields retain read-only content previews.
   The personal library supports image upload, collecting a shared sticker by long press (in a chat
   message, the bubble's action menu offers the same collection for its resolved stickers),
   private display names, reordering and removal. Each library row opens a single-sticker preview
-  and has a labeled action menu for preview, rename and removal; disabled stickers remain removable.
+  and has a labeled action menu for preview, rename and removal; pending and rejected uploads show
+  their review status and remain removable/reorderable but cannot be inserted or resolved.
   Upload guidance and library rows scroll together so large text does not crowd out the controls.
   Both single and selected removals require confirmation and preserve already-sent stickers. Failed
   removals keep the remaining entries available for retry. Account changes close pending library
@@ -1427,10 +1435,12 @@ servers that omit interaction fields retain read-only content previews.
   file service. Failed requests retain the current input and expose retry. Concurrent collection
   writes are rejected explicitly so a skipped operation cannot report success.
 - `Current`: personal membership is account-private. Shared personal token names can be resolved by
-  recipients; the public directory lists official stickers only. Removing a library entry keeps
+  recipients once review approves the asset (pending uploads are not resolvable); the public
+  directory lists official stickers only. Removing a library entry keeps
   shared posts and messages renderable. Account closure removes collection membership while shared
-  assets retain their history references. [0038](../decisions/0038-personal-sticker-library.md) owns this
-  storage and privacy decision.
+  assets retain their history references. Site administrators review undecided personal uploads in
+  the admin queue; forum moderators have no access to these images. [0038](../decisions/0038-personal-sticker-library.md)
+  owns storage and privacy; [0079](../decisions/0080-personal-sticker-pre-review.md) owns pre-review.
 - `Current`: native post/reply bodies and private messages display image stickers in a 128 × 128
   logical-pixel box, preserving aspect ratio and GIF animation. Consecutive stickers wrap within
   the content width. Picker and draft-preview thumbnails remain 56 × 56, and personal-library
@@ -1551,7 +1561,8 @@ including day/year boundaries.
 
 `Current`: private-message bodies retain their complete text and sticker tokens. Conversation-list
 summaries are limited to 255 Unicode characters, including a truncation marker; a truncated summary
-does not split a sticker token. Long messages therefore remain sendable on PostgreSQL. Send failures
+does not split a sticker token and replaces it with the localized `[Animated sticker]` label, hiding
+random personal token names. Long messages therefore remain sendable on PostgreSQL. Send failures
 show a localized message without disclosing database errors.
 
 ### Apple login on iOS
