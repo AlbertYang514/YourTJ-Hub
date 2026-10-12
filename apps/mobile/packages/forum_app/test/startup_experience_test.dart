@@ -39,8 +39,23 @@ Widget startupAppWithReadiness(
   home: child,
 );
 
-void expectRestoredSystemUi(WidgetTester tester) {
-  final rootRegion = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(
+void expectAbsorbing(WidgetTester tester, bool absorbing) {
+  expect(
+    tester
+        .widget<AbsorbPointer>(
+          find
+              .descendant(
+                of: find.byType(StartupExperience),
+                matching: find.byType(AbsorbPointer),
+              )
+              .first,
+        )
+        .absorbing,
+    absorbing,
+  );
+}
+
+void expectRestoredSystemUi(WidgetTester tester) {  final rootRegion = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(
     find
         .descendant(
           of: find.byType(AppSystemUiOverlay),
@@ -215,13 +230,22 @@ void main() {
       // Play the brand motion past its ~800 ms duration while still loading.
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pump(const Duration(milliseconds: 900));
-      // The brand layer holds instead of revealing a second waiting page.
-      expect(find.text('未济非终，皆有可能'), findsOneWidget);
+      // The brand layer holds instead of revealing a second waiting page. The
+      // shimmer caption splits into spans once visible, so assert the layer
+      // through its pointer absorption instead of a text finder.
+      expectAbsorbing(tester, true);
       expect(startupBrandCovering.value, isTrue);
       await tester.tap(find.text('Ready'), warnIfMissed: false);
       expect(taps, 0);
+      // Flush the hold transition before flipping readiness so the update
+      // path (not a late sequence continuation) drives the exit.
+      await tester.pump();
       readiness.value = StartupReadiness.ready;
-      await tester.pump(const Duration(milliseconds: 300));
+      // The sequence continuation resumes on a later microtask; drain frames
+      // until the reveal finishes instead of depending on exact pump counts.
+      for (var i = 0; i < 10 && startupBrandCovering.value; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
       await tester.pump();
       expect(find.text('未济非终，皆有可能'), findsNothing);
       expect(startupBrandCovering.value, isFalse);
@@ -243,7 +267,8 @@ void main() {
       await tester.pumpWidget(startupAppWithReadiness(readiness));
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pump(const Duration(milliseconds: 900));
-      expect(find.text('未济非终，皆有可能'), findsOneWidget);
+      // Still holding on the brand layer; the shimmer caption is span-split.
+      expectAbsorbing(tester, true);
       readiness.value = StartupReadiness.failed;
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pump();
