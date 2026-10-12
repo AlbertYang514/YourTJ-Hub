@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-03
+> Last verified: 2026-10-11
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
@@ -1418,7 +1418,8 @@ servers that omit interaction fields retain read-only content previews.
   The personal library supports image upload, collecting a shared sticker by long press (in a chat
   message, the bubble's action menu offers the same collection for its resolved stickers),
   private display names, reordering and removal. Each library row opens a single-sticker preview
-  and has a labeled action menu for preview, rename and removal; disabled stickers remain removable.
+  and has a labeled action menu for preview, rename and removal; pending and rejected uploads show
+  their review status and remain removable/reorderable but cannot be inserted or resolved.
   Upload guidance and library rows scroll together so large text does not crowd out the controls.
   Both single and selected removals require confirmation and preserve already-sent stickers. Failed
   removals keep the remaining entries available for retry. Account changes close pending library
@@ -1427,10 +1428,12 @@ servers that omit interaction fields retain read-only content previews.
   file service. Failed requests retain the current input and expose retry. Concurrent collection
   writes are rejected explicitly so a skipped operation cannot report success.
 - `Current`: personal membership is account-private. Shared personal token names can be resolved by
-  recipients; the public directory lists official stickers only. Removing a library entry keeps
+  recipients once review approves the asset (pending uploads are not resolvable); the public
+  directory lists official stickers only. Removing a library entry keeps
   shared posts and messages renderable. Account closure removes collection membership while shared
-  assets retain their history references. [0038](../decisions/0038-personal-sticker-library.md) owns this
-  storage and privacy decision.
+  assets retain their history references. Site administrators review undecided personal uploads in
+  the admin queue; forum moderators have no access to these images. [0038](../decisions/0038-personal-sticker-library.md)
+  owns storage and privacy; [0079](../decisions/0080-personal-sticker-pre-review.md) owns pre-review.
 - `Current`: native post/reply bodies and private messages display image stickers in a 128 × 128
   logical-pixel box, preserving aspect ratio and GIF animation. Consecutive stickers wrap within
   the content width. Picker and draft-preview thumbnails remain 56 × 56, and personal-library
@@ -1504,8 +1507,11 @@ push disclosure; account closure remains inside account settings rather than the
 
 `Current`: profiles and conversation headers expose reversible user blocking; Settings → Account
 lists the caller's blocks. Server enforcement stops new private messages and interaction
-notifications in both directions. Public content, message history and already delivered notifications
-remain available. Pending activation does not prevent managing a block.
+notifications in both directions, and the reader's public feeds (home, category, following and the
+topic-detail hot list) hide authors with a block relation in either direction. Blocked topics remain
+reachable through direct links and search, and their replies in other topics stay visible. Public
+content, message history and already delivered notifications remain available. Pending activation
+does not prevent managing a block.
 
 `Current`: the message action menu exposes a report action for received messages, with explicit
 disclosure of the selected message to administrators; the report entry is no longer rendered under
@@ -1548,7 +1554,8 @@ including day/year boundaries.
 
 `Current`: private-message bodies retain their complete text and sticker tokens. Conversation-list
 summaries are limited to 255 Unicode characters, including a truncation marker; a truncated summary
-does not split a sticker token. Long messages therefore remain sendable on PostgreSQL. Send failures
+does not split a sticker token and replaces it with the localized `[Animated sticker]` label, hiding
+random personal token names. Long messages therefore remain sendable on PostgreSQL. Send failures
 show a localized message without disclosing database errors.
 
 ### Apple login on iOS
