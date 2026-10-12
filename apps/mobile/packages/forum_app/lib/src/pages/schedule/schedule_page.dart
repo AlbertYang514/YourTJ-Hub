@@ -124,6 +124,13 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
     // paused 尽力冲刷未上行的本地方案（issue #537；best-effort）。
     if (state == AppLifecycleState.resumed) {
       unawaited(_syncController.onResume());
+      // 通知栏/分屏等覆盖后 Android 可能回收 surface；课表网格整棵被 PNG
+      // 导出用的 RepaintBoundary 缓存，子树无变化时恢复前台不会重栅格化，
+      // 呈现为灰框且只能重启恢复（issue #1109）。恢复前台时显式弄脏边界
+      // 强制重绘（裸 setState 不会弄脏干净的 boundary 图层，无效）。
+      (_gridBoundaryKey.currentContext?.findRenderObject()
+              as RenderRepaintBoundary?)
+          ?.markNeedsPaint();
     }
     if (state == AppLifecycleState.paused) {
       unawaited(ref.read(scheduleSyncControllerProvider).flushPendingUpload());
