@@ -2516,6 +2516,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get campusUnavailable => '学校暂未提供可用数据，请稍后重试。';
 
   @override
+  String get campusUpstreamUnavailable => '学校服务暂时不可用，请稍后重试。';
+
+  @override
+  String get campusRulesAIUnavailable => 'AI 暂不可用，请检查“AI 课程总结”的模型连接配置，或手动添加规则。';
+
+  @override
+  String get campusRulesAIOutput => 'AI 未生成有效规则，请补充完整日期和教学对应关系后重试，或手动编辑。';
+
+  @override
+  String get campusRulesLimited => 'AI 调用较频繁，请稍后再试。';
+
+  @override
   String get campusNoData => '暂无记录';
 
   @override

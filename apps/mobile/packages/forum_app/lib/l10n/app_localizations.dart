@@ -4806,6 +4806,30 @@ abstract class AppLocalizations {
   /// **'School data is temporarily unavailable. Try again later.'**
   String get campusUnavailable;
 
+  /// No description provided for @campusUpstreamUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'School services are temporarily unavailable. Try again later.'**
+  String get campusUpstreamUnavailable;
+
+  /// No description provided for @campusRulesAIUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'AI is unavailable. Check the model connection in AI course summaries, or add rules manually.'**
+  String get campusRulesAIUnavailable;
+
+  /// No description provided for @campusRulesAIOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'AI did not return valid rules. Add complete dates and explicit makeup mappings, or edit manually.'**
+  String get campusRulesAIOutput;
+
+  /// No description provided for @campusRulesLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many AI requests. Try again later.'**
+  String get campusRulesLimited;
+
   /// No description provided for @campusNoData.
   ///
   /// In en, this message translates to:

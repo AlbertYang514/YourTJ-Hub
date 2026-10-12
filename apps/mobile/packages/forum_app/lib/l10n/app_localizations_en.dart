@@ -2608,6 +2608,21 @@ class AppLocalizationsEn extends AppLocalizations {
       'School data is temporarily unavailable. Try again later.';
 
   @override
+  String get campusUpstreamUnavailable =>
+      'School services are temporarily unavailable. Try again later.';
+
+  @override
+  String get campusRulesAIUnavailable =>
+      'AI is unavailable. Check the model connection in AI course summaries, or add rules manually.';
+
+  @override
+  String get campusRulesAIOutput =>
+      'AI did not return valid rules. Add complete dates and explicit makeup mappings, or edit manually.';
+
+  @override
+  String get campusRulesLimited => 'Too many AI requests. Try again later.';
+
+  @override
   String get campusNoData => 'No records yet';
 
   @override
