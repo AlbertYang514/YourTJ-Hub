@@ -2,6 +2,7 @@ package xpservice
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -156,7 +157,7 @@ func TestApplyRewardConcurrentWritesOnPostgres(t *testing.T) {
 	if _, err := svc.ApplyReward(context.Background(), AwardRequest{UserID: rollbackUser.Id, RuleKey: "pg-rollback-base", SourceKey: "pg-rollback-base", OccurredAt: rollbackAt.Add(time.Second)}); err != nil {
 		t.Fatalf("PostgreSQL base award before rollback check: %v", err)
 	}
-	if _, err := svc.ApplyReward(context.Background(), AwardRequest{UserID: rollbackUser.Id, RuleKey: "pg-rollback-over", SourceKey: "pg-rollback-over", OccurredAt: rollbackAt.Add(2 * time.Second)}); err != ErrRewardLimit {
+	if _, err := svc.ApplyReward(context.Background(), AwardRequest{UserID: rollbackUser.Id, RuleKey: "pg-rollback-over", SourceKey: "pg-rollback-over", OccurredAt: rollbackAt.Add(2 * time.Second)}); !errors.Is(err, ErrRewardLimit) {
 		t.Fatalf("PostgreSQL quota failure = %v, want ErrRewardLimit", err)
 	}
 	var rejectedRows int64
