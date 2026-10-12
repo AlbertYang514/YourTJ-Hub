@@ -344,7 +344,7 @@ func CreateDeduplicatedTx(tx *gorm.DB, entity *Entity) error {
 func ThrottlePush(id uint64, group string, before time.Time) (bool, error) {
 	blocked := false
 	err := db.Connect().Transaction(func(tx *gorm.DB) error {
-		if tx.Dialector.Name() == "postgres" {
+		if tx.Name() == "postgres" {
 			if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtext(?))", group).Error; err != nil {
 				return err
 			}

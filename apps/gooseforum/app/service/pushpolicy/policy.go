@@ -47,8 +47,13 @@ func load(userID uint64) (Preferences, map[string]bool, error) {
 	result := Defaults()
 	_, explicit := overrides["system"]
 	result.SystemDefaultOnly = !explicit
-	raw, _ := json.Marshal(overrides)
-	_ = json.Unmarshal(raw, &result)
+	raw, err := json.Marshal(overrides)
+	if err != nil {
+		return Preferences{}, nil, err
+	}
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return Preferences{}, nil, err
+	}
 	return result, overrides, nil
 }
 func Get(userID uint64) (Preferences, error) { p, _, err := load(userID); return p, err }

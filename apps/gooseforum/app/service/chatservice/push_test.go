@@ -91,7 +91,7 @@ func TestForwardPushCommitReplayRollback(t *testing.T) {
 		if tx.Statement.Table == "messages" {
 			creates++
 			if creates == 2 {
-				tx.AddError(errors.New("forced second forward failure"))
+				_ = tx.AddError(errors.New("forced second forward failure"))
 			}
 		}
 	}); err != nil {
