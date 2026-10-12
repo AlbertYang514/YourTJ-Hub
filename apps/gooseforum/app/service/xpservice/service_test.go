@@ -175,9 +175,27 @@ func TestNegativeReversalIsAppendOnlyAndDoesNotRefundQuota(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	updatedReward := int64(99)
+	if _, err := svc.PublishRuleSet(context.Background(), RuleSetSpec{
+		Enabled: true, TimeZone: ShanghaiTimeZone, EffectiveAt: awarded.Entry.OccurredAt.Add(time.Second),
+		Rules: []xpmodel.RewardRule{{RuleKey: DailyBaseRuleKey, Enabled: true, RewardXP: updatedReward}},
+	}); err != nil {
+		t.Fatalf("publish updated reward rule: %v", err)
+	}
+	// A valid reversal must still use the original entry, even after the
+	// effective reward amount changes in a newer ruleset.
+	if err := db.Model(&xpmodel.Balance{}).Where("user_id = ?", 11).Update("current_xp", 0).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.PostAdjustment(context.Background(), AdjustmentRequest{UserID: 11, SourceKey: "negative-balance", Delta: -1, Reason: "projection guard", ReversalOfEntryID: &awarded.Entry.ID}); !errors.Is(err, ErrNegativeBalance) {
+		t.Fatalf("negative balance error = %v, want ErrNegativeBalance", err)
+	}
+	if err := db.Model(&xpmodel.Balance{}).Where("user_id = ?", 11).Update("current_xp", awarded.Entry.Delta).Error; err != nil {
+		t.Fatal(err)
+	}
 	three := int64(3)
 	firstReversal, err := svc.PostAdjustment(context.Background(), AdjustmentRequest{UserID: 11, SourceKey: "reverse:11:1", Delta: -three, Reason: "partial correction", ReversalOfEntryID: &awarded.Entry.ID})
-	if err != nil || firstReversal.Entry.Delta != -3 {
+	if err != nil || firstReversal.Entry.Delta != -3 || firstReversal.Entry.RuleSetVersion != awarded.Entry.RuleSetVersion {
 		t.Fatalf("first reversal = %+v, %v", firstReversal, err)
 	}
 	replayedReversal, err := svc.PostAdjustment(context.Background(), AdjustmentRequest{UserID: 11, SourceKey: "reverse:11:1", Delta: -three, Reason: "partial correction", ReversalOfEntryID: &awarded.Entry.ID})
@@ -190,9 +208,6 @@ func TestNegativeReversalIsAppendOnlyAndDoesNotRefundQuota(t *testing.T) {
 	}
 	if _, err := svc.PostAdjustment(context.Background(), AdjustmentRequest{UserID: 11, SourceKey: "reverse:11:3", Delta: -1, Reason: "over correction", ReversalOfEntryID: &awarded.Entry.ID}); !errors.Is(err, ErrReversalLimit) {
 		t.Fatalf("over reversal error = %v, want ErrReversalLimit", err)
-	}
-	if _, err := svc.PostAdjustment(context.Background(), AdjustmentRequest{UserID: 11, SourceKey: "negative-balance", Delta: -1, Reason: "invalid"}); !errors.Is(err, ErrNegativeBalance) {
-		t.Fatalf("negative balance error = %v, want ErrNegativeBalance", err)
 	}
 	if _, err := svc.ApplyReward(context.Background(), AwardRequest{UserID: 11, RuleKey: DailyBaseRuleKey, SourceKey: "daily:11:again", OccurredAt: time.Now().UTC()}); !errors.Is(err, ErrRewardLimit) {
 		t.Fatalf("reward after reversal error = %v, want quota to remain consumed", err)
@@ -215,6 +230,30 @@ func TestNegativeReversalIsAppendOnlyAndDoesNotRefundQuota(t *testing.T) {
 	}
 	if err := db.Exec("DELETE FROM xp_entries WHERE id = ?", awarded.Entry.ID).Error; err == nil {
 		t.Fatal("SQLite append-only trigger accepted a direct ledger delete")
+	}
+}
+
+func TestNegativeAdjustmentRequiresOriginalAward(t *testing.T) {
+	db := newXPTestDB(t)
+	createXPUser(t, db, 12)
+	svc := NewWithPolicy(db, pageConfig.SecurityAndRegistration{})
+	awarded, err := svc.ApplyReward(context.Background(), AwardRequest{UserID: 12, RuleKey: DailyBaseRuleKey, SourceKey: "daily:12", OccurredAt: time.Now().UTC()})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = svc.PostAdjustment(context.Background(), AdjustmentRequest{
+		UserID: 12, SourceKey: "unlinked-reversal", Delta: -1, Reason: "correction without source",
+	})
+	if !errors.Is(err, ErrInvalidAdjustment) {
+		t.Fatalf("unlinked negative adjustment error = %v, want ErrInvalidAdjustment", err)
+	}
+	if got, err := svc.CurrentBalance(context.Background(), 12); err != nil || got != awarded.Entry.Delta {
+		t.Fatalf("balance after rejected unlinked reversal = %d, %v; want %d", got, err, awarded.Entry.Delta)
+	}
+	var entries int64
+	if err := db.Model(&xpmodel.Entry{}).Count(&entries).Error; err != nil || entries != 1 {
+		t.Fatalf("ledger rows after rejected unlinked reversal = %d, %v; want only original award", entries, err)
 	}
 }
 
@@ -278,6 +317,15 @@ func TestRuleVersionsEnablementLimitsAndShanghaiDay(t *testing.T) {
 	}
 	if err := db.Exec("UPDATE xp_reward_rules SET enabled = TRUE WHERE rule_set_version = ? AND rule_key = ?", version, "bonus").Error; err == nil {
 		t.Fatal("SQLite append-only trigger accepted a direct reward-rule update")
+	}
+	if err := db.Exec("DELETE FROM xp_reward_rules WHERE rule_set_version = ? AND rule_key = ?", version, "bonus").Error; err == nil {
+		t.Fatal("SQLite append-only trigger accepted a direct reward-rule delete")
+	}
+	if err := db.Exec("UPDATE xp_rule_sets SET enabled = FALSE WHERE version = ?", version).Error; err == nil {
+		t.Fatal("SQLite append-only trigger accepted a direct ruleset update")
+	}
+	if err := db.Exec("DELETE FROM xp_rule_sets WHERE version = ?", version).Error; err == nil {
+		t.Fatal("SQLite append-only trigger accepted a direct ruleset delete")
 	}
 }
 

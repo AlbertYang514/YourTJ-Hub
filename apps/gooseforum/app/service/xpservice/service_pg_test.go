@@ -95,18 +95,105 @@ func TestApplyRewardConcurrentWritesOnPostgres(t *testing.T) {
 		t.Fatalf("PostgreSQL XP balance = %d, %v; want %d", got, err, workers)
 	}
 
+	const replayWorkers = 16
+	startReplay := make(chan struct{})
+	var replayWG sync.WaitGroup
+	results := make(chan AwardResult, replayWorkers)
+	errorsCh := make(chan error, replayWorkers)
+	for i := 0; i < replayWorkers; i++ {
+		replayWG.Add(1)
+		go func() {
+			defer replayWG.Done()
+			<-startReplay
+			result, err := svc.ApplyReward(context.Background(), AwardRequest{
+				UserID: account.Id, RuleKey: "postgres_concurrent", SourceKey: "pg-concurrent:shared", OccurredAt: time.Now().UTC(),
+			})
+			results <- result
+			errorsCh <- err
+		}()
+	}
+	close(startReplay)
+	replayWG.Wait()
+	close(results)
+	close(errorsCh)
+	created := 0
+	for result := range results {
+		if !result.AlreadyApplied {
+			created++
+		}
+	}
+	for err := range errorsCh {
+		if err != nil {
+			t.Errorf("PostgreSQL concurrent same-source replay failed: %v", err)
+		}
+	}
+	if created != 1 {
+		t.Fatalf("PostgreSQL entries created for same source = %d, want 1", created)
+	}
+	if got, err := svc.CurrentBalance(context.Background(), account.Id); err != nil || got != workers+1 {
+		t.Fatalf("PostgreSQL XP balance after same-source replay = %d, %v; want %d", got, err, workers+1)
+	}
+
+	rollbackUserName := "xp-pg-rollback-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	if err := conn.Create(&users.EntityComplete{Username: rollbackUserName, ActorType: users.ActorTypeHuman, IsFrozen: users.StatusNormal}).Error; err != nil {
+		t.Fatalf("create PostgreSQL rollback user: %v", err)
+	}
+	var rollbackUser users.EntityComplete
+	if err := conn.Where("username = ?", rollbackUserName).Take(&rollbackUser).Error; err != nil {
+		t.Fatal(err)
+	}
+	limit := int64(5)
+	rollbackAt := time.Now().UTC().Add(time.Hour)
+	if _, err := svc.PublishRuleSet(context.Background(), RuleSetSpec{
+		Enabled: true, TimeZone: ShanghaiTimeZone, DailyPositiveXPLimit: &limit, EffectiveAt: rollbackAt,
+		Rules: []xpmodel.RewardRule{
+			{RuleKey: "pg-rollback-base", Enabled: true, RewardXP: 5},
+			{RuleKey: "pg-rollback-over", Enabled: true, RewardXP: 1},
+		},
+	}); err != nil {
+		t.Fatalf("publish PostgreSQL rollback rules: %v", err)
+	}
+	if _, err := svc.ApplyReward(context.Background(), AwardRequest{UserID: rollbackUser.Id, RuleKey: "pg-rollback-base", SourceKey: "pg-rollback-base", OccurredAt: rollbackAt.Add(time.Second)}); err != nil {
+		t.Fatalf("PostgreSQL base award before rollback check: %v", err)
+	}
+	if _, err := svc.ApplyReward(context.Background(), AwardRequest{UserID: rollbackUser.Id, RuleKey: "pg-rollback-over", SourceKey: "pg-rollback-over", OccurredAt: rollbackAt.Add(2 * time.Second)}); err != ErrRewardLimit {
+		t.Fatalf("PostgreSQL quota failure = %v, want ErrRewardLimit", err)
+	}
+	var rejectedRows int64
+	if err := conn.Model(&xpmodel.Entry{}).Where("source_key = ?", "pg-rollback-over").Count(&rejectedRows).Error; err != nil || rejectedRows != 0 {
+		t.Fatalf("PostgreSQL rejected award ledger rows = %d, %v; want rollback", rejectedRows, err)
+	}
+	var rejectedRuleUsage int64
+	if err := conn.Model(&xpmodel.DailyRuleUsage{}).Where("user_id = ? AND rule_key = ?", rollbackUser.Id, "pg-rollback-over").Count(&rejectedRuleUsage).Error; err != nil || rejectedRuleUsage != 0 {
+		t.Fatalf("PostgreSQL rejected award rule-usage rows = %d, %v; want rollback", rejectedRuleUsage, err)
+	}
+	if got, err := svc.CurrentBalance(context.Background(), rollbackUser.Id); err != nil || got != 5 {
+		t.Fatalf("PostgreSQL rollback balance = %d, %v; want 5", got, err)
+	}
+	var committedUsage xpmodel.DailyUsage
+	if err := conn.Where("user_id = ?", rollbackUser.Id).Take(&committedUsage).Error; err != nil || committedUsage.PositiveXP != 5 {
+		t.Fatalf("PostgreSQL rollback daily usage = %+v, %v; want only committed 5 XP", committedUsage, err)
+	}
+
 	var entry xpmodel.Entry
 	if err := conn.Where("source_key = ?", "pg-concurrent:0").Take(&entry).Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := conn.Exec("UPDATE xp_entries SET reason = ? WHERE id = ?", "mutated", entry.ID).Error; err == nil || !strings.Contains(strings.ToLower(err.Error()), "append-only") {
-		t.Fatalf("PostgreSQL ledger update error = %v; want append-only error", err)
-	}
-	if err := conn.Exec("DELETE FROM xp_entries WHERE id = ?", entry.ID).Error; err == nil || !strings.Contains(strings.ToLower(err.Error()), "append-only") {
-		t.Fatalf("PostgreSQL ledger delete error = %v; want append-only error", err)
-	}
-	if err := conn.Exec("UPDATE xp_reward_rules SET enabled = FALSE WHERE rule_set_version = ? AND rule_key = ?", 1, DailyBaseRuleKey).Error; err == nil || !strings.Contains(strings.ToLower(err.Error()), "append-only") {
-		t.Fatalf("PostgreSQL published-rule update error = %v; want append-only error", err)
+	for _, mutation := range []struct {
+		name  string
+		query string
+		args  []any
+	}{
+		{name: "ledger update", query: "UPDATE xp_entries SET reason = ? WHERE id = ?", args: []any{"mutated", entry.ID}},
+		{name: "ledger delete", query: "DELETE FROM xp_entries WHERE id = ?", args: []any{entry.ID}},
+		{name: "ruleset update", query: "UPDATE xp_rule_sets SET enabled = FALSE WHERE version = ?", args: []any{1}},
+		{name: "ruleset delete", query: "DELETE FROM xp_rule_sets WHERE version = ?", args: []any{1}},
+		{name: "reward rule update", query: "UPDATE xp_reward_rules SET enabled = FALSE WHERE rule_set_version = ? AND rule_key = ?", args: []any{1, DailyBaseRuleKey}},
+		{name: "reward rule delete", query: "DELETE FROM xp_reward_rules WHERE rule_set_version = ? AND rule_key = ?", args: []any{1, DailyBaseRuleKey}},
+	} {
+		if err := conn.Exec(mutation.query, mutation.args...).Error; err == nil || !strings.Contains(strings.ToLower(err.Error()), "append-only") {
+			t.Errorf("PostgreSQL %s error = %v; want append-only error", mutation.name, err)
+		}
 	}
 	if err := conn.Model(&xpmodel.Balance{}).Where("user_id = ?", account.Id).Update("current_xp", -1).Error; err == nil {
 		t.Fatal("PostgreSQL accepted a negative XP balance")

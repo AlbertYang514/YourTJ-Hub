@@ -199,14 +199,14 @@ type AdjustmentRequest struct {
 	Delta             int64
 	Reason            string
 	OccurredAt        time.Time
-	ReversalOfEntryID *uint64
+	ReversalOfEntryID *uint64 // Required: the original positive award being reversed.
 }
 
-// PostAdjustment writes a negative correction/reversal. It never consumes or
-// refunds positive-award quota. A reversal reference caps cumulative reversals
-// at the original positive entry amount.
+// PostAdjustment writes a negative reversal. It never consumes or refunds
+// positive-award quota. The required original-award reference caps cumulative
+// reversals at the amount that was actually granted.
 func (s *Service) PostAdjustment(ctx context.Context, request AdjustmentRequest) (AwardResult, error) {
-	if s == nil || s.db == nil || request.UserID == 0 || strings.TrimSpace(request.SourceKey) == "" || len(request.SourceKey) > 255 || request.Delta >= 0 || request.Delta == math.MinInt64 || strings.TrimSpace(request.Reason) == "" {
+	if s == nil || s.db == nil || request.UserID == 0 || strings.TrimSpace(request.SourceKey) == "" || len(request.SourceKey) > 255 || request.Delta >= 0 || request.Delta == math.MinInt64 || strings.TrimSpace(request.Reason) == "" || request.ReversalOfEntryID == nil || *request.ReversalOfEntryID == 0 {
 		return AwardResult{}, ErrInvalidAdjustment
 	}
 	if request.OccurredAt.IsZero() {
