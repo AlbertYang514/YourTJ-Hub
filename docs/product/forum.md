@@ -75,7 +75,7 @@ their separate rules.
 
 `Current`：登录读者的首页、分类页、关注流与话题/Wiki 详情侧栏热门不显示与其存在任一方向屏蔽
 关系的作者（与推荐、私信、通知同一双向语义，见[信息流排序](feed-ranking.md)与
-[决策 0080](../decisions/0079-feed-block-exclusion.md)）；被屏蔽作者的帖子仍可经直接链接与
+[决策 0079](../decisions/0079-feed-block-exclusion.md)）；被屏蔽作者的帖子仍可经直接链接与
 聚合搜索访问，其在他人帖子下的回复楼层不受影响。
 
 `Current`：Web 首页桌面工具栏提供刷新入口，45 秒探测非推荐排序第一页；只有 ID 高于已加载
@@ -136,7 +136,7 @@ Web 通知链接优先 `/p/post/{topicId}/{postNo}`，无楼层号时保留历�
 拒审/候审推送不包含未公开标题、正文或审核原因。私信与转发使用独立消息来源，默认推送仅含
 公开发送者和动作，点击进入当前账号的受控对话；幂等重试与回滚不产生额外外投。
 推送前复核屏蔽、已读、删除、会话静音和用户偏好，低价值提示按用户/对象短窗限频。
-默认值与隐私取舍见[决策 0080](../decisions/0080-notification-policy-and-private-chat-push.md)。
+默认值与隐私取舍见[决策 0081](../decisions/0081-notification-policy-and-private-chat-push.md)。
 
 ## Links, Markdown and stickers
 
@@ -149,9 +149,13 @@ Web 确认弹窗约束键盘焦点。规则覆盖主题、回复、Wiki 和课�
 `Planned`：Vditor 对替代数学分隔符的所见即所得预览；保存及阅读不受此编辑器限制影响。
 
 `Current`：官方表情目录、管理员 CRUD／zip 导入及个人 token 渲染可用；Flutter 提供最近／我的／官方
-选择器与个人库管理；原生表情可单独放大预览，不混入附件图库。`Planned`：Web 个人库管理界面。
+选择器与个人库管理；新上传表情在异步审核通过前不可插入或解析，待处理项只进入站点管理员审核队列；
+私信列表预览与消息正文中的个人 token 均以本地化「动画表情」隐藏随机名。待审与已拒绝表情的图片
+字节在获批前不对公开读取放行。AI 视觉审核不送审动图（GIF）：动图得到一条证据不完整的转人工结论，
+上传保持待审，由站点管理员在审核队列人工处理；原生表情可单独放大预览，不混入附件图库。
+`Planned`：Web 个人库管理界面。
 配额、历史素材保留和隐私规则见[移动端表情规范](mobile-experience.md#sticker-library)与
-[个人表情库决策](../decisions/0038-personal-sticker-library.md)。
+[个人表情库决策](../decisions/0038-personal-sticker-library.md)及[先审后用决策](../decisions/0080-personal-sticker-pre-review.md)。
 
 ## Governance and public exports
 
