@@ -691,13 +691,12 @@ void main() {
       await tester.tap(find.text('方案预览'));
       await tester.pumpAndSettle();
 
-      // PNG 导出用的 RepaintBoundary 直接包裹课表网格。
-      final Finder boundaryFinder = find
-          .ancestor(
-            of: find.byType(ScheduleTimeGrid),
-            matching: find.byType(RepaintBoundary),
-          )
-          .first;
+      // PNG 导出用的 RepaintBoundary 直接包裹课表网格；按结构精确定位，
+      // 避免误取其它祖先边界。
+      final Finder boundaryFinder = find.byWidgetPredicate(
+        (Widget widget) =>
+            widget is RepaintBoundary && widget.child is ScheduleTimeGrid,
+      );
       expect(boundaryFinder, findsOneWidget);
       final RenderRepaintBoundary boundary =
           tester.renderObject<RenderRepaintBoundary>(boundaryFinder);

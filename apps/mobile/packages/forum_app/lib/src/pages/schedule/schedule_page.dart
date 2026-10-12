@@ -91,6 +91,11 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
   List<SectionTime> _sectionOverrides = const <SectionTime>[];
   final GlobalKey _gridBoundaryKey = GlobalKey();
 
+  /// PNG 导出边界（课表 tab 不在树上时为 null）。
+  RenderRepaintBoundary? get _gridBoundary =>
+      _gridBoundaryKey.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
+
   // Capture the application controller; page exit flushes pending local edits.
   late ScheduleSyncController _syncController;
 
@@ -128,9 +133,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
       // 导出用的 RepaintBoundary 缓存，子树无变化时恢复前台不会重栅格化，
       // 呈现为灰框且只能重启恢复（issue #1109）。恢复前台时显式弄脏边界
       // 强制重绘（裸 setState 不会弄脏干净的 boundary 图层，无效）。
-      (_gridBoundaryKey.currentContext?.findRenderObject()
-              as RenderRepaintBoundary?)
-          ?.markNeedsPaint();
+      _gridBoundary?.markNeedsPaint();
     }
     if (state == AppLifecycleState.paused) {
       unawaited(ref.read(scheduleSyncControllerProvider).flushPendingUpload());
@@ -378,9 +381,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
 
   Future<void> _exportPng() async {
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final RenderRepaintBoundary? boundary =
-        _gridBoundaryKey.currentContext?.findRenderObject()
-            as RenderRepaintBoundary?;
+    final RenderRepaintBoundary? boundary = _gridBoundary;
     if (boundary == null) {
       showGfToast(context, l10n.commonEmpty, error: true);
       return;
