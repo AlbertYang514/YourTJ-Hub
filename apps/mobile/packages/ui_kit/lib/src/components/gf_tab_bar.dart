@@ -109,6 +109,11 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
   bool _ready = false;
 
   /// Width of each evenly distributed tab, or null while the bar scrolls.
+  ///
+  /// Assigned inside [LayoutBuilder] during [build] (before the indicator is
+  /// measured in that same frame) and read by the indicator/gesture paths as
+  /// the value from the last completed build. It is a layout cache, not a
+  /// source of truth, so it must be refreshed on every build.
   double? _cellWidth;
 
   static const Curve _indicatorCurve = GfLogarithmicEaseOutCurve();
