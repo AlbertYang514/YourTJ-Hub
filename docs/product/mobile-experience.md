@@ -991,7 +991,10 @@ identity survive this layout change. The header keeps a small outer margin for i
   localized message instead of spending a login attempt. On
   Android, auth-field pointer-down or keyboard Next creates a short-lived target token; if the secure keyboard
   reclaims the password focus during that token's settling window, the app makes at most two
-  bounded attempts to return focus to the explicitly tapped field and then stops. A focused field
+  bounded attempts to return focus to the explicitly tapped field and then stops. Only fields that
+  receive passwords keep `enableSuggestions: false`: the Android engine maps that flag to a
+  password-class inputType, which ColorOS treats as a credential field, force-switching to its
+  secure keyboard and blocking paste; every other field stays a plain text input (issue #1111). A focused field
   also has a finite view-insets-based IME show watchdog. Dismissing an already-visible
   keyboard cancels recovery and is honored as user intent; a transient hidden IME during an
   explicit password-to-username/captcha handoff remains recoverable. Blank-space and button taps
