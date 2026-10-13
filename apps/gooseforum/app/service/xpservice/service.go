@@ -415,6 +415,9 @@ func (s *Service) PublishRuleSet(ctx context.Context, spec RuleSetSpec) (uint64,
 		if err == nil {
 			return version, nil
 		}
+		if isEffectiveAtUniqueConflict(err) {
+			return 0, ErrInvalidRule
+		}
 		if s.db.Name() != "sqlite" || !isSQLiteBusyOrLocked(err) || attempt+1 >= maxSQLiteRulePublishAttempts {
 			return 0, err
 		}
@@ -427,6 +430,15 @@ func (s *Service) PublishRuleSet(ctx context.Context, spec RuleSetSpec) (uint64,
 		case <-timer.C:
 		}
 	}
+}
+
+func isEffectiveAtUniqueConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "idx_xp_rule_sets_effective_at") ||
+		strings.Contains(message, "xp_rule_sets.effective_at")
 }
 
 func (s *Service) publishRuleSetOnce(ctx context.Context, spec RuleSetSpec, rules []xpmodel.RewardRule, publisherUserID uint64) (uint64, error) {

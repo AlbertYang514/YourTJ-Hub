@@ -427,6 +427,38 @@ func TestConcurrentSQLiteRuleSetPublishingIsSerialized(t *testing.T) {
 	}
 }
 
+func TestEffectiveAtUniqueConstraintConflictIsClassified(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "PostgreSQL named unique index",
+			err:  errors.New(`duplicated key not allowed: ERROR: duplicate key value violates unique constraint "idx_xp_rule_sets_effective_at" (SQLSTATE 23505)`),
+			want: true,
+		},
+		{
+			name: "SQLite effective-at column",
+			err:  errors.New("UNIQUE constraint failed: xp_rule_sets.effective_at"),
+			want: true,
+		},
+		{
+			name: "other unique constraint",
+			err:  errors.New(`duplicated key not allowed: ERROR: duplicate key value violates unique constraint "xp_rule_sets_pkey" (SQLSTATE 23505)`),
+			want: false,
+		},
+		{name: "unrelated database error", err: errors.New("connection reset"), want: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := isEffectiveAtUniqueConflict(test.err); got != test.want {
+				t.Fatalf("isEffectiveAtUniqueConflict(%v) = %t; want %t", test.err, got, test.want)
+			}
+		})
+	}
+}
+
 func TestXPDatabaseSchemaContainsAuditSubjects(t *testing.T) {
 	db := newXPTestDB(t)
 	for _, field := range []struct {
