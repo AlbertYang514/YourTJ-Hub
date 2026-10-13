@@ -325,6 +325,15 @@ void main() {
     const Locale('ja'),
     const Locale('de'),
   ]) {
+    const socialEvents = <(String, String)>[
+      ('comment', 'notifications.templates.comment'),
+      ('mention', 'notifications.templates.mention'),
+      ('post_reply', 'notifications.templates.postReply'),
+      ('topic_post', 'notifications.templates.topicPost'),
+      ('follow', 'notifications.templates.follow'),
+      ('like', 'notifications.templates.like'),
+      ('wiki_updated', 'notifications.templates.wikiUpdated'),
+    ];
     for (final eventType in [
       'review_approved',
       'review_rejected',
@@ -356,34 +365,44 @@ void main() {
       );
     }
 
-    testWidgets('${locale.languageCode} real notification actors remain bold', (
-      tester,
-    ) async {
-      final repo = _Notifications();
-      await _mount(tester, repo, locale: locale);
-      repo.requests.first.$3.complete(
-        _page(
-          'ignored',
-          actorId: 77,
-          actorName: 'Alice',
-          eventType: 'comment',
-          templateKey: 'notifications.templates.comment',
-        ),
-      );
-      await tester.pumpAndSettle();
-      final row = tester.widget<GfNotificationRow>(
-        find.byType(GfNotificationRow),
-      );
-
-      expect(row.actorName, 'Alice');
-      expect(
-        row.title,
-        AppLocalizations.of(
+    for (final (eventType, templateKey) in socialEvents) {
+      testWidgets('${locale.languageCode} $eventType actors remain bold', (
+        tester,
+      ) async {
+        final repo = _Notifications();
+        await _mount(tester, repo, locale: locale);
+        repo.requests.first.$3.complete(
+          _page(
+            'ignored',
+            actorId: 77,
+            actorName: 'Alice',
+            eventType: eventType,
+            templateKey: templateKey,
+          ),
+        );
+        await tester.pumpAndSettle();
+        final row = tester.widget<GfNotificationRow>(
+          find.byType(GfNotificationRow),
+        );
+        final l10n = AppLocalizations.of(
           tester.element(find.byType(NotificationsPage)),
-        ).notificationComment('Alice'),
-      );
-      expect(_boldedNotificationSegments(tester, row.title), ['Alice']);
-    });
+        );
+        final expectedTitle = switch (eventType) {
+          'comment' => l10n.notificationComment('Alice'),
+          'mention' => l10n.notificationMention('Alice'),
+          'post_reply' => l10n.notificationPostReply('Alice'),
+          'topic_post' => l10n.notificationTopicPost('Alice'),
+          'follow' => l10n.notificationFollow('Alice'),
+          'like' => l10n.notificationLike('Alice'),
+          'wiki_updated' => l10n.notificationWikiUpdated('Alice'),
+          _ => throw StateError('Unexpected social notification: $eventType'),
+        };
+
+        expect(row.actorName, 'Alice');
+        expect(row.title, expectedTitle);
+        expect(_boldedNotificationSegments(tester, row.title), ['Alice']);
+      });
+    }
   }
 
   for (final locale in [const Locale('en'), const Locale('zh')]) {
