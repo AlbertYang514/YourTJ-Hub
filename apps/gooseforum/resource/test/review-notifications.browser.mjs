@@ -47,7 +47,10 @@ for (const locale of ['zh', 'de']) for (const width of [375, 1280]) {
       await page.goto(`${origin}/assets/test/fixtures/browser/review-notifications.html?taxonomy=1&locale=${locale}&theme=${width===375?'gf-dark':'gf-light'}`)
       const mention = page.getByRole('button', {name:locale==='zh'?'@我':'Erwähnungen', exact:true})
       await mention.waitFor()
-      assert.ok(await page.getByRole('link', {name:/Alice.*Campus/}).isVisible())
+      // 通知行由 #1157 的 actor 装饰昵称与内容链接分列渲染（不再是单个整句链接），
+      // 断言含 Alice 与 Campus 的通知行整体可见。
+      const mentionRow = page.locator('article').filter({ hasText: 'Alice' }).filter({ hasText: 'Campus' }).first()
+      assert.ok(await mentionRow.isVisible())
       assert.equal(await page.getByRole('button', {pressed:true}).count(), 1)
       if (process.env.YOURTJ_REVIEW_SCREENSHOTS) {
         await mkdir(process.env.YOURTJ_REVIEW_SCREENSHOTS, {recursive:true})
