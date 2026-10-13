@@ -26,7 +26,10 @@ class GfNotificationRow extends StatelessWidget {
   });
   final String symbol;
   final GfNotificationTone tone;
-  final String title, subtitle, time, actorName;
+  final String title, subtitle, time;
+
+  /// The real actor's name; empty suppresses actor-name emphasis for system notices.
+  final String actorName;
   final String? avatarUrl;
   final bool unread;
   final VoidCallback? onTap, onMarkRead, onActorTap;

@@ -505,28 +505,23 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                 displayName: (id, name) =>
                                     privateDisplayName(context, id, name),
                               );
+                              final hasActor =
+                                  n.actor.id > 0 || n.actor.publicUid != null;
+                              final actorName = hasActor
+                                  ? notificationActorName(
+                                      n,
+                                      l10n,
+                                      displayName: (id, name) =>
+                                          privateDisplayName(context, id, name),
+                                    )
+                                  : '';
                               return Column(
                                 key: ValueKey(n.id),
                                 children: [
                                   GfNotificationRow(
                                     symbol: symbol,
-                                    actorName:
-                                        (n.actor.id > 0 ||
-                                            n.actor.publicUid != null)
-                                        ? notificationActorName(
-                                            n,
-                                            l10n,
-                                            displayName: (id, name) =>
-                                                privateDisplayName(
-                                                  context,
-                                                  id,
-                                                  name,
-                                                ),
-                                          )
-                                        : '',
-                                    avatarUrl:
-                                        (n.actor.id > 0 ||
-                                            n.actor.publicUid != null)
+                                    actorName: actorName,
+                                    avatarUrl: hasActor
                                         ? resolveApiAssetUrl(
                                             n.actor.avatarUrl ?? '',
                                           )
