@@ -61,7 +61,8 @@ Forum built-in OIDC Provider (numeric sub = users.id)
   and do not restore consumed daily quota. XP uses the numeric forum `users.id` and does not modify the
   legacy points or prestige path. Trusted business-event adapters must map anonymous personas to
   their owning account before settlement; manual reversals and rule publications carry the actor from
-  authenticated server context, while automated awards use the system actor.
+  authenticated server context, while automated awards use the system actor. See the [XP ledger and
+  dynamic-level decision](../decisions/0083-xp-ledger-and-dynamic-levels.md).
 - **Cross-platform credit is `Planned`**: services/credit is a deployment placeholder; it is
   not deployed or wired, and the local ledger is not presented as the future settlement source.
 - No top-up/withdrawal/fiat exchange/free transfers.

@@ -172,3 +172,4 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0081](0081-mobile-editor-caret-follow-and-image-height-cap.md) — 移动端编辑器由跟随器按光标行驱动外层滚动，正文图片铺满宽度并把高度限制在 0.6 倍视口高。
 
 - [0082](0082-hub-decoration-entitlement-ownership.md) — Hub 唯一持有装饰权益与装备，商城通过所有者接口联动，首版仅管理员授予。
+- [0083](0083-xp-ledger-and-dynamic-levels.md) — XP 使用独立只追加账本与原子余额投影，规则按版本保存，等级动态推导。
