@@ -35,6 +35,7 @@ async function forceCancelStuckWaitingRuns(token: string, now = Date.now()): Pro
     )
     if (list.status !== 200) {
       await list.body?.cancel()
+      console.warn(`Listing stuck status collection runs failed (${list.status})`)
       return
     }
     const body = await list.json() as { workflow_runs?: Array<{ id: number, head_branch?: string, status?: string, created_at?: string }> }
@@ -57,6 +58,7 @@ async function forceCancelStuckWaitingRuns(token: string, now = Date.now()): Pro
         )
         await cancel.body?.cancel()
         if (cancel.status === 202) console.info(`Force-cancelled stuck status collection run: ${run.id}`)
+        else console.warn(`Force-cancel of stuck status collection run ${run.id} failed (${cancel.status})`)
       } catch {
         // Soft-fail: a cancel error must not block the new dispatch.
       }
