@@ -174,6 +174,19 @@ production Wrangler 配置声明 `status.yourtj.de` Custom Domain；首次部署
 
 ### 采集排队排障
 
+若 job 卡在 `status-collector` environment 等待（状态为 `waiting`，没有审批人、`wait_timer` 为 0）超过约二十分钟，job 级 `cancel-in-progress` 通常清不掉它，后续 `public` 与 `devices` 定时采集都会被挡住。独立调度器在每次 dispatch 前会用 `GITHUB_DISPATCH_TOKEN`（需 `Actions: Read and write`）尝试 `force-cancel` 这类卡住的 `collect-status.yml` main run；清理失败不影响新的 dispatch。
+
+手动恢复：
+
+```sh
+gh run cancel <run_id> --repo YourTongji/YourTJ-Hub
+# 若 cancel 无效：
+gh api -X POST repos/YourTongji/YourTJ-Hub/actions/runs/<run_id>/force-cancel
+gh workflow run collect-status.yml --repo YourTongji/YourTJ-Hub --ref main -f kind=public
+gh workflow run collect-status.yml --repo YourTongji/YourTJ-Hub --ref main -f kind=devices
+```
+
+
 先区分未创建工作流、等待 runner、等待 environment 审批和执行失败：检查 Cloudflare Cron
 结果、main 工作流的 job/runner/step 状态、environment 待审批项及正式 API 的各来源
 `fetchedAt`。仅收到 dispatch 或 API 返回 200，都不能证明数据已更新。

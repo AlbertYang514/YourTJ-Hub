@@ -4,21 +4,67 @@ import scheduler from '../worker/scheduler'
 
 afterEach(() => vi.unstubAllGlobals())
 
+const dispatchUrl = 'https://api.github.com/repos/YourTongji/YourTJ-Hub/actions/workflows/collect-status.yml/dispatches'
+const runsUrl = 'https://api.github.com/repos/YourTongji/YourTJ-Hub/actions/workflows/collect-status.yml/runs?status=waiting&per_page=20'
+
+function stubFetchSequence(...responses: Response[]) {
+  const fetcher = vi.fn()
+  for (const response of responses) fetcher.mockResolvedValueOnce(response)
+  vi.stubGlobal('fetch', fetcher)
+  return fetcher
+}
+
 it.each([
   ['2,17,32,47 * * * *', 'public'],
   ['7 * * * *', 'devices'],
 ])('dispatches %s to the fixed main collector without GitHub schedule events', async (cron, kind) => {
-  const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
-  vi.stubGlobal('fetch', fetcher)
+  const fetcher = stubFetchSequence(
+    new Response(JSON.stringify({ workflow_runs: [] }), { status: 200 }),
+    new Response(null, { status: 204 }),
+  )
   await scheduler.scheduled({ cron }, { GITHUB_DISPATCH_TOKEN: 'test-only-token' })
-  expect(fetcher).toHaveBeenCalledTimes(1)
-  const [url, init] = fetcher.mock.calls[0]!
-  expect(url).toBe('https://api.github.com/repos/YourTongji/YourTJ-Hub/actions/workflows/collect-status.yml/dispatches')
+  expect(fetcher).toHaveBeenCalledTimes(2)
+  expect(fetcher.mock.calls[0]![0]).toBe(runsUrl)
+  expect(fetcher.mock.calls[0]![1].method).toBe('GET')
+  const [url, init] = fetcher.mock.calls[1]!
+  expect(url).toBe(dispatchUrl)
   expect(init.method).toBe('POST')
   expect(init.redirect).toBe('manual')
   expect(init.signal).toBeInstanceOf(AbortSignal)
   expect(init.headers.Authorization).toBe('Bearer test-only-token')
   expect(JSON.parse(init.body)).toEqual({ ref: 'main', inputs: { kind } })
+})
+
+it('force-cancels main collect-status runs waiting longer than 20 minutes before dispatch', async () => {
+  const old = new Date(Date.now() - 21 * 60 * 1000).toISOString()
+  const fresh = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+  const fetcher = stubFetchSequence(
+    new Response(JSON.stringify({
+      workflow_runs: [
+        { id: 11, head_branch: 'main', status: 'waiting', created_at: old },
+        { id: 12, head_branch: 'main', status: 'waiting', created_at: fresh },
+        { id: 13, head_branch: 'dev', status: 'waiting', created_at: old },
+      ],
+    }), { status: 200 }),
+    new Response(null, { status: 202 }),
+    new Response(null, { status: 204 }),
+  )
+  await scheduler.scheduled({ cron: '7 * * * *' }, { GITHUB_DISPATCH_TOKEN: 'test-only-token' })
+  expect(fetcher.mock.calls.map(call => [call[0], call[1].method])).toEqual([
+    [runsUrl, 'GET'],
+    ['https://api.github.com/repos/YourTongji/YourTJ-Hub/actions/runs/11/force-cancel', 'POST'],
+    [dispatchUrl, 'POST'],
+  ])
+})
+
+it('continues dispatch when stuck-run cleanup fails', async () => {
+  const fetcher = vi.fn()
+    .mockRejectedValueOnce(new Error('list failed'))
+    .mockResolvedValueOnce(new Response(null, { status: 204 }))
+  vi.stubGlobal('fetch', fetcher)
+  await scheduler.scheduled({ cron: '7 * * * *' }, { GITHUB_DISPATCH_TOKEN: 'test-only-token' })
+  expect(fetcher).toHaveBeenCalledTimes(2)
+  expect(fetcher.mock.calls[1]![0]).toBe(dispatchUrl)
 })
 
 it('fails closed for unknown schedules or missing credentials', async () => {
@@ -33,20 +79,24 @@ it('fails closed for unknown schedules or missing credentials', async () => {
 
 it.each([200, 301, 401, 403, 429, 500])('reports rejected dispatch %s without reading its body or treating it as success', async status => {
   const response = new Response('private upstream error', { status })
-  const fetcher = vi.fn().mockResolvedValue(response)
-  vi.stubGlobal('fetch', fetcher)
+  const fetcher = stubFetchSequence(
+    new Response(JSON.stringify({ workflow_runs: [] }), { status: 200 }),
+    response,
+  )
   await expect(scheduler.scheduled({ cron: '7 * * * *' }, { GITHUB_DISPATCH_TOKEN: 'test-only-token' }))
     .rejects.toThrow(`Status dispatch rejected (${status})`)
-  expect(fetcher).toHaveBeenCalledTimes(1)
+  expect(fetcher).toHaveBeenCalledTimes(2)
   expect(response.bodyUsed).toBe(true)
 })
 
 it('sanitizes network errors and does not retry an ambiguously accepted dispatch', async () => {
-  const fetcher = vi.fn().mockRejectedValue(new Error('private upstream error'))
+  const fetcher = vi.fn()
+    .mockResolvedValueOnce(new Response(JSON.stringify({ workflow_runs: [] }), { status: 200 }))
+    .mockRejectedValueOnce(new Error('private upstream error'))
   vi.stubGlobal('fetch', fetcher)
   await expect(scheduler.scheduled({ cron: '7 * * * *' }, { GITHUB_DISPATCH_TOKEN: 'test-only-token' }))
     .rejects.toThrow('Status dispatch request failed')
-  expect(fetcher).toHaveBeenCalledTimes(1)
+  expect(fetcher).toHaveBeenCalledTimes(2)
 })
 
 it('never triggers collection for an HTTP request', () => {
