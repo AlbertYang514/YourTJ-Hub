@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { chmodSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -14,8 +14,19 @@ function fixture({ remotes = [], prBase = '', ghError = '', ghApiError = '', fet
   const directory = mkdtempSync(join(tmpdir(), 'yourtj-pre-push-'));
   const root = join(directory, 'repo');
   const bin = join(directory, 'bin');
+  const noGhBin = join(directory, 'no-gh-bin');
   mkdirSync(join(root, 'apps', 'gooseforum'), { recursive: true });
   mkdirSync(bin);
+  mkdirSync(noGhBin);
+  if (!includeGh) {
+    // Keep the test independent of host tools such as gh being installed in /usr/bin.
+    // The test runner and hook also need these utilities on the restricted PATH.
+    for (const name of ['bash', 'cat', 'tr']) {
+      const executablePath = process.env.PATH.split(delimiter).map((path) => join(path, name)).find(existsSync);
+      if (!executablePath) throw new Error(`${name} is required to test the GitHub CLI fallback`);
+      symlinkSync(executablePath, join(noGhBin, name));
+    }
+  }
 
   const remoteNames = join(directory, 'remote-names');
   const remoteUrls = join(directory, 'remote-urls');
@@ -91,7 +102,7 @@ function fixture({ remotes = [], prBase = '', ghError = '', ghApiError = '', fet
     lintArgs,
     env: {
       ...process.env,
-      PATH: bin + ':' + (includeGh ? process.env.PATH : '/usr/bin:/bin:/usr/sbin:/sbin'),
+      PATH: bin + ':' + (includeGh ? process.env.PATH : noGhBin),
       REPO_ROOT: root,
       REMOTE_NAMES: remoteNames,
       REMOTE_URLS: remoteUrls,
