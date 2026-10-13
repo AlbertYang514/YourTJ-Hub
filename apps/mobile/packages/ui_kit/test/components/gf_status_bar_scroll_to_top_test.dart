@@ -238,6 +238,7 @@ void _tapStatusBar(WidgetTester tester) =>
 
 void _setStatusBarInsets(WidgetTester tester) {
   const FakeViewPadding statusBar = FakeViewPadding(top: 59, bottom: 34);
+  addTearDown(tester.view.reset);
   tester.view.physicalSize = const Size(390, 844);
   tester.view.padding = statusBar;
   tester.view.viewPadding = statusBar;

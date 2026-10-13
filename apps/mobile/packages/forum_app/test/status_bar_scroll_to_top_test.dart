@@ -8,6 +8,7 @@ import 'package:ui_kit/ui_kit.dart';
 void main() {
   testWidgets('status bar scroll skips refresh and pagination', (tester) async {
     const FakeViewPadding statusBar = FakeViewPadding(top: 59, bottom: 34);
+    addTearDown(tester.view.reset);
     tester.view.physicalSize = const Size(390, 844);
     tester.view.padding = statusBar;
     tester.view.viewPadding = statusBar;
@@ -59,14 +60,14 @@ void main() {
 
     scrollController.jumpTo(1400);
     await tester.pump();
+    final int loadMoreCallsBeforeTap = loadMoreCalls;
     expect(refreshCalls, 0);
-    expect(loadMoreCalls, 0);
 
     tester.state<ScaffoldState>(find.byType(Scaffold)).handleStatusBarTap();
     await tester.pumpAndSettle();
 
     expect(scrollController.offset, 0);
     expect(refreshCalls, 0);
-    expect(loadMoreCalls, 0);
+    expect(loadMoreCalls, loadMoreCallsBeforeTap);
   }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 }

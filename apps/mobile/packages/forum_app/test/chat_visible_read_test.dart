@@ -433,6 +433,7 @@ void main() {
     tester,
   ) async {
     const FakeViewPadding statusBar = FakeViewPadding(top: 59, bottom: 34);
+    addTearDown(tester.view.reset);
     tester.view.physicalSize = const Size(390, 844);
     tester.view.padding = statusBar;
     tester.view.viewPadding = statusBar;
@@ -459,7 +460,7 @@ void main() {
 
     controller.jumpTo(500);
     await tester.pump();
-    await tester.drag(find.byType(ListView).last, const Offset(0, -700));
+    await tester.drag(find.byType(ListView).last, const Offset(0, 700));
     await tester.pumpAndSettle();
     expect(h.repo.beforeCalls, greaterThan(0));
     await tester.pumpWidget(const SizedBox.shrink());
