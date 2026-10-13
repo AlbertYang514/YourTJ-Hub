@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../../widgets/user_decoration.dart';
 import '../../private_notes.dart';
 
 import 'package:flutter/material.dart';
@@ -1177,18 +1178,33 @@ class _UserRow extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            GfAvatar(src: resolveApiAssetUrl(user.avatarUrl), size: 44),
+            GfAvatar(
+              frameColors: decorationColors(
+                context,
+                user.decoration?.avatarFrame,
+              ),
+              frameAssetUrl: decorationFrameAssetUrl(
+                user.decoration?.avatarFrame,
+              ),
+              frameScale: user.decoration?.avatarFrame?.assetScale ?? 1.25,
+              src: resolveApiAssetUrl(user.avatarUrl),
+              size: 44,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  GfDecoratedName(
                     privateDisplayName(
                       context,
                       user.id,
                       user.username,
                       user.nickname,
+                    ),
+                    colors: decorationColors(
+                      context,
+                      user.decoration?.nicknameStyle,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
