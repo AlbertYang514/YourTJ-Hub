@@ -228,7 +228,7 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         H3Config(style: profile.h3),
         H4Config(style: profile.h4),
         H5Config(style: profile.h5),
-        H6Config(style: profile.h6),        // 图片:contain + 高度约束 + 圆角边框(prose.css img)。
+        H6Config(style: profile.h6), // 图片:contain + 高度约束 + 圆角边框(prose.css img)。
         ImgConfig(
           builder: (String url, Map<String, String> attributes) {
             final sticker = stickerImages[url];
@@ -340,10 +340,15 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
 
     Widget buildMarkdown(String source) => MarkdownWidget(
       data: source,
-      selectable: widget.selectable && !widget.screenshot,
+      // Rich text leaves own selection so the copy action can map image
+      // placeholders back to the original Unicode sequence.
+      selectable: false,
       shrinkWrap: true,
       markdownGenerator: MarkdownGenerator(
         linesMargin: EdgeInsets.symmetric(vertical: profile.paragraphSpacing),
+        richTextBuilder: (span) => widget.selectable && !widget.screenshot
+            ? GfSelectableText.rich(span)
+            : GfText.rich(span),
       ),
       // Embedded in the page scroll view: never repeat its safe-area insets.
       padding: EdgeInsets.zero,
@@ -591,7 +596,7 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
                   const SizedBox(width: 8),
                 ],
                 Expanded(
-                  child: Text(
+                  child: GfText(
                     sourceLabel,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -603,7 +608,7 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
               ],
             ),
             const SizedBox(height: 4),
-            Text(
+            GfText(
               title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -615,7 +620,7 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
             ),
             if (description.isNotEmpty && descriptionLines > 0) ...<Widget>[
               const SizedBox(height: 12),
-              Text(
+              GfText(
                 description,
                 maxLines: descriptionLines,
                 overflow: TextOverflow.ellipsis,
@@ -628,7 +633,7 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
             ],
             if (hostLabel.isNotEmpty) ...<Widget>[
               const SizedBox(height: 12),
-              Text(
+              GfText(
                 hostLabel,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

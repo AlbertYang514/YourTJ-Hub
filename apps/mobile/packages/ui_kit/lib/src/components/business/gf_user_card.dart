@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../atoms/gf_avatar.dart';
 import '../atoms/gf_badge.dart';
 import '../atoms/gf_badge_medallion.dart';
@@ -217,7 +218,7 @@ class GfUserCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final sectionGap = compact ? 6.0 : 8.0;
-    final nameText = Text(
+    final nameText = GfText(
       name,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
@@ -245,7 +246,7 @@ class GfUserCard extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [nameText, ...nameBadges],
           );
-    final usernameText = Text(
+    final usernameText = GfText(
       '@$username',
       maxLines: compact ? 1 : null,
       overflow: compact ? TextOverflow.ellipsis : null,
@@ -324,7 +325,7 @@ class GfUserCard extends StatelessWidget {
               if (showUsername) usernameRow,
               if (bio != null && bio!.trim().isNotEmpty) ...<Widget>[
                 SizedBox(height: sectionGap),
-                Text(
+                GfText(
                   bio!.trim(),
                   style: TextStyle(
                     fontSize: 16,
@@ -354,7 +355,7 @@ class GfUserCard extends StatelessWidget {
                             ),
                             const SizedBox(width: 6),
                             Flexible(
-                              child: Text(
+                              child: GfText(
                                 signature!.trim(),
                                 style: TextStyle(
                                   fontSize: 14,
@@ -447,7 +448,7 @@ class GfUserCard extends StatelessWidget {
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Text(
+                                        GfText(
                                           stats[i].$2,
                                           maxLines: 1,
                                           softWrap: false,
@@ -461,7 +462,7 @@ class GfUserCard extends StatelessWidget {
                                           ),
                                         ),
                                         const SizedBox(width: 3),
-                                        Text(
+                                        GfText(
                                           stats[i].$1,
                                           maxLines: 1,
                                           softWrap: false,

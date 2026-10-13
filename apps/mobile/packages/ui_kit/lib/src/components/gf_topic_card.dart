@@ -5,6 +5,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
+import '../twemoji/twemoji_text.dart';
 import 'atoms/gf_avatar.dart';
 import 'gf_action_feedback.dart';
 import 'gf_card.dart';
@@ -239,7 +240,7 @@ class _GfTopicCardState extends State<GfTopicCard> {
                       // 无标题瞬间（title 为空串）不渲染标题，未读圆点保持右对齐。
                       if (widget.title.isNotEmpty)
                         Expanded(
-                          child: Text(
+                          child: GfText(
                             widget.title,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -269,7 +270,7 @@ class _GfTopicCardState extends State<GfTopicCard> {
                   ),
                   if (widget.description.isNotEmpty) ...<Widget>[
                     const SizedBox(height: 2),
-                    Text(
+                    GfText(
                       widget.description,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -456,7 +457,7 @@ class _LikeAction extends StatelessWidget {
           children: [
             visual,
             const SizedBox(width: 5),
-            Text('$count', style: TextStyle(color: color, fontSize: 13)),
+            GfText('$count', style: TextStyle(color: color, fontSize: 13)),
           ],
         ),
       ),
@@ -558,7 +559,7 @@ class _AuthorMeta extends StatelessWidget {
             children: <Widget>[
               GfSymbol('sparkles', size: 12, color: colors.warning),
               const SizedBox(width: 3),
-              Text(
+              GfText(
                 'hot',
                 style: TextStyle(
                   color: colors.warning,
@@ -619,7 +620,7 @@ class _AuthorMeta extends StatelessWidget {
                           alignment: Alignment.centerLeft,
                           widthFactor: 1,
                           heightFactor: 1,
-                          child: Text(
+                          child: GfText(
                             name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -638,7 +639,7 @@ class _AuthorMeta extends StatelessWidget {
                     SizedBox(
                       width: dateWidth,
                       child: metadataSlot(
-                        Text(
+                        GfText(
                           activityText,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -839,7 +840,7 @@ class _Metric extends StatelessWidget {
         children: <Widget>[
           GfSymbol(icon, size: 18, color: colors.iconMuted),
           const SizedBox(width: 5),
-          Text(
+          GfText(
             value,
             style: TextStyle(
               color: colors.baseContent.withValues(alpha: 0.55),
@@ -868,7 +869,7 @@ class _ImageCount extends StatelessWidget {
         children: [
           const GfSymbol('images', size: 12, color: Colors.white),
           const SizedBox(width: 4),
-          Text(
+          GfText(
             '$count',
             style: const TextStyle(color: Colors.white, fontSize: 12),
           ),

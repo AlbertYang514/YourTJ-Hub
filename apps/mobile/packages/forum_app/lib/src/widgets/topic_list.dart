@@ -222,7 +222,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
               color: colors.error.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(4),
             ),
-            child: Text(
+            child: GfText(
               l10n.topicPinned,
               style: TextStyle(
                 fontSize: 10,
@@ -255,7 +255,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
               Expanded(
                 child: expanded
                     ? ExcludeSemantics(
-                        child: Text(
+                        child: GfText(
                           l10n.announcementCollapseAction,
                           textAlign: TextAlign.end,
                           maxLines: 1,
@@ -263,7 +263,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
                           style: TextStyle(fontSize: 11, color: muted),
                         ),
                       )
-                    : Text(
+                    : GfText(
                         _topicDisplayTitle(topics.first),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -278,7 +278,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
                 if (!expanded) ...<Widget>[
                   const SizedBox(width: 6),
                   ExcludeSemantics(
-                    child: Text(
+                    child: GfText(
                       '${topics.length}',
                       style: TextStyle(
                         fontSize: 11,
@@ -321,7 +321,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
               ),
               const SizedBox(width: 9),
               Expanded(
-                child: Text(
+                child: GfText(
                   _topicDisplayTitle(topic),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -345,7 +345,7 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
               ],
               if (showTime) ...<Widget>[
                 const SizedBox(width: 10),
-                Text(
+                GfText(
                   timeAgo(
                     topic.activityText.isNotEmpty
                         ? topic.activityText

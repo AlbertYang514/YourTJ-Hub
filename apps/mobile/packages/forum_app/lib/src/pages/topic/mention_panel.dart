@@ -242,7 +242,7 @@ class _MentionCandidateRow extends StatelessWidget {
                 GfAvatar(src: user.avatarUrl, size: 30),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
+                  child: GfText(
                     privateDisplayName(
                       context,
                       user.id,
@@ -257,7 +257,7 @@ class _MentionCandidateRow extends StatelessWidget {
                   ),
                 ),
                 Flexible(
-                  child: Text(
+                  child: GfText(
                     '@${user.username}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -279,7 +279,7 @@ class _MentionCandidateRow extends StatelessWidget {
                         color: colors.base200.withValues(alpha: 0.7),
                         borderRadius: BorderRadius.circular(999),
                       ),
-                      child: Text(
+                      child: GfText(
                         roleLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -311,7 +311,7 @@ class _MentionHintRow extends StatelessWidget {
       label: message,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Text(
+        child: GfText(
           message,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,

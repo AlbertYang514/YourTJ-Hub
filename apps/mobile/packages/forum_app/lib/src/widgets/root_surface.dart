@@ -166,7 +166,7 @@ class RootSurface extends ConsumerWidget {
                                         titleWidget ??
                                         (showLogo || title.isEmpty
                                             ? const GfLogo(size: 32)
-                                            : Text(
+                                            : GfText(
                                                 title,
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,

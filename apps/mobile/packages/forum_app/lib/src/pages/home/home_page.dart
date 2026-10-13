@@ -1181,7 +1181,7 @@ class _HomeToolbar extends ConsumerWidget {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
-              child: Text(
+              child: GfText(
                 l10n.homeFeedOptions,
                 style: GfTheme.typographyOf(context).title2,
               ),
@@ -1191,7 +1191,7 @@ class _HomeToolbar extends ConsumerWidget {
                 leading: GfSymbol(
                   mode == GfTopicFeedMode.card ? 'layout-grid' : 'list-square',
                 ),
-                title: Text(
+                title: GfText(
                   mode == GfTopicFeedMode.card
                       ? l10n.topicFeedModeCard
                       : l10n.topicFeedModeList,
@@ -1395,7 +1395,7 @@ class _CategoryPill extends StatelessWidget {
                       ),
                     ),
                   const SizedBox(width: 8),
-                  Text(
+                  GfText(
                     label,
                     softWrap: false,
                     style: TextStyle(

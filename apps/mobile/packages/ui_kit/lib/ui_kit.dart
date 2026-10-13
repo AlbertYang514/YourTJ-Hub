@@ -89,3 +89,4 @@ export 'src/components/business/gf_composer_panel.dart';
 
 export 'src/components/gf_media_image.dart';
 export 'src/components/gf_network_svg.dart';
+export 'src/twemoji/twemoji_text.dart';

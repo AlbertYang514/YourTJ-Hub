@@ -68,6 +68,7 @@
     "vuedraggable": "^4.1.0"
   },
   "devDependencies": {
+    "@vue/compiler-dom": "3.5.34",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.2.2",
     "@types/geojson": "^7946.0.16",

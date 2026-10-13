@@ -19,7 +19,7 @@ Future<void> showAppLanguagePicker(BuildContext context) =>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  GfText(
                     l10n.settingsAppLanguage,
                     style: GfTheme.typographyOf(context).title2,
                   ),
@@ -29,7 +29,7 @@ Future<void> showAppLanguagePicker(BuildContext context) =>
                     ...appLanguageNames,
                   }.entries)
                     ListTile(
-                      title: Text(entry.value),
+                      title: GfText(entry.value),
                       selected: selected == entry.key,
                       trailing: selected == entry.key
                           ? const GfSymbol('check')

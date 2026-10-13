@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../atoms/gf_avatar.dart';
 
 /// Conversation list row mirroring web MessagesPage.vue mobile layout:
@@ -101,7 +102,7 @@ class GfConversationRow extends StatelessWidget {
                       Row(
                         children: [
                           Expanded(
-                            child: Text(
+                            child: GfText(
                               name,
                               maxLines: largeText ? 2 : 1,
                               overflow: TextOverflow.ellipsis,
@@ -114,12 +115,12 @@ class GfConversationRow extends StatelessWidget {
                           ),
                           if (inlineTime) ...[
                             const SizedBox(width: 8),
-                            Text(time, style: timeStyle),
+                            GfText(time, style: timeStyle),
                           ],
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Text(
+                      GfText(
                         lastMessage,
                         maxLines: largeText ? 2 : 1,
                         overflow: TextOverflow.ellipsis,
@@ -135,7 +136,7 @@ class GfConversationRow extends StatelessWidget {
                       ),
                       if (!inlineTime) ...[
                         const SizedBox(height: 8),
-                        Text(time, style: timeStyle),
+                        GfText(time, style: timeStyle),
                       ],
                     ],
                   );

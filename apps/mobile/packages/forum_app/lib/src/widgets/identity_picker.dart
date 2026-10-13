@@ -112,7 +112,7 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
                       ),
                       const SizedBox(width: 8),
                       Flexible(
-                        child: Text(
+                        child: GfText(
                           name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -130,7 +130,7 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
                             color: colors.base200,
                             shape: const StadiumBorder(),
                           ),
-                          child: Text(
+                          child: GfText(
                             kind,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -195,7 +195,7 @@ class _IdentityMenu extends ConsumerWidget {
         key: key,
         leading: leading,
         title: title,
-        subtitleWidget: Text(
+        subtitleWidget: GfText(
           subtitle,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -219,7 +219,7 @@ class _IdentityMenu extends ConsumerWidget {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-              child: Text(l.anonymousPublishAs, style: type.title3),
+              child: GfText(l.anonymousPublishAs, style: type.title3),
             ),
             option(
               key: const Key('identity-option-member'),

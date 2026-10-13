@@ -73,7 +73,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
             children: [
               ListTile(
                 leading: const GfSymbol('maximize', size: 22),
-                title: Text(strings.viewLarger),
+                title: GfText(strings.viewLarger),
                 onTap: () => Navigator.pop(context, 'preview'),
               ),
               ListTile(
@@ -81,7 +81,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                   saved ? 'bookmark-filled' : 'bookmark',
                   size: 22,
                 ),
-                title: Text(saved ? strings.saved : strings.collect),
+                title: GfText(saved ? strings.saved : strings.collect),
                 enabled: !saved && !collection.busy,
                 onTap: () => Navigator.pop(context, 'save'),
               ),
@@ -181,7 +181,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                           ? colors.primary
                           : colors.iconMuted,
                     ),
-                    child: Text(
+                    child: GfText(
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -229,7 +229,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 3),
                             child: ChoiceChip(
-                              label: Text(pack ?? strings.all),
+                              label: GfText(pack ?? strings.all),
                               selected: _pack == pack,
                               onSelected: (_) => setState(() => _pack = pack),
                             ),
@@ -315,7 +315,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                                   excludeSemantics: true,
                                 ),
                               ),
-                              Text(
+                              GfText(
                                 strings.displayLabel(item),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -334,7 +334,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                   vertical: 4,
                 ),
                 sliver: SliverToBoxAdapter(
-                  child: Text(
+                  child: GfText(
                     strings.pickerHint,
                     style: TextStyle(fontSize: 12, color: colors.iconMuted),
                   ),
@@ -346,7 +346,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                     child: TextButton.icon(
                       onPressed: _openLicenses,
                       icon: const GfSymbol('external-link', size: 14),
-                      label: Text(strings.licenses),
+                      label: GfText(strings.licenses),
                       style: TextButton.styleFrom(
                         textStyle: const TextStyle(fontSize: 12),
                         foregroundColor: colors.iconMuted,
@@ -366,9 +366,9 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            Text(message, textAlign: TextAlign.center),
+            GfText(message, textAlign: TextAlign.center),
             if (action != null)
-              TextButton(onPressed: onAction, child: Text(action)),
+              TextButton(onPressed: onAction, child: GfText(action)),
           ],
         ),
       );

@@ -176,7 +176,7 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
     final colors = GfTheme.colorsOf(context);
     final type = GfTheme.typographyOf(context);
     return Scaffold(
-      appBar: GfAppBar(title: Text(l10n.myCourseReviewsTitle)),
+      appBar: GfAppBar(title: GfText(l10n.myCourseReviewsTitle)),
       body: AppRefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -224,7 +224,7 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
+                                GfText(
                                   item.courseName.isEmpty
                                       ? '#${item.courseId}'
                                       : item.courseName,
@@ -233,7 +233,7 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
                                   style: type.heading,
                                 ),
                                 const SizedBox(height: 4),
-                                Text(
+                                GfText(
                                   '${item.courseCode} · ${item.review.createdAt.split('T').first}',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -254,7 +254,7 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
                         children: [
                           GfSymbol('star', size: 16, color: colors.warning),
                           const SizedBox(width: 6),
-                          Text(
+                          GfText(
                             item.review.rating == null
                                 ? '—'
                                 : '${item.review.rating} / 5',
@@ -262,7 +262,7 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
                           ),
                           if (item.review.author.kind == 'anonymous') ...[
                             const SizedBox(width: 12),
-                            Text(
+                            GfText(
                               CourseCopy(l10n).anonymousLabel,
                               style: type.caption,
                             ),
@@ -272,7 +272,7 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
                       const SizedBox(height: 12),
                       // 预览同样来自服务端 contentHtml,只是先摊平成纯文本
                       // 再截断:不再把 `##` / `**` 这类原始标记暴露给用户。
-                      Text(
+                      GfText(
                         gfPlainTextFromHtml(item.review.contentHtml),
                         maxLines: 5,
                         overflow: TextOverflow.ellipsis,
@@ -285,7 +285,7 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
                       if (!item.canOpenCourse)
                         Padding(
                           padding: const EdgeInsets.only(top: 8),
-                          child: Text(
+                          child: GfText(
                             item.hidden
                                 ? l10n.myCourseReviewHidden
                                 : l10n.myCourseReviewUnavailable,
@@ -347,14 +347,14 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
         if (item.canOpenCourse)
           PopupMenuItem<String>(
             value: 'open',
-            child: Text(l10n.myCourseReviewOpen),
+            child: GfText(l10n.myCourseReviewOpen),
           ),
         if (item.review.viewer.canEdit)
-          PopupMenuItem<String>(value: 'edit', child: Text(l10n.commonEdit)),
+          PopupMenuItem<String>(value: 'edit', child: GfText(l10n.commonEdit)),
         if (item.review.viewer.canDelete)
           PopupMenuItem<String>(
             value: 'delete',
-            child: Text(
+            child: GfText(
               CourseCopy(l10n).delete,
               style: TextStyle(color: colors.error),
             ),

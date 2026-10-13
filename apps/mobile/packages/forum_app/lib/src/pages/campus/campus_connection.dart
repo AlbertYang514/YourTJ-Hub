@@ -67,16 +67,16 @@ class _CampusConnectionState extends ConsumerState<CampusConnection> {
       context: context,
       animationStyle: GfMotion.dialogStyle(context),
       builder: (context) => AlertDialog(
-        title: Text(l.campusUnbind),
-        content: Text(l.campusUnbindBody),
+        title: GfText(l.campusUnbind),
+        content: GfText(l.campusUnbindBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(l.commonCancel),
+            child: GfText(l.commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(l.campusUnbind),
+            child: GfText(l.campusUnbind),
           ),
         ],
       ),
@@ -112,18 +112,24 @@ class _CampusConnectionState extends ConsumerState<CampusConnection> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (!widget.compact) ...[
-          Text(l.campusConnection, style: GfTheme.typographyOf(context).title2),
+          GfText(
+            l.campusConnection,
+            style: GfTheme.typographyOf(context).title2,
+          ),
           const SizedBox(height: 12),
-          Text(l.campusPrivacy),
+          GfText(l.campusPrivacy),
           const SizedBox(height: 16),
           if (binding != null)
-            Text(binding.maskedId, style: GfTheme.typographyOf(context).title1),
+            GfText(
+              binding.maskedId,
+              style: GfTheme.typographyOf(context).title1,
+            ),
           const SizedBox(height: 12),
         ],
         if (candidate != null) ...[
-          Text(l.campusConfirmBody),
+          GfText(l.campusConfirmBody),
           const SizedBox(height: 8),
-          Text(
+          GfText(
             candidate.maskedId,
             style: GfTheme.typographyOf(context).heading,
           ),
@@ -143,7 +149,7 @@ class _CampusConnectionState extends ConsumerState<CampusConnection> {
                   },
           ),
         ] else if (state.status?.enabled == false)
-          Text(l.campusDisabled)
+          GfText(l.campusDisabled)
         else if (binding == null)
           GfButton(
             label: l.campusBind,
@@ -153,7 +159,7 @@ class _CampusConnectionState extends ConsumerState<CampusConnection> {
           if (state.needsAuthorization || widget.compact)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: Text(l.campusAuthRequired),
+              child: GfText(l.campusAuthRequired),
             ),
           GfButton(
             label: l.campusReauthorize,
@@ -173,7 +179,7 @@ class _CampusConnectionState extends ConsumerState<CampusConnection> {
               onPressed: busy ? null : () => _unbind(binding),
             ),
             const SizedBox(height: 24),
-            Text(l.campusUpstreamGaps),
+            GfText(l.campusUpstreamGaps),
           ],
         ],
         if (!widget.compact) ...[
@@ -183,7 +189,7 @@ class _CampusConnectionState extends ConsumerState<CampusConnection> {
         if (error != null)
           Padding(
             padding: const EdgeInsets.only(top: 12),
-            child: Text(
+            child: GfText(
               campusError(l, error),
               style: TextStyle(color: GfTheme.colorsOf(context).error),
             ),

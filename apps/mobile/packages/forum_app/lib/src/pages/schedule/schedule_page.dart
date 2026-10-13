@@ -222,7 +222,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
     return Scaffold(
       backgroundColor: colors.base100,
       appBar: GfAppBar(
-        title: Text(l10n.scheduleTitle),
+        title: GfText(l10n.scheduleTitle),
         actions: <Widget>[
           GfIconButton(
             symbol: 'calendar-days',
@@ -245,11 +245,11 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
                 <PopupMenuEntry<_ExportAction>>[
                   PopupMenuItem<_ExportAction>(
                     value: _ExportAction.png,
-                    child: Text(l10n.scheduleExportPng),
+                    child: GfText(l10n.scheduleExportPng),
                   ),
                   PopupMenuItem<_ExportAction>(
                     value: _ExportAction.csv,
-                    child: Text(l10n.scheduleExportCsv),
+                    child: GfText(l10n.scheduleExportCsv),
                   ),
                 ],
           ),
@@ -292,7 +292,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
                 ),
                 const SizedBox(height: 8),
                 if (_tabTimetable) ...[
-                  Text(
+                  GfText(
                     l10n.schedulerPlanDisclaimer,
                     style: GfTheme.typographyOf(context).caption,
                   ),
@@ -576,7 +576,7 @@ class _PlanChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(radii.selector),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Text(
+          child: GfText(
             label,
             style: TextStyle(
               color: active ? colors.primaryContent : colors.baseContent,
@@ -606,7 +606,7 @@ Future<void> _showPlanMenu(
         children: <Widget>[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-            child: Text(
+            child: GfText(
               plan.name,
               style: GfTheme.typographyOf(sheetContext).title3,
             ),
@@ -662,7 +662,7 @@ Future<void> _promptRename(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text(
+            GfText(
               l10n.schedulePlanRename,
               style: GfTheme.typographyOf(sheetContext).heading,
             ),
@@ -718,12 +718,12 @@ Future<void> _confirmDelete(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(
+          GfText(
             l10n.schedulePlanDelete,
             style: GfTheme.typographyOf(sheetContext).heading,
           ),
           const SizedBox(height: 8),
-          Text(plan.name, style: GfTheme.typographyOf(sheetContext).body),
+          GfText(plan.name, style: GfTheme.typographyOf(sheetContext).body),
           const SizedBox(height: 18),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
@@ -793,7 +793,7 @@ class _CollapsedConfigRow extends StatelessWidget {
           child: Row(
             children: <Widget>[
               Expanded(
-                child: Text(
+                child: GfText(
                   summary,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1040,7 +1040,7 @@ class _ConfigSelector extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  Text(
+                  GfText(
                     label,
                     style: TextStyle(
                       fontSize: 10,
@@ -1049,7 +1049,7 @@ class _ConfigSelector extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 1),
-                  Text(
+                  GfText(
                     hasValue ? value : placeholder,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1095,7 +1095,7 @@ class _ListPickerSheet<T> extends StatelessWidget {
         children: <Widget>[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-            child: Text(title, style: GfTheme.typographyOf(context).title3),
+            child: GfText(title, style: GfTheme.typographyOf(context).title3),
           ),
           Flexible(
             child: ListView(
@@ -1104,7 +1104,7 @@ class _ListPickerSheet<T> extends StatelessWidget {
                 for (final T item in items)
                   ListTile(
                     dense: true,
-                    title: Text(
+                    title: GfText(
                       labelOf(item),
                       style: TextStyle(fontSize: 14, color: colors.baseContent),
                     ),
@@ -1151,7 +1151,7 @@ class _DataOutdatedBanner extends StatelessWidget {
               GfSymbol('circle-alert', size: 18, color: colors.warning),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
+                child: GfText(
                   l10n.scheduleDataOutdated,
                   style: TextStyle(
                     fontSize: 13,
@@ -1164,7 +1164,7 @@ class _DataOutdatedBanner extends StatelessWidget {
               if (loading)
                 const GfLoadingIndicator(small: true)
               else
-                Text(
+                GfText(
                   l10n.scheduleSyncLatest,
                   style: TextStyle(
                     fontSize: 13,
@@ -1341,7 +1341,7 @@ class _WeekFilter extends StatelessWidget {
                 items: <DropdownMenuItem<int?>>[
                   DropdownMenuItem<int?>(
                     value: null,
-                    child: Text(
+                    child: GfText(
                       l10n.scheduleWeekAll,
                       style: TextStyle(fontSize: 13, color: colors.baseContent),
                     ),
@@ -1349,7 +1349,7 @@ class _WeekFilter extends StatelessWidget {
                   for (int w = 1; w <= kMaxWeek; w++)
                     DropdownMenuItem<int?>(
                       value: w,
-                      child: Text(
+                      child: GfText(
                         l10n.scheduleWeekN(w),
                         style: TextStyle(
                           fontSize: 13,
@@ -1388,22 +1388,22 @@ class _StatsFooter extends StatelessWidget {
         spacing: 14,
         runSpacing: 6,
         children: [
-          Text(
+          GfText(
             l10n.scheduleStatsCourses(stats.courseCount),
             style: TextStyle(
               color: colors.baseContent,
               fontWeight: FontWeight.w600,
             ),
           ),
-          Text(
+          GfText(
             '$creditText ${l10n.scheduleStatsCredits}',
             style: TextStyle(color: colors.iconMuted),
           ),
-          Text(
+          GfText(
             '${stats.totalHours} ${l10n.scheduleStatsHours}',
             style: TextStyle(color: colors.iconMuted),
           ),
-          Text(
+          GfText(
             '${stats.conflictCount} ${l10n.scheduleStatsConflicts}',
             style: TextStyle(
               color: stats.conflictCount > 0 ? colors.error : colors.iconMuted,
@@ -1670,7 +1670,7 @@ class _PickTabState extends ConsumerState<_PickTab> {
                   in _optionalGroups) ...<Widget>[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-                  child: Text(
+                  child: GfText(
                     group.courseLabelName,
                     style: TextStyle(
                       fontSize: 13,
@@ -1831,7 +1831,7 @@ class _CourseRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(
+                  GfText(
                     name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1842,7 +1842,7 @@ class _CourseRow extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  Text(
+                  GfText(
                     <String>[
                       code,
                       '$creditText ${l10n.scheduleStatsCredits}',
@@ -1953,7 +1953,7 @@ class _SearchRow extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text(
+            GfText(
               course.courseName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -1964,7 +1964,7 @@ class _SearchRow extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 2),
-            Text(
+            GfText(
               <String>[
                 course.courseCode,
                 '$creditText ${l10n.scheduleStatsCredits}',
@@ -2010,7 +2010,7 @@ class _ClassListSheet extends ConsumerWidget {
         children: <Widget>[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-            child: Text(
+            child: GfText(
               l10n.schedulePickClass,
               style: GfTheme.typographyOf(context).title3,
             ),
@@ -2023,7 +2023,7 @@ class _ClassListSheet extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 28),
                     child: Center(
-                      child: Text(
+                      child: GfText(
                         l10n.commonEmpty,
                         style: TextStyle(fontSize: 13, color: colors.iconMuted),
                       ),
@@ -2107,7 +2107,7 @@ class _ClassRow extends StatelessWidget {
                   Row(
                     children: <Widget>[
                       Flexible(
-                        child: Text(
+                        child: GfText(
                           brief.code,
                           style: TextStyle(
                             fontSize: 13,
@@ -2127,7 +2127,7 @@ class _ClassRow extends StatelessWidget {
                             color: colors.primary.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: Text(
+                          child: GfText(
                             l10n.scheduleSelected,
                             style: TextStyle(
                               fontSize: 9,
@@ -2163,7 +2163,7 @@ class _ClassRow extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Flexible(
-                            child: Text(
+                            child: GfText(
                               conflicts.length == 1
                                   ? l10n.scheduleConflictWith(
                                       conflicts.first.courseName.isNotEmpty
@@ -2186,7 +2186,7 @@ class _ClassRow extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          Text(
+                          GfText(
                             l10n.scheduleConflictCanAdd,
                             style: TextStyle(
                               fontSize: 9,
@@ -2199,7 +2199,7 @@ class _ClassRow extends StatelessWidget {
                     ),
                   ],
                   const SizedBox(height: 3),
-                  Text(
+                  GfText(
                     _timeSummary(context, brief),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -2212,7 +2212,7 @@ class _ClassRow extends StatelessWidget {
                     ),
                   ),
                   if (teachers.isNotEmpty)
-                    Text(
+                    GfText(
                       teachers.join('、'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -2306,7 +2306,7 @@ class _CellPickerSheet extends ConsumerWidget {
         children: <Widget>[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-            child: Text(
+            child: GfText(
               '${days[day - 1]} · ${l10n.schedulePeriodRange('$section')}',
               style: GfTheme.typographyOf(context).title3,
             ),
@@ -2324,7 +2324,7 @@ class _CellPickerSheet extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 28),
                     child: Center(
-                      child: Text(
+                      child: GfText(
                         l10n.commonEmpty,
                         style: TextStyle(fontSize: 13, color: colors.iconMuted),
                       ),
@@ -2423,7 +2423,7 @@ class _CellCourseRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(
+                  GfText(
                     course.courseName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -2433,7 +2433,7 @@ class _CellCourseRow extends StatelessWidget {
                       color: colors.baseContent,
                     ),
                   ),
-                  Text(
+                  GfText(
                     '${course.courseCode} · ${course.faculty}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -2482,11 +2482,11 @@ class _CourseDetailSheet extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text(
+                      GfText(
                         course.courseName,
                         style: GfTheme.typographyOf(context).title3,
                       ),
-                      Text(
+                      GfText(
                         course.code,
                         style: TextStyle(
                           fontSize: 12,
@@ -2506,7 +2506,7 @@ class _CourseDetailSheet extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Text(
+            GfText(
               <String>[
                 if (teacher.isNotEmpty) teacher,
                 if (room.isNotEmpty) room,
@@ -2518,7 +2518,7 @@ class _CourseDetailSheet extends ConsumerWidget {
             ),
             const SizedBox(height: 6),
             if ((course.arrangementText ?? '').isNotEmpty)
-              Text(
+              GfText(
                 course.arrangementText!,
                 style: TextStyle(
                   fontSize: 12,
@@ -2627,7 +2627,7 @@ class _ReviewBriefPanelState extends ConsumerState<_ReviewBriefPanel> {
         color: colors.base200,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(
+      child: GfText(
         text,
         style: TextStyle(
           fontSize: 12,
@@ -2675,12 +2675,12 @@ class _CustomEventSheetState extends ConsumerState<_CustomEventSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text(
+              GfText(
                 l10n.scheduleAddCustomEvent,
                 style: GfTheme.typographyOf(context).title3,
               ),
               const SizedBox(height: 12),
-              Text('${l10n.scheduleTerm}：', style: _groupLabelStyle(colors)),
+              GfText('${l10n.scheduleTerm}：', style: _groupLabelStyle(colors)),
               const SizedBox(height: 6),
               Wrap(
                 spacing: 6,
@@ -2695,7 +2695,7 @@ class _CustomEventSheetState extends ConsumerState<_CustomEventSheet> {
                 ],
               ),
               const SizedBox(height: 12),
-              Text(l10n.schedulePeriods, style: _groupLabelStyle(colors)),
+              GfText(l10n.schedulePeriods, style: _groupLabelStyle(colors)),
               const SizedBox(height: 6),
               Wrap(
                 spacing: 6,
@@ -2716,12 +2716,12 @@ class _CustomEventSheetState extends ConsumerState<_CustomEventSheet> {
               const SizedBox(height: 12),
               Row(
                 children: <Widget>[
-                  Text(
+                  GfText(
                     l10n.scheduleWeeksLabel,
                     style: _groupLabelStyle(colors),
                   ),
                   const SizedBox(width: 8),
-                  Text(
+                  GfText(
                     _weeksTextPreview(),
                     style: TextStyle(
                       fontSize: 11,
@@ -2824,7 +2824,7 @@ class _ChoiceChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: selected ? colors.primary : colors.line),
         ),
-        child: Text(
+        child: GfText(
           label,
           style: TextStyle(
             fontSize: 12,

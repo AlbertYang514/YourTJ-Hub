@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
+import '../twemoji/twemoji_text.dart';
 import 'atoms/gf_avatar_stack.dart';
 import 'gf_chip.dart';
 import 'gf_symbol.dart';
@@ -103,7 +104,7 @@ class GfTopicRow extends StatelessWidget {
                           const SizedBox(width: 6),
                         ],
                         Expanded(
-                          child: Text(
+                          child: GfText(
                             title,
                             maxLines: enlargedText ? 2 : 1,
                             overflow: TextOverflow.ellipsis,
@@ -135,7 +136,7 @@ class GfTopicRow extends StatelessWidget {
                           const SizedBox(width: 6),
                           GfSymbol('flame', size: 12, color: colors.warning),
                           const SizedBox(width: 2),
-                          Text(
+                          GfText(
                             'hot',
                             style: TextStyle(
                               color: colors.warning,
@@ -148,7 +149,7 @@ class GfTopicRow extends StatelessWidget {
                   if (description.isNotEmpty)
                     Padding(
                       padding: EdgeInsets.only(top: title.isEmpty ? 0 : 2),
-                      child: Text(
+                      child: GfText(
                         description,
                         maxLines: enlargedText ? 2 : 1,
                         overflow: TextOverflow.ellipsis,
@@ -212,7 +213,7 @@ class GfTopicRow extends StatelessWidget {
         children: [
           GfSymbol(symbol, size: 12, color: color),
           const SizedBox(width: 3),
-          Text(
+          GfText(
             contentTypeLabel!,
             style: TextStyle(
               color: color,
@@ -240,13 +241,13 @@ class GfTopicRow extends StatelessWidget {
       children: [
         if (avatars.isNotEmpty)
           GfAvatarStack(avatarUrls: avatars, size: GfAvatarStackSize.sm),
-        Text(activityText, style: style),
+        GfText(activityText, style: style),
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             GfSymbol('message-circle', size: 14, color: style.color),
             const SizedBox(width: 4),
-            Text('$replyCount', style: style),
+            GfText('$replyCount', style: style),
           ],
         ),
       ],

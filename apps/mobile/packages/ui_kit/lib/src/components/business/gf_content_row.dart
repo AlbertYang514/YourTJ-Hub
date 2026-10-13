@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../atoms/gf_avatar.dart';
 import '../gf_media_image.dart';
 import '../gf_symbol.dart';
@@ -70,7 +71,7 @@ class GfContentRow extends StatelessWidget {
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             if (author.isNotEmpty)
-                              Text(
+                              GfText(
                                 author,
                                 style: TextStyle(
                                   fontSize: 15,
@@ -82,7 +83,7 @@ class GfContentRow extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             if (contextLabel.isNotEmpty)
-                              Text.rich(
+                              GfText.rich(
                                 TextSpan(
                                   children: [
                                     if (contextSymbol != null)
@@ -107,13 +108,13 @@ class GfContentRow extends StatelessWidget {
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                            if (time.isNotEmpty) Text(time, style: muted),
+                            if (time.isNotEmpty) GfText(time, style: muted),
                           ],
                         ),
                         if (title.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 5),
-                            child: Text(
+                            child: GfText(
                               title,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
@@ -132,7 +133,7 @@ class GfContentRow extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Expanded(
-                                  child: Text(
+                                  child: GfText(
                                     text,
                                     maxLines: 3,
                                     overflow: TextOverflow.ellipsis,
