@@ -621,19 +621,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get notificationsUnread => 'Ungelesen';
 
   @override
-  String get searchTitle => 'Suchen';
-
-  @override
   String get searchHint => 'Themen, Nutzer, Kategorien suchen …';
-
-  @override
-  String get searchEmpty => 'Suchbegriff eingeben';
-
-  @override
-  String get searchNoUsers => 'Keine passenden Nutzer';
-
-  @override
-  String get searchNoCategories => 'Keine passenden Kategorien';
 
   @override
   String get searchUnavailable => 'Suche nicht verfügbar';
@@ -2474,10 +2462,6 @@ class AppLocalizationsDe extends AppLocalizations {
       'Noch keine Kursbewertungen. Entdecke den Kurskatalog.';
 
   @override
-  String get searchDiscoveryDescription =>
-      'Finde Beiträge, Personen und Kategorien oder öffne deine Campus-Werkzeuge.';
-
-  @override
   String get notificationsEmptyDescription =>
       'Antworten, Erwähnungen und neue Follower erscheinen hier. Entdecke Neues auf dem Campus.';
 
@@ -2537,6 +2521,40 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get searchWiki => 'Wiki durchsuchen';
+
+  @override
+  String get searchIdleHint =>
+      'Suche nach Themen, Nutzern und Kategorien. Deine letzten Suchanfragen erscheinen hier.';
+
+  @override
+  String searchFor(String query) {
+    return 'Nach „$query“ suchen';
+  }
+
+  @override
+  String searchCoursesFor(String query) {
+    return '„$query“ in Kursen suchen';
+  }
+
+  @override
+  String searchWikiFor(String query) {
+    return '„$query“ im Wiki suchen';
+  }
+
+  @override
+  String get searchRemoveRecent => 'Aus letzten Suchanfragen entfernen';
+
+  @override
+  String get searchSeeAll => 'Alle anzeigen';
+
+  @override
+  String searchNoResults(String query) {
+    return 'Keine Ergebnisse für „$query“';
+  }
+
+  @override
+  String get searchNoResultsHint =>
+      'Versuche andere Suchbegriffe oder durchsuche Kurse und das Wiki.';
 
   @override
   String get refreshFailedRetained =>
@@ -2636,6 +2654,22 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get campusUnavailable =>
       'Hochschuldaten sind derzeit nicht verfügbar. Bitte später erneut versuchen.';
+
+  @override
+  String get campusUpstreamUnavailable =>
+      'Hochschuldienste sind vorübergehend nicht verfügbar. Bitte später erneut versuchen.';
+
+  @override
+  String get campusRulesAIUnavailable =>
+      'KI nicht verfügbar. Modellverbindung unter „KI-Kurszusammenfassungen“ prüfen oder Regeln manuell hinzufügen.';
+
+  @override
+  String get campusRulesAIOutput =>
+      'Die KI hat keine gültigen Regeln erzeugt. Vollständige Daten und eindeutige Nachholtermine ergänzen oder manuell bearbeiten.';
+
+  @override
+  String get campusRulesLimited =>
+      'Zu viele KI-Anfragen. Bitte später erneut versuchen.';
 
   @override
   String get campusNoData => 'Noch keine Einträge';
