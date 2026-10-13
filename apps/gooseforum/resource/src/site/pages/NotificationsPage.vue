@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { notificationText as describeNotification } from '@/runtime/notification-text'
+import UserNickname from '@/site/components/UserNickname.vue'
 import { authorURL } from '@/runtime/anonymous-identity'
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
@@ -228,6 +229,38 @@ function notificationTitleText(item: NotificationPayload) {
   return notificationDescription(item)
 }
 
+function notificationTemplateText(item: NotificationPayload) {
+  const templateKey = item.payload.templateKey
+  switch (templateKey) {
+    case 'notifications.templates.comment':
+      return t('notifications.templates.comment')
+    case 'notifications.templates.mention':
+      return t('notifications.templates.mention')
+    case 'notifications.templates.postReply':
+      return t('notifications.templates.postReply')
+    case 'notifications.templates.topicPost':
+      return t('notifications.templates.topicPost')
+    case 'notifications.templates.follow':
+      return t('notifications.templates.follow')
+    case 'notifications.templates.badge': {
+      // 兼容旧数据：模板参数中的 badgeName 已随收敛移除（简化落地中候选1），
+      // 历史通知可能仍带该字段，运行时继续读取；新数据统一走 metadata。
+      const legacyParams = item.payload.templateParams as { badgeName?: string } | undefined
+      return t('notifications.templates.badge', { badge: legacyParams?.badgeName || item.payload.metadata?.badgeName || '' })
+    }
+    case 'notifications.templates.wikiUpdated':
+      return t('notifications.templates.wikiUpdated')
+    case 'notifications.templates.reviewPending':
+      return t('notifications.templates.reviewPending')
+    case 'notifications.templates.reviewApproved':
+      return t('notifications.templates.reviewApproved')
+    case 'notifications.templates.reviewRejected':
+      return t('notifications.templates.reviewRejected')
+    default:
+      return ''
+  }
+}
+
 function notificationTone(item: NotificationPayload) {
   if (item.eventType === 'review_approved') return item.isRead ? 'text-base-content/55' : 'text-success'
   if (item.eventType === 'review_rejected') return item.isRead ? 'text-base-content/55' : 'text-error'
@@ -235,6 +268,22 @@ function notificationTone(item: NotificationPayload) {
   if (item.eventType === 'badge') return item.isRead ? 'text-base-content/55' : 'text-warning'
   if (item.eventType === 'system') return item.isRead ? 'text-base-content/55' : 'text-warning'
   return item.isRead ? 'text-base-content/55' : 'text-primary'
+}
+
+function notificationVerb(item: NotificationPayload) {
+  const templateText = notificationTemplateText(item)
+  if (templateText && item.eventType !== 'badge') return templateText
+  if (item.eventType === 'follow') return t('notifications.verb.follow')
+  if (item.eventType === 'badge') return ''
+  if (item.eventType === 'mention') return t('notifications.templates.mention')
+  if (item.eventType === 'post_reply') return t('notifications.verb.reply')
+  if (item.eventType === 'comment' || item.eventType === 'topic_post') return t('notifications.verb.comment')
+  return notificationTitleText(item)
+}
+
+function actorName(item: NotificationPayload) {
+  if (item.eventType === 'badge') return notificationTemplateText(item) || item.title || t('notifications.actorFallback')
+  return userDisplayName(item.actor.id, item.actor.username || item.payload.actorName || item.payload.metadata?.followerName || t('notifications.actorFallback'), item.actor.nickname)
 }
 
 function actorURL(item: NotificationPayload) {
@@ -357,12 +406,38 @@ function markItemReadAndNavigate(item: NotificationPayload) {
           </div>
           <div class="min-w-0">
             <div class="flex min-w-0 items-center gap-1.5 text-sm leading-5" :class="{ 'flex-wrap': isReviewResult(item) }">
-              <template v-if="isReviewResult(item)">
-                <span class="w-full font-semibold">{{ notificationTitleText(item) }}</span>
-                <a v-if="targetURL(item)" :href="targetURL(item)" class="min-w-0 truncate font-medium text-primary" @click="markItemReadAndNavigate(item)">{{ item.payload.topicTitle || t('contentReview.view') }}</a>
-              </template>
-              <a v-else-if="targetURL(item)" :href="targetURL(item)" class="min-w-0 font-semibold text-base-content hover:text-primary" @click="markItemReadAndNavigate(item)">{{ notificationDescription(item) }}</a>
-              <span v-else class="min-w-0 font-semibold">{{ notificationDescription(item) }}</span>
+              <a v-if="actorURL(item) && item.eventType !== 'badge'" :href="actorURL(item)" class="max-w-[42%] shrink-0 truncate font-semibold text-base-content hover:text-primary" @click="markItemReadAndNavigate(item)">
+                <UserNickname :style-definition="item.actor?.decoration?.nicknameStyle">{{ actorName(item) }}</UserNickname>
+              </a>
+              <span v-else class="shrink-0 font-semibold text-base-content" :class="isReviewResult(item) ? 'w-full' : 'max-w-[42%] truncate'">{{ item.eventType === 'follow' ? actorName(item) : notificationTitleText(item) }}</span>
+              <span class="shrink-0 text-base-content/55">{{ item.actor.id || item.actor.publicUid || item.eventType === 'follow' ? notificationVerb(item) : '' }}</span>
+              <a v-if="isReviewResult(item) && targetURL(item)" :href="targetURL(item)" class="min-w-0 truncate font-medium text-primary" @click="markItemReadAndNavigate(item)">{{ item.payload.topicTitle || t('contentReview.view') }}</a>
+              <span v-else-if="isReviewResult(item)" class="min-w-0 truncate font-medium text-base-content/75">{{ item.payload.topicTitle }}</span>
+              <a
+                v-else-if="item.topic"
+                :href="item.topic.url"
+                class="min-w-0 max-w-full truncate font-semibold text-primary hover:text-primary"
+                @click="markItemReadAndNavigate(item)"
+              >
+                {{ notificationText(item) }}
+              </a>
+              <a
+                v-else-if="item.eventType === 'badge' && targetURL(item)"
+                :href="targetURL(item)"
+                class="font-semibold text-warning hover:text-warning"
+                @click="markItemReadAndNavigate(item)"
+              >
+                {{ notificationText(item) }}
+              </a>
+              <a
+                v-else-if="item.eventType === 'follow' && actorURL(item)"
+                :href="actorURL(item)"
+                class="font-semibold text-success hover:text-success/90"
+                @click="markItemReadAndNavigate(item)"
+              >
+                {{ t('notifications.viewProfile') }}
+              </a>
+              <span v-else-if="item.actor.id || item.actor.publicUid || item.eventType === 'follow'" class="font-medium text-base-content/75">{{ notificationText(item) }}</span>
               <span v-if="!item.isRead" class="h-1.5 w-1.5 rounded-full bg-primary" />
             </div>
             <p v-if="isReviewResult(item)" class="mt-0.5 text-xs text-base-content/55">

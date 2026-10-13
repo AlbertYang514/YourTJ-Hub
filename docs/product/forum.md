@@ -136,7 +136,7 @@ Web 通知链接优先 `/p/post/{topicId}/{postNo}`，无楼层号时保留历�
 拒审/候审推送不包含未公开标题、正文或审核原因。私信与转发使用独立消息来源，默认推送仅含
 公开发送者和动作，点击进入当前账号的受控对话；幂等重试与回滚不产生额外外投。
 推送前复核屏蔽、已读、删除、会话静音和用户偏好，低价值提示按用户/对象短窗限频。
-默认值与隐私取舍见[决策 0082](../decisions/0082-notification-policy-and-private-chat-push.md)。
+默认值与隐私取舍见[决策 0083](../decisions/0083-notification-policy-and-private-chat-push.md)。
 
 ## Links, Markdown and stickers
 
