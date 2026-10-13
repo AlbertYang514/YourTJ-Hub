@@ -462,7 +462,12 @@ void main() {
         ProfileEditPage(user: user(), onSave: (_) async {}),
       );
 
-      for (final type in [TextInputType.url, TextInputType.text]) {
+      for (final type in [
+        TextInputType.url,
+        TextInputType.text,
+        // 昵称/简介/签名等 lines>1 的字段是 multiline,必须一并锁定。
+        TextInputType.multiline,
+      ]) {
         final fields = find.byWidgetPredicate(
           (w) => w is TextField && w.keyboardType == type,
         );
