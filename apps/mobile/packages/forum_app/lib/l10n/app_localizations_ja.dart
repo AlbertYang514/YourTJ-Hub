@@ -2534,6 +2534,20 @@ class AppLocalizationsJa extends AppLocalizations {
   String get campusUnavailable => '大学のデータを取得できません。後でもう一度お試しください。';
 
   @override
+  String get campusUpstreamUnavailable => '大学のサービスを一時的に利用できません。後でもう一度お試しください。';
+
+  @override
+  String get campusRulesAIUnavailable =>
+      'AI を利用できません。「AI 授業要約」のモデル設定を確認するか、手動で規則を追加してください。';
+
+  @override
+  String get campusRulesAIOutput =>
+      'AI が有効な規則を生成できませんでした。日付と振替先を明記して再試行するか、手動で編集してください。';
+
+  @override
+  String get campusRulesLimited => 'AI リクエストが多すぎます。後で再試行してください。';
+
+  @override
   String get campusNoData => '記録はありません';
 
   @override

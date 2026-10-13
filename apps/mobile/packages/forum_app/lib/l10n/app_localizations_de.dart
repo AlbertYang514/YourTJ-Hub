@@ -2639,6 +2639,22 @@ class AppLocalizationsDe extends AppLocalizations {
       'Hochschuldaten sind derzeit nicht verfügbar. Bitte später erneut versuchen.';
 
   @override
+  String get campusUpstreamUnavailable =>
+      'Hochschuldienste sind vorübergehend nicht verfügbar. Bitte später erneut versuchen.';
+
+  @override
+  String get campusRulesAIUnavailable =>
+      'KI nicht verfügbar. Modellverbindung unter „KI-Kurszusammenfassungen“ prüfen oder Regeln manuell hinzufügen.';
+
+  @override
+  String get campusRulesAIOutput =>
+      'Die KI hat keine gültigen Regeln erzeugt. Vollständige Daten und eindeutige Nachholtermine ergänzen oder manuell bearbeiten.';
+
+  @override
+  String get campusRulesLimited =>
+      'Zu viele KI-Anfragen. Bitte später erneut versuchen.';
+
+  @override
   String get campusNoData => 'Noch keine Einträge';
 
   @override
