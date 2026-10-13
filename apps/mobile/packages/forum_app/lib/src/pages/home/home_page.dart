@@ -976,6 +976,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         onSelected: _switchSort,
         onFeedModeSelected: _setFeedMode,
       ),
+      statusBarScrollToTopController: _activeFeed.scrollToTop,
       body: (top, bottom) => GfScrollToTop(
         key: _activeFeed.scrollKey,
         semanticLabel: l10n.commonBackToTop,

@@ -630,7 +630,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final String title = _detail.value?.name ?? l10n.entryCourses;
 
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar: GfAppBar(
         leading: GfIconButton(
           symbol: 'chevron-left',
@@ -646,6 +646,10 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
             GfErrorRetry(message: resolveErrorMessage(l10n, e), onRetry: _load),
         data: (CourseDetailPayload detail) => _buildBody(l10n, detail),
       ),
+    );
+    return GfStatusBarScrollToTop(
+      scrollController: _scrollController,
+      child: scaffold,
     );
   }
 

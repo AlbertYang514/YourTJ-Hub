@@ -150,6 +150,19 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   left edge. Android keeps the shared mobile fade/rise transition. Horizontal
   scroll rails keep working; the back gesture only claims the narrow left-edge
   band.
+- `Partial`: iOS status-bar taps use Flutter `Scaffold`'s built-in callback and
+  `PrimaryScrollController` for the active main scroll region. Root feeds,
+  notifications, messages, campus tabs, topic/profile/search pages, drafts,
+  settings, publishing, course catalog/detail, Wiki detail and conversation
+  detail provide their current explicit controller; profile's nested scroll
+  view keeps its coordinated outer/inner behavior. Ordinary vertical scroll
+  views without an explicit controller continue using the route's default
+  primary controller. Programmatic scrolling does not create a drag gesture,
+  so it does not arm pull-to-refresh or footer pagination. Android and Web do
+  not receive this adapter. Widget tests cover target selection and callback
+  behavior; a real iOS status-bar tap still requires simulator or device
+  verification. In-app browser content and modal/editor-local scroll regions
+  are outside this Flutter page-level behavior.
 - `Current`: four persistent destinations — Home, Campus, Notifications and Messages — use an
   icon-only bottom bar on compact windows, with the selected Filled icon, indicator and unread state
   kept together at a fixed compact height, so labels never add height or grow with text size. Each
