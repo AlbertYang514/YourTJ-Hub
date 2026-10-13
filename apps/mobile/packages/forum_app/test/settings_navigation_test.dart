@@ -470,6 +470,9 @@ void main() {
       await tester.pumpAndSettle();
 
       final field = tester.widget<TextField>(input('Enter the 6-digit code'));
+      // Locks the masked-field outcome of the credential-dialog conditional;
+      // the plain-text side (e.g. New email) is locked by the email dialog
+      // case below.
       expect(field.obscureText, isTrue);
       expect(field.enableSuggestions, isFalse);
     },
@@ -487,6 +490,19 @@ void main() {
     h.user.emailPending = Completer<bool>();
     await tester.tap(find.text('Email').first);
     await tester.pumpAndSettle();
+    // issue #1111: the credential dialog keeps suggestions off only for
+    // password-capable fields; the email field must stay a plain text field
+    // (revert of the conditional to a hardcoded false fails this assertion).
+    expect(
+      tester.widget<TextField>(input('New email')).enableSuggestions,
+      isTrue,
+    );
+    expect(
+      tester
+          .widget<TextField>(input('Current password'))
+          .enableSuggestions,
+      isFalse,
+    );
     await tester.enterText(input('New email'), 'next@example.com');
     await tester.enterText(input('Current password'), 'private password');
     await tester.tap(dialogAction('Save'));
