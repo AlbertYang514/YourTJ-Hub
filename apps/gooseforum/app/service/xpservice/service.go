@@ -7,6 +7,7 @@ import (
 	"math"
 	"strings"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
@@ -17,20 +18,25 @@ import (
 )
 
 const (
-	DailyBaseRuleKey = "daily_base"
-	ShanghaiTimeZone = "Asia/Shanghai"
+	DailyBaseRuleKey             = "daily_base"
+	ShanghaiTimeZone             = "Asia/Shanghai"
+	maxSQLiteRulePublishAttempts = 8
 )
 
 var (
-	ErrIneligible        = errors.New("account is not eligible for XP")
-	ErrRuleUnavailable   = errors.New("XP reward rule unavailable")
-	ErrRewardLimit       = errors.New("XP reward limit exceeded")
-	ErrInvalidRule       = errors.New("invalid XP reward rule")
-	ErrInvalidAdjustment = errors.New("invalid XP adjustment")
-	ErrSourceKeyConflict = errors.New("XP source key already used for a different operation")
-	ErrNegativeBalance   = errors.New("XP balance cannot become negative")
-	ErrReversalLimit     = errors.New("XP reversal exceeds original award")
+	ErrIneligible            = errors.New("account is not eligible for XP")
+	ErrRuleUnavailable       = errors.New("XP reward rule unavailable")
+	ErrRewardLimit           = errors.New("XP reward limit exceeded")
+	ErrInvalidRule           = errors.New("invalid XP reward rule")
+	ErrInvalidAdjustment     = errors.New("invalid XP adjustment")
+	ErrSourceKeyConflict     = errors.New("XP source key already used for a different operation")
+	ErrNegativeBalance       = errors.New("XP balance cannot become negative")
+	ErrReversalLimit         = errors.New("XP reversal exceeds original award")
+	ErrOriginalAwardNotFound = errors.New("original XP award not found")
+	ErrAuditActorRequired    = errors.New("authenticated XP audit actor is required")
 )
+
+type auditActorContextKey struct{}
 
 type Service struct {
 	db     *gorm.DB
@@ -41,14 +47,49 @@ func New(db *gorm.DB) *Service {
 	return &Service{db: db, policy: hotdataserve.GetSecuritySettingsConfigCache}
 }
 
-// NewWithPolicyProvider is useful for jobs whose policy snapshot is already
-// loaded and for tests. Production callers should normally use New.
-func NewWithPolicyProvider(db *gorm.DB, policy func() pageConfig.SecurityAndRegistration) *Service {
-	return &Service{db: db, policy: policy}
+func newWithPolicy(db *gorm.DB, policy pageConfig.SecurityAndRegistration) *Service {
+	return &Service{db: db, policy: func() pageConfig.SecurityAndRegistration { return policy }}
 }
 
-func NewWithPolicy(db *gorm.DB, policy pageConfig.SecurityAndRegistration) *Service {
-	return NewWithPolicyProvider(db, func() pageConfig.SecurityAndRegistration { return policy })
+// WithAuthenticatedActor marks a server-side context with the actor resolved
+// from authenticated session state after the caller has completed its own
+// authorization checks. Never derive userID from request body or query input.
+func WithAuthenticatedActor(ctx context.Context, userID uint64) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, auditActorContextKey{}, userID)
+}
+
+func authenticatedActorID(ctx context.Context) (uint64, bool) {
+	if ctx == nil {
+		return 0, false
+	}
+	userID, ok := ctx.Value(auditActorContextKey{}).(uint64)
+	return userID, ok && userID != 0
+}
+
+// IsTerminal reports domain rejections that should be acknowledged by a future
+// reward outbox instead of retried. Unclassified errors (including database
+// and transport errors) remain retryable.
+func IsTerminal(err error) bool {
+	for _, terminal := range []error{
+		ErrIneligible,
+		ErrRuleUnavailable,
+		ErrRewardLimit,
+		ErrInvalidRule,
+		ErrInvalidAdjustment,
+		ErrSourceKeyConflict,
+		ErrNegativeBalance,
+		ErrReversalLimit,
+		ErrOriginalAwardNotFound,
+		ErrAuditActorRequired,
+	} {
+		if errors.Is(err, terminal) {
+			return true
+		}
+	}
+	return false
 }
 
 func EligibleForXP(user users.EntityComplete, security pageConfig.SecurityAndRegistration) bool {
@@ -59,6 +100,9 @@ func EligibleForXP(user users.EntityComplete, security pageConfig.SecurityAndReg
 }
 
 type AwardRequest struct {
+	// UserID must be the real numeric forum account ID. Business-event adapters
+	// resolve anonymous personas to their owning account before calling; this
+	// service intentionally does not create persona-scoped XP wallets.
 	UserID     uint64
 	RuleKey    string
 	SourceKey  string
@@ -79,8 +123,12 @@ func (s *Service) ApplyReward(ctx context.Context, request AwardRequest) (AwardR
 	}
 	request.SourceKey = strings.TrimSpace(request.SourceKey)
 	request.RuleKey = strings.TrimSpace(request.RuleKey)
+	location, err := shanghaiLocation()
+	if err != nil {
+		return AwardResult{}, fmt.Errorf("load XP calendar location %q: %w", ShanghaiTimeZone, err)
+	}
 	var result AwardResult
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		balance, err := lockBalance(tx, request.UserID)
 		if err != nil {
 			return err
@@ -103,7 +151,7 @@ func (s *Service) ApplyReward(ctx context.Context, request AwardRequest) (AwardR
 			return err
 		}
 
-		localTime := request.OccurredAt.In(shanghaiLocation())
+		localTime := request.OccurredAt.In(location)
 		var ruleSet xpmodel.RuleSet
 		err = tx.Where("effective_at <= ?", request.OccurredAt).Order("effective_at DESC").Take(&ruleSet).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -199,14 +247,30 @@ type AdjustmentRequest struct {
 	Delta             int64
 	Reason            string
 	OccurredAt        time.Time
-	ReversalOfEntryID *uint64 // Required: the original positive award being reversed.
+	ReversalOfEntryID uint64 // Required: the original positive award being reversed.
 }
 
-// PostAdjustment writes a negative reversal. It never consumes or refunds
-// positive-award quota. The required original-award reference caps cumulative
-// reversals at the amount that was actually granted.
+// PostAdjustment writes a human-authored negative reversal. The caller must
+// pass a context marked by trusted authenticated and authorized server code;
+// actor identity is never read from AdjustmentRequest. Reversals do not consume
+// or refund positive-award quota and are capped by the original award amount.
 func (s *Service) PostAdjustment(ctx context.Context, request AdjustmentRequest) (AwardResult, error) {
-	if s == nil || s.db == nil || request.UserID == 0 || strings.TrimSpace(request.SourceKey) == "" || len(request.SourceKey) > 255 || request.Delta >= 0 || request.Delta == math.MinInt64 || strings.TrimSpace(request.Reason) == "" || request.ReversalOfEntryID == nil || *request.ReversalOfEntryID == 0 {
+	actorUserID, ok := authenticatedActorID(ctx)
+	if !ok {
+		return AwardResult{}, ErrAuditActorRequired
+	}
+	return s.postAdjustment(ctx, request, actorUserID)
+}
+
+// PostSystemAdjustment is reserved for trusted server-side correction jobs.
+// Its actor_user_id is zero to distinguish automated reversals from human
+// actions; HTTP handlers must use PostAdjustment with authenticated context.
+func (s *Service) PostSystemAdjustment(ctx context.Context, request AdjustmentRequest) (AwardResult, error) {
+	return s.postAdjustment(ctx, request, 0)
+}
+
+func (s *Service) postAdjustment(ctx context.Context, request AdjustmentRequest, actorUserID uint64) (AwardResult, error) {
+	if s == nil || s.db == nil || request.UserID == 0 || strings.TrimSpace(request.SourceKey) == "" || len(request.SourceKey) > 255 || request.Delta >= 0 || request.Delta == math.MinInt64 || strings.TrimSpace(request.Reason) == "" || request.ReversalOfEntryID == 0 {
 		return AwardResult{}, ErrInvalidAdjustment
 	}
 	if request.OccurredAt.IsZero() {
@@ -222,7 +286,7 @@ func (s *Service) PostAdjustment(ctx context.Context, request AdjustmentRequest)
 		}
 		var existing xpmodel.Entry
 		if err := tx.Where("source_key = ?", request.SourceKey).Take(&existing).Error; err == nil {
-			if existing.UserID != request.UserID || existing.Delta != request.Delta || !sameID(existing.ReversalOfEntry, request.ReversalOfEntryID) {
+			if existing.UserID != request.UserID || existing.Delta != request.Delta || existing.ReversalOfEntry == nil || *existing.ReversalOfEntry != request.ReversalOfEntryID {
 				return ErrSourceKeyConflict
 			}
 			result = AwardResult{Entry: existing, AlreadyApplied: true}
@@ -234,33 +298,31 @@ func (s *Service) PostAdjustment(ctx context.Context, request AdjustmentRequest)
 			return err
 		}
 		var original xpmodel.Entry
-		if request.ReversalOfEntryID != nil {
-			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", *request.ReversalOfEntryID).Take(&original).Error; err != nil {
-				return err
-			}
-			if original.UserID != request.UserID || original.Delta <= 0 {
-				return ErrReversalLimit
-			}
-			var alreadyReversed int64
-			if err := tx.Model(&xpmodel.Entry{}).Select("COALESCE(SUM(-delta), 0)").Where("reversal_of_entry_id = ? AND delta < 0", original.ID).Scan(&alreadyReversed).Error; err != nil {
-				return err
-			}
-			if alreadyReversed > original.Delta || -request.Delta > original.Delta-alreadyReversed {
-				return ErrReversalLimit
-			}
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", request.ReversalOfEntryID).Take(&original).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrOriginalAwardNotFound
+		} else if err != nil {
+			return err
+		}
+		if original.UserID != request.UserID || original.Delta <= 0 {
+			return ErrReversalLimit
+		}
+		var alreadyReversed int64
+		if err := tx.Model(&xpmodel.Entry{}).Select("COALESCE(SUM(-delta), 0)").Where("reversal_of_entry_id = ? AND delta < 0", original.ID).Scan(&alreadyReversed).Error; err != nil {
+			return err
+		}
+		if alreadyReversed > original.Delta || -request.Delta > original.Delta-alreadyReversed {
+			return ErrReversalLimit
 		}
 		if balance.CurrentXP < -request.Delta {
 			return ErrNegativeBalance
 		}
 		entry := xpmodel.Entry{
-			UserID: request.UserID, SourceKey: request.SourceKey, RuleKey: "adjustment",
+			UserID: request.UserID, ActorUserID: actorUserID, SourceKey: request.SourceKey,
 			Delta: request.Delta, OccurredAt: request.OccurredAt.UTC(), Reason: request.Reason,
-			ReversalOfEntry: request.ReversalOfEntryID,
+			ReversalOfEntry: &request.ReversalOfEntryID,
 		}
-		if request.ReversalOfEntryID != nil {
-			entry.RuleKey = original.RuleKey
-			entry.RuleSetVersion = original.RuleSetVersion
-		}
+		entry.RuleKey = original.RuleKey
+		entry.RuleSetVersion = original.RuleSetVersion
 		insert := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "source_key"}}, DoNothing: true}).Create(&entry)
 		if insert.Error != nil {
 			return insert.Error
@@ -269,7 +331,7 @@ func (s *Service) PostAdjustment(ctx context.Context, request AdjustmentRequest)
 			if err := tx.Where("source_key = ?", request.SourceKey).Take(&existing).Error; err != nil {
 				return err
 			}
-			if existing.UserID != request.UserID || existing.Delta != request.Delta || !sameID(existing.ReversalOfEntry, request.ReversalOfEntryID) {
+			if existing.UserID != request.UserID || existing.Delta != request.Delta || existing.ReversalOfEntry == nil || *existing.ReversalOfEntry != request.ReversalOfEntryID {
 				return ErrSourceKeyConflict
 			}
 			result = AwardResult{Entry: existing, AlreadyApplied: true}
@@ -319,8 +381,16 @@ type RuleSetSpec struct {
 
 // PublishRuleSet appends a new effective-dated ruleset. Published versions and
 // their rules are immutable; disabling a policy requires publishing a disabled
-// version instead of editing history.
+// version instead of editing history. The publisher is resolved from trusted
+// authenticated context, not from rule input.
 func (s *Service) PublishRuleSet(ctx context.Context, spec RuleSetSpec) (uint64, error) {
+	if s == nil || s.db == nil {
+		return 0, errors.New("XP service is not configured")
+	}
+	publisherUserID, ok := authenticatedActorID(ctx)
+	if !ok {
+		return 0, ErrAuditActorRequired
+	}
 	if spec.TimeZone == "" {
 		spec.TimeZone = ShanghaiTimeZone
 	}
@@ -328,8 +398,11 @@ func (s *Service) PublishRuleSet(ctx context.Context, spec RuleSetSpec) (uint64,
 		return 0, ErrInvalidRule
 	}
 	seen := make(map[string]struct{}, len(spec.Rules))
-	for _, rule := range spec.Rules {
-		if strings.TrimSpace(rule.RuleKey) == "" || len(rule.RuleKey) > 64 || rule.RewardXP <= 0 || (rule.MaxPerEventXP != nil && *rule.MaxPerEventXP <= 0) || (rule.DailyCountLimit != nil && *rule.DailyCountLimit < 0) {
+	rules := append([]xpmodel.RewardRule(nil), spec.Rules...)
+	for index := range rules {
+		rule := &rules[index]
+		rule.RuleKey = strings.TrimSpace(rule.RuleKey)
+		if rule.RuleKey == "" || len(rule.RuleKey) > 64 || rule.RewardXP <= 0 || (rule.MaxPerEventXP != nil && *rule.MaxPerEventXP <= 0) || (rule.DailyCountLimit != nil && *rule.DailyCountLimit < 0) {
 			return 0, ErrInvalidRule
 		}
 		if _, exists := seen[rule.RuleKey]; exists {
@@ -337,14 +410,30 @@ func (s *Service) PublishRuleSet(ctx context.Context, spec RuleSetSpec) (uint64,
 		}
 		seen[rule.RuleKey] = struct{}{}
 	}
-	var version uint64
+	for attempt := 0; ; attempt++ {
+		version, err := s.publishRuleSetOnce(ctx, spec, rules, publisherUserID)
+		if err == nil {
+			return version, nil
+		}
+		if s.db.Name() != "sqlite" || !isSQLiteBusyOrLocked(err) || attempt+1 >= maxSQLiteRulePublishAttempts {
+			return 0, err
+		}
+		delay := time.Duration(1<<attempt) * time.Millisecond
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return 0, ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+func (s *Service) publishRuleSetOnce(ctx context.Context, spec RuleSetSpec, rules []xpmodel.RewardRule, publisherUserID uint64) (uint64, error) {
+	var publishedVersion uint64
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Migration v33 guarantees the immutable version-1 anchor. Serializing
-		// publishers through it prevents two administrators from allocating the
-		// same next version concurrently.
-		var anchor xpmodel.RuleSet
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("version = ?", 1).Take(&anchor).Error; err != nil {
-			return fmt.Errorf("lock XP ruleset version anchor: %w", err)
+		if err := lockRulePublication(tx); err != nil {
+			return err
 		}
 		var latest xpmodel.RuleSet
 		err := tx.Order("version DESC").Take(&latest).Error
@@ -354,27 +443,64 @@ func (s *Service) PublishRuleSet(ctx context.Context, spec RuleSetSpec) (uint64,
 		if latest.Version > 0 && !spec.EffectiveAt.After(latest.EffectiveAt) {
 			return ErrInvalidRule
 		}
-		version = latest.Version + 1
-		set := xpmodel.RuleSet{Version: version, Enabled: spec.Enabled, TimeZone: spec.TimeZone, DailyPositiveXPLimit: spec.DailyPositiveXPLimit, EffectiveAt: spec.EffectiveAt.UTC()}
+		version := latest.Version + 1
+		set := xpmodel.RuleSet{
+			Version: version, PublishedBy: publisherUserID, Enabled: spec.Enabled,
+			TimeZone: spec.TimeZone, DailyPositiveXPLimit: spec.DailyPositiveXPLimit,
+			EffectiveAt: spec.EffectiveAt.UTC(),
+		}
 		if err := tx.Select("*").Create(&set).Error; err != nil {
 			return err
 		}
-		for _, rule := range spec.Rules {
+		for _, rule := range rules {
 			rule.RuleSetVersion = version
-			rule.RuleKey = strings.TrimSpace(rule.RuleKey)
 			if err := tx.Select("*").Create(&rule).Error; err != nil {
 				return err
 			}
 		}
+		publishedVersion = version
 		return nil
 	})
-	return version, err
+	if err != nil {
+		return 0, err
+	}
+	return publishedVersion, nil
+}
+
+func lockRulePublication(tx *gorm.DB) error {
+	lock := xpmodel.RulePublicationLock{ID: 1}
+	if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoNothing: true}).Create(&lock).Error; err != nil {
+		return fmt.Errorf("ensure XP rule publication lock: %w", err)
+	}
+	// A row update is intentional: PostgreSQL serializes on this row, while
+	// SQLite has no FOR UPDATE row lock and instead obtains its single-writer
+	// reservation here before the version read.
+	result := tx.Model(&xpmodel.RulePublicationLock{}).Where("id = ?", lock.ID).UpdateColumn("lock_version", gorm.Expr("lock_version + 1"))
+	if result.Error != nil {
+		return fmt.Errorf("lock XP rule publication: %w", result.Error)
+	}
+	if result.RowsAffected != 1 {
+		return errors.New("XP rule publication lock row was not updated")
+	}
+	return nil
+}
+
+func isSQLiteBusyOrLocked(err error) bool {
+	var sqliteErr interface{ Code() int }
+	if errors.As(err, &sqliteErr) {
+		code := sqliteErr.Code() & 0xff
+		return code == 5 || code == 6 // SQLITE_BUSY / SQLITE_LOCKED, including extended codes.
+	}
+	return false
 }
 
 // EnsureInitialRules seeds only the confirmed daily +5 XP policy. Other reward
 // values and daily caps remain unset until the team decides them.
 func EnsureInitialRules(ctx context.Context, db *gorm.DB) error {
 	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockRulePublication(tx); err != nil {
+			return err
+		}
 		var count int64
 		if err := tx.Model(&xpmodel.RuleSet{}).Count(&count).Error; err != nil {
 			return err
@@ -382,7 +508,7 @@ func EnsureInitialRules(ctx context.Context, db *gorm.DB) error {
 		if count != 0 {
 			return nil
 		}
-		set := xpmodel.RuleSet{Version: 1, Enabled: true, TimeZone: ShanghaiTimeZone, EffectiveAt: time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)}
+		set := xpmodel.RuleSet{Version: 1, PublishedBy: 0, Enabled: true, TimeZone: ShanghaiTimeZone, EffectiveAt: time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)}
 		if err := tx.Create(&set).Error; err != nil {
 			return err
 		}
@@ -449,17 +575,6 @@ func saveUsage(tx *gorm.DB, row any) error {
 	return result.Error
 }
 
-func shanghaiLocation() *time.Location {
-	location, err := time.LoadLocation(ShanghaiTimeZone)
-	if err != nil {
-		panic(fmt.Sprintf("load required timezone %s: %v", ShanghaiTimeZone, err))
-	}
-	return location
-}
-
-func sameID(a, b *uint64) bool {
-	if a == nil || b == nil {
-		return a == nil && b == nil
-	}
-	return *a == *b
+func shanghaiLocation() (*time.Location, error) {
+	return time.LoadLocation(ShanghaiTimeZone)
 }

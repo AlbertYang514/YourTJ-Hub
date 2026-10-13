@@ -773,6 +773,7 @@ func SchemaModels() []any {
 		&xpmodel.Balance{},
 		&xpmodel.Entry{},
 		&xpmodel.RuleSet{},
+		&xpmodel.RulePublicationLock{},
 		&xpmodel.RewardRule{},
 		&xpmodel.DailyUsage{},
 		&xpmodel.DailyRuleUsage{},

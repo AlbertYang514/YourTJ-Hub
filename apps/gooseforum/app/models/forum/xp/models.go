@@ -25,6 +25,7 @@ func (Balance) TableName() string { return "xp_balances" }
 type Entry struct {
 	ID              uint64    `gorm:"primaryKey;autoIncrement;not null;column:id"`
 	UserID          uint64    `gorm:"not null;index:idx_xp_entries_user_time,priority:1;column:user_id"`
+	ActorUserID     uint64    `gorm:"not null;default:0;index:idx_xp_entries_actor,priority:1;column:actor_user_id"`
 	SourceKey       string    `gorm:"type:varchar(255);not null;uniqueIndex:idx_xp_entries_source_key;column:source_key"`
 	RuleSetVersion  uint64    `gorm:"not null;default:0;column:rule_set_version"`
 	RuleKey         string    `gorm:"type:varchar(64);not null;default:'';column:rule_key"`
@@ -44,6 +45,7 @@ func (*Entry) BeforeDelete(*gorm.DB) error { return ErrImmutableRecord }
 // version pauses positive rewards from EffectiveAt until the next version.
 type RuleSet struct {
 	Version              uint64    `gorm:"primaryKey;autoIncrement:false;not null;column:version"`
+	PublishedBy          uint64    `gorm:"not null;default:0;index:idx_xp_rule_sets_publisher;column:published_by"`
 	Enabled              bool      `gorm:"not null;column:enabled"`
 	TimeZone             string    `gorm:"type:varchar(64);not null;default:'Asia/Shanghai';column:time_zone"`
 	DailyPositiveXPLimit *int64    `gorm:"type:bigint;column:daily_positive_xp_limit"`
@@ -55,6 +57,16 @@ func (RuleSet) TableName() string { return "xp_rule_sets" }
 
 func (*RuleSet) BeforeUpdate(*gorm.DB) error { return ErrImmutableRecord }
 func (*RuleSet) BeforeDelete(*gorm.DB) error { return ErrImmutableRecord }
+
+// RulePublicationLock is mutable coordination state, not policy history. A
+// single row is written before rule publication reads the current version so
+// PostgreSQL and SQLite serialize publishers consistently.
+type RulePublicationLock struct {
+	ID          uint64 `gorm:"primaryKey;autoIncrement:false;not null;column:id"`
+	LockVersion uint64 `gorm:"not null;default:0;column:lock_version"`
+}
+
+func (RulePublicationLock) TableName() string { return "xp_rule_publication_locks" }
 
 // RewardRule is one immutable event rule inside a rule-set version. Nil daily
 // limits are unbounded; zero is a deliberate deny-all limit.
@@ -99,6 +111,7 @@ func Models() []any {
 		&Balance{},
 		&Entry{},
 		&RuleSet{},
+		&RulePublicationLock{},
 		&RewardRule{},
 		&DailyUsage{},
 		&DailyRuleUsage{},
