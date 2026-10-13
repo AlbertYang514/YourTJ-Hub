@@ -615,14 +615,25 @@ class _LoginPageState extends ConsumerState<LoginPage>
     if (_passkeyBusy || _authController.busy || _finishingAuthentication) {
       return;
     }
+    final l10n = AppLocalizations.of(context);
     setState(() {
       _passkeyBusy = true;
       _oidcError = '';
     });
     try {
       final authenticator = PasskeyAuthenticator();
-      if (!await authenticator.canAuthenticate()) {
-        throw StateError(AppLocalizations.of(context).authPasskeyUnavailable);
+      final availability = authenticator.getAvailability();
+      final canAuthenticate = kIsWeb
+          ? (await availability.web()).hasPasskeySupport
+          : switch (defaultTargetPlatform) {
+              TargetPlatform.android =>
+                (await availability.android()).hasPasskeySupport,
+              TargetPlatform.iOS =>
+                (await availability.iOS()).hasPasskeySupport,
+              _ => false,
+            };
+      if (!canAuthenticate) {
+        throw StateError(l10n.authPasskeyUnavailable);
       }
       final repository = AuthRepository(_authClient);
       final begin = await repository.beginPasskeyLogin();

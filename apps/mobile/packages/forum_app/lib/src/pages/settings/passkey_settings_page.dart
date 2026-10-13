@@ -1,5 +1,6 @@
 import 'package:auth/auth.dart';
 import 'package:core/core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:passkeys/authenticator.dart';
@@ -9,7 +10,6 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../auth/passkey_error_message.dart';
-import '../../widgets/status_views.dart';
 
 class PasskeySettingsPage extends ConsumerStatefulWidget {
   const PasskeySettingsPage({super.key});
@@ -212,7 +212,17 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
     });
     try {
       final authenticator = PasskeyAuthenticator();
-      if (!await authenticator.canAuthenticate()) {
+      final availability = authenticator.getAvailability();
+      final canAuthenticate = kIsWeb
+          ? (await availability.web()).hasPasskeySupport
+          : switch (defaultTargetPlatform) {
+              TargetPlatform.android =>
+                (await availability.android()).hasPasskeySupport,
+              TargetPlatform.iOS =>
+                (await availability.iOS()).hasPasskeySupport,
+              _ => false,
+            };
+      if (!canAuthenticate) {
         throw StateError(l10n.authPasskeyUnavailable);
       }
       final auth = ref.read(authRepositoryProvider);
