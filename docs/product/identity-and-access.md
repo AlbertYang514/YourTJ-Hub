@@ -2,7 +2,7 @@
 
 > Doc type: product spec
 >
-> Status: Active (auth chain `Partial`; built-in OIDC Provider + password/TOTP/GitHub OAuth/Google OAuth implemented)
+> Status: Active (auth chain `Partial`; built-in OIDC Provider + password/TOTP/GitHub OAuth/Google OAuth implemented; passkeys are opt-in and device acceptance remains `Partial`)
 >
 > Owner: Platform maintainers, Security reviewer
 >
@@ -40,6 +40,14 @@ private binding and restricted audits indefinitely and prevents subsequent perso
   be read, login fails without issuing either a challenge or a session.
   A challenge token can mint at most one session: it is atomically consumed on successful verification
   (`totpservice.ConsumeChallenge`), so replaying it cannot create a second session.
+- Passkey login (`Partial`, deployment opt-in): the forum acts as the WebAuthn relying party and
+  starts a discoverable credential ceremony requiring authenticator user verification. A successful
+  assertion creates the same revocable `jti` + `user_sessions` session as other forum logins. Passkey
+  login is an independent passwordless sign-in path, including for accounts with TOTP enabled; TOTP
+  remains required on password login. Registration is available only to an existing signed-in
+  account. Adding, renaming or revoking a credential requires a fresh password check and, when TOTP
+  is enabled, a current TOTP code. Account closure removes credentials and pending ceremonies.
+  Email/password recovery does not depend on passkeys.
 - GitHub OAuth and Google OAuth (goth): callbacks bind or sign in and issue a session token. Google
   requests only `openid`, `email`, and `profile` scopes; its email is treated as trusted for account
   binding only when the Google userinfo response contains `verified_email=true`. GitHub/Google OAuth callbacks
@@ -110,6 +118,13 @@ cannot become an account-binding operation if another forum session appears in t
 retains the continuation in its server-side login transaction and resumes the same OIDC bridge; school
 credentials are never returned to Dart.
 
+`Partial`: when the deployment enables passkeys, iOS and Android can sign in with a discoverable
+passkey through the platform credential provider. Existing accounts can add, rename and revoke
+credentials from account security after password reauthentication and TOTP when enabled. Passkey
+sign-in requires user verification and issues the ordinary forum session; email/password recovery
+remains available. Device acceptance, including Android OEM credential-provider behavior, has not
+been completed.
+
 On Android, Google, GitHub and Tongji use one RFC 8252 external-system-browser path. The app builds
 the authorization request itself with PKCE S256, independent `state` and `nonce`, and the provider
 hint, then launches the exact HTTPS authorization URI with `url_launcher` in
@@ -147,6 +162,9 @@ included in the URL, page body or JavaScript. See [mobile experience](mobile-exp
 - **Password login** is protected by forum-side TOTP (RFC 6238, optional, opt-in). Secrets are stored
   AES-256-GCM encrypted (key derived from `app.signingKey`); recovery codes are stored hashed and are
   single-use; verification attempts are rate-limited per user (10 failures / 15 min).
+- Passkey login requires WebAuthn user verification and signs in independently of password/TOTP.
+  TOTP remains an additional step only for password login; credential-management changes still
+  require password and enabled TOTP reauthentication.
 - **GitHub/Google/Tongji and built-in OIDC logins** do not run forum TOTP; MFA for those paths is a
   `Decision needed` (the built-in provider reuses the authenticated forum session, so a future phase
   may enforce forum TOTP there as well).

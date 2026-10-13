@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:passkeys/passkeys.dart';
 
 import 'package:auth/auth.dart';
 import 'package:core/core.dart';
@@ -24,6 +25,7 @@ import 'auth_ime_stabilizer.dart';
 import 'android_oidc_callback_source.dart';
 import 'android_oidc_coordinator.dart';
 import 'login_captcha_handoff.dart';
+import 'passkey_error_message.dart';
 import 'sign_in_methods_sheet.dart';
 
 /// 登录页模式。
@@ -99,6 +101,8 @@ class _LoginPageState extends ConsumerState<LoginPage>
   bool _agreed = false;
   _AuthMode _mode = _AuthMode.login;
   bool _oidcBusy = false;
+  bool _passkeyEnabled = false;
+  bool _passkeyBusy = false;
   // Restores focus to the "more sign-in methods" control after its sheet
   // closes without a choice.
   final FocusNode _moreMethodsFocusNode = FocusNode();
@@ -203,6 +207,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
       ref.invalidate(currentUserProvider);
       unawaited(_beginLoginSessionBoundary());
       _loadRegistration();
+      unawaited(_loadPasskeyStatus());
       _authIme.metricsChanged();
     });
   }
@@ -593,6 +598,64 @@ class _LoginPageState extends ConsumerState<LoginPage>
     }
     if (mounted && _authController.phase == LoginPhase.authenticated) {
       await _finishAuthentication(saveAutofill: true);
+    }
+  }
+
+  Future<void> _loadPasskeyStatus() async {
+    try {
+      final status = await AuthRepository(_authClient).getPasskeyStatus();
+      if (mounted) setState(() => _passkeyEnabled = status.enabled);
+    } catch (_) {
+      if (mounted) setState(() => _passkeyEnabled = false);
+    }
+  }
+
+  Future<void> _loginWithPasskey() async {
+    if (_passkeyBusy || _authController.busy || _finishingAuthentication) {
+      return;
+    }
+    setState(() {
+      _passkeyBusy = true;
+      _oidcError = '';
+    });
+    try {
+      final authenticator = PasskeyAuthenticator();
+      if (!await authenticator.canAuthenticate()) {
+        throw StateError(AppLocalizations.of(context).authPasskeyUnavailable);
+      }
+      final repository = AuthRepository(_authClient);
+      final begin = await repository.beginPasskeyLogin();
+      final options = begin.publicKey;
+      final request = AuthenticateRequestType(
+        relyingPartyId: (options['rpId'] ?? options['relyingPartyId']) as String,
+        challenge: options['challenge'] as String,
+        mediation: MediationType.Optional,
+        preferImmediatelyAvailableCredentials: false,
+        timeout: (options['timeout'] as num?)?.toInt(),
+        userVerification: (options['userVerification'] as String?) ?? 'required',
+        allowCredentials: (options['allowCredentials'] as List<dynamic>?)
+            ?.map((item) => CredentialType.fromJson(
+                  Map<String, dynamic>.from(item as Map),
+                ))
+            .toList(growable: false),
+      );
+      final assertion = await authenticator.authenticate(request);
+      await repository.finishPasskeyLogin(
+        ceremonyId: begin.ceremonyId,
+        credential: assertion.toJson(),
+      );
+      if (mounted) await _finishAuthentication();
+    } catch (error) {
+      if (mounted) {
+        final l10n = AppLocalizations.of(context);
+        setState(() => _oidcError = resolvePasskeyErrorMessage(
+              l10n,
+              error,
+              fallback: l10n.authPasskeyFailed,
+            ));
+      }
+    } finally {
+      if (mounted) setState(() => _passkeyBusy = false);
     }
   }
 
@@ -1389,6 +1452,22 @@ class _LoginPageState extends ConsumerState<LoginPage>
                 ? null
                 : _submit,
           ),
+          if (_mode == _AuthMode.login && _passkeyEnabled) ...<Widget>[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              key: const Key('login-passkey'),
+              icon: _passkeyBusy
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const GfSymbol('key-round', size: 20),
+              label: Text(l10n.authPasskey),
+              onPressed: _passkeyBusy || _authController.busy || _finishingAuthentication
+                  ? null
+                  : _loginWithPasskey,
+            ),
+          ],
           if (_mode != _AuthMode.forgotPassword) _buildSignInMethods(l10n),
           if (_mode == _AuthMode.login && _registrationError != null)
             TextButton(

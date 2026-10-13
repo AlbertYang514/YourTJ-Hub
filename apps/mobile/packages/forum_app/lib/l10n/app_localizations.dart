@@ -6811,4 +6811,28 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
     'on GitHub with a reproducible sample app and the gen-l10n configuration '
     'that was used.',
   );
+
+  String get authPasskey;
+  String get authPasskeyUnavailable;
+  String get authPasskeyFailed;
+  String get settingsPasskeyTitle;
+  String get settingsPasskeyManage;
+  String get settingsPasskeyDescription;
+  String get settingsPasskeyReauthHint;
+  String get settingsPasskeyName;
+  String get settingsPasskeyPassword;
+  String get settingsPasskeyAdd;
+  String get settingsPasskeyAddedAt;
+  String get settingsPasskeyLastUsed;
+  String get settingsPasskeyNeverUsed;
+  String get settingsPasskeySyncCapable;
+  String get settingsPasskeyDeviceBound;
+  String get settingsPasskeyBackedUp;
+  String get settingsPasskeyRevokedHint;
+  String get settingsPasskeyRename;
+  String get settingsPasskeyRevoke;
+  String get settingsPasskeyAdded;
+  String get settingsPasskeyRevoked;
+  String get settingsPasskeyEmpty;
+  String get settingsPasskeyUnavailable;
 }
