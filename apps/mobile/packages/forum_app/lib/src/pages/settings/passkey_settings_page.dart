@@ -2,7 +2,8 @@ import 'package:auth/auth.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:passkeys/passkeys.dart';
+import 'package:passkeys/authenticator.dart';
+import 'package:passkeys/types.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../../../l10n/app_localizations.dart';
@@ -57,7 +58,11 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
     } catch (error) {
       if (mounted) {
         setState(() {
-          _error = resolveErrorMessage(AppLocalizations.of(context), error);
+          _error = resolvePasskeyErrorMessage(
+            AppLocalizations.of(context),
+            error,
+            fallback: AppLocalizations.of(context).commonLoadFailed,
+          );
           _loading = false;
         });
       }
