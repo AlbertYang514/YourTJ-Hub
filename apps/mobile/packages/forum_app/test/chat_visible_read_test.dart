@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart'
-    show debugDefaultTargetPlatformOverride;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -434,11 +432,10 @@ void main() {
   testWidgets('status bar scroll to top does not load older chat history', (
     tester,
   ) async {
-    final TargetPlatform? previousPlatform =
-        debugDefaultTargetPlatformOverride;
-    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-    addTearDown(() => debugDefaultTargetPlatformOverride = previousPlatform);
-
+    const FakeViewPadding statusBar = FakeViewPadding(top: 59, bottom: 34);
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.padding = statusBar;
+    tester.view.viewPadding = statusBar;
     final h = await pumpChat(
       tester,
       messages: List.generate(40, (i) => makeChatMessage(i + 41)),
@@ -466,7 +463,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(h.repo.beforeCalls, greaterThan(0));
     await tester.pumpWidget(const SizedBox.shrink());
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
   testWidgets('a bubble taller than the viewport can become read', (
     tester,

@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart'
-    show debugDefaultTargetPlatformOverride;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
@@ -8,10 +6,11 @@ import 'package:forum_app/src/widgets/status_views.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 void main() {
-  setUp(() => debugDefaultTargetPlatformOverride = TargetPlatform.iOS);
-  tearDown(() => debugDefaultTargetPlatformOverride = null);
-
   testWidgets('status bar scroll skips refresh and pagination', (tester) async {
+    const FakeViewPadding statusBar = FakeViewPadding(top: 59, bottom: 34);
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.padding = statusBar;
+    tester.view.viewPadding = statusBar;
     final ScrollController scrollController = ScrollController();
     addTearDown(() async {
       await tester.pumpWidget(const SizedBox.shrink());
@@ -69,5 +68,5 @@ void main() {
     expect(scrollController.offset, 0);
     expect(refreshCalls, 0);
     expect(loadMoreCalls, 0);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 }

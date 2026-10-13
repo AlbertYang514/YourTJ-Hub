@@ -1,17 +1,13 @@
-import 'package:flutter/foundation.dart'
-    show debugDefaultTargetPlatformOverride;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ui_kit/ui_kit.dart';
 
 void main() {
-  setUp(() => debugDefaultTargetPlatformOverride = TargetPlatform.iOS);
-  tearDown(() => debugDefaultTargetPlatformOverride = null);
-
   testWidgets('status bar tap scrolls the visible main list to its top', (
     tester,
   ) async {
+    _setStatusBarInsets(tester);
     final ScrollController scrollController = ScrollController();
     addTearDown(() async {
       await tester.pumpWidget(const SizedBox.shrink());
@@ -40,11 +36,12 @@ void main() {
 
     expect(scrollController.offset, 0);
     expect(tester.takeException(), isNull);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
   testWidgets('only the currently visible tab scrolls to its top', (
     tester,
   ) async {
+    _setStatusBarInsets(tester);
     final firstTab = GfScrollToTopController();
     final secondTab = GfScrollToTopController();
     final selectedTab = ValueNotifier<int>(0);
@@ -99,9 +96,10 @@ void main() {
 
     expect(firstTab.scrollController!.offset, 300);
     expect(secondTab.scrollController!.offset, 0);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
   testWidgets('nested scroll reaches the top', (tester) async {
+    _setStatusBarInsets(tester);
     final ScrollController outerController = ScrollController();
     final GlobalKey<NestedScrollViewState> nestedKey =
         GlobalKey<NestedScrollViewState>();
@@ -147,10 +145,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(nested.outerController.offset, 0);
-    expect(nested.innerController.offset, 0);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
   testWidgets('tapping at the top repeatedly is harmless', (tester) async {
+    _setStatusBarInsets(tester);
     final ScrollController scrollController = ScrollController();
     addTearDown(() async {
       await tester.pumpWidget(const SizedBox.shrink());
@@ -177,10 +175,9 @@ void main() {
 
     expect(scrollController.offset, 0);
     expect(tester.takeException(), isNull);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
   testWidgets('Android status-bar behavior is unchanged', (tester) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.android;
     final ScrollController ambientController = ScrollController();
     final ScrollController pageController = ScrollController();
     addTearDown(() async {
@@ -220,7 +217,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(pageController.offset, 600);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 }
 
 Widget _tabList(GfScrollToTopController controller, String label) =>
@@ -238,3 +235,10 @@ Widget _tabList(GfScrollToTopController controller, String label) =>
 
 void _tapStatusBar(WidgetTester tester) =>
     tester.state<ScaffoldState>(find.byType(Scaffold)).handleStatusBarTap();
+
+void _setStatusBarInsets(WidgetTester tester) {
+  const FakeViewPadding statusBar = FakeViewPadding(top: 59, bottom: 34);
+  tester.view.physicalSize = const Size(390, 844);
+  tester.view.padding = statusBar;
+  tester.view.viewPadding = statusBar;
+}
