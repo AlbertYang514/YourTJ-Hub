@@ -594,6 +594,19 @@ void main() {
         if (platform == TargetPlatform.iOS) {
           restoredLatest.controller!.jumpTo(600);
           await tester.pump();
+          final activeStatusBarSurface =
+              tester.widget<GfStatusBarScrollToTop>(
+                find.byType(GfStatusBarScrollToTop),
+              );
+          final scaffoldContext = tester.element(find.byType(Scaffold));
+          expect(
+            activeStatusBarSurface.controller?.scrollController,
+            same(restoredLatest.controller),
+          );
+          expect(
+            PrimaryScrollController.maybeOf(scaffoldContext),
+            same(restoredLatest.controller),
+          );
           tester
               .state<ScaffoldState>(find.byType(Scaffold))
               .handleStatusBarTap();
