@@ -512,6 +512,10 @@ void main() {
         if (platform == TargetPlatform.iOS) {
           const statusBarInsets = FakeViewPadding(top: 59, bottom: 34);
           addTearDown(tester.view.reset);
+          // These dimensions are logical iPhone points. The iOS platform
+          // variant may use a 3x test device-pixel ratio, so pin the ratio to
+          // 1 to keep the 390x844 fixture at its intended logical size.
+          tester.view.devicePixelRatio = 1;
           tester.view.physicalSize = const Size(390, 844);
           tester.view.padding = statusBarInsets;
           tester.view.viewPadding = statusBarInsets;
