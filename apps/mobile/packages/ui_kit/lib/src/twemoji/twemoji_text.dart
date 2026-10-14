@@ -26,6 +26,48 @@ class TwemojiSegment {
 
 const String twemojiVersion = twemojiAssetVersion;
 
+// Derived once from the complete manifest so the common no-emoji path can
+// skip the sequence parser without maintaining a second Unicode range table.
+final Set<int> _twemojiFirstCodepoints = twemojiAssetBySequence.keys
+    .map((sequence) => sequence.runes.first)
+    .toSet();
+
+bool _mightContainTwemoji(String text) {
+  var offset = 0;
+  while (offset < text.length) {
+    final first = text.codeUnitAt(offset);
+    var codepoint = first;
+    var codeUnitLength = 1;
+    if (first >= 0xd800 && first <= 0xdbff && offset + 1 < text.length) {
+      final second = text.codeUnitAt(offset + 1);
+      if (second >= 0xdc00 && second <= 0xdfff) {
+        codepoint = 0x10000 + ((first - 0xd800) << 10) + (second - 0xdc00);
+        codeUnitLength = 2;
+      }
+    }
+
+    if (_twemojiFirstCodepoints.contains(codepoint)) {
+      final isKeycapStarter =
+          codepoint == 0x23 ||
+          codepoint == 0x2a ||
+          (codepoint >= 0x30 && codepoint <= 0x39);
+      if (!isKeycapStarter) return true;
+
+      var suffixOffset = offset + codeUnitLength;
+      if (suffixOffset < text.length &&
+          text.codeUnitAt(suffixOffset) == 0xfe0f) {
+        suffixOffset++;
+      }
+      if (suffixOffset < text.length &&
+          text.codeUnitAt(suffixOffset) == 0x20e3) {
+        return true;
+      }
+    }
+    offset += codeUnitLength;
+  }
+  return false;
+}
+
 class _TwemojiSelectionRegistry {
   final Map<String, int> _placeholderByEmoji = <String, int>{};
   final Map<int, String> emojiByPlaceholder = <int, String>{};
@@ -66,9 +108,9 @@ InlineSpan buildTwemojiTextSpan(
   required TextScaler textScaler,
 }) {
   if (sourceSpan is TextSpan &&
-      !parseTwemojiText(
+      !_mightContainTwemoji(
         sourceSpan.toPlainText(includePlaceholders: false),
-      ).any((segment) => segment.isEmoji)) {
+      )) {
     return sourceSpan;
   }
   final registry = _TwemojiSelectionScope.maybeOf(context);
@@ -562,9 +604,9 @@ class GfSelectableText extends StatelessWidget {
     final baseStyle = inheritedStyle.merge(style);
     final scaler = textScaler ?? MediaQuery.textScalerOf(context);
     final sourceSpan = textSpan ?? TextSpan(text: data ?? '');
-    final containsEmoji = parseTwemojiText(
+    final containsEmoji = _mightContainTwemoji(
       sourceSpan.toPlainText(includePlaceholders: false),
-    ).any((segment) => segment.isEmoji);
+    );
 
     if (containsEmoji) {
       final richText = GfText.rich(
@@ -677,9 +719,9 @@ class _TwemojiSpanBuilder {
 
   InlineSpan build(InlineSpan span, TextStyle inheritedStyle) {
     if (span is TextSpan &&
-        !parseTwemojiText(
+        !_mightContainTwemoji(
           span.toPlainText(includePlaceholders: false),
-        ).any((segment) => segment.isEmoji)) {
+        )) {
       return span;
     }
     return _transform(span, inheritedStyle);
@@ -705,7 +747,11 @@ class _TwemojiSpanBuilder {
     final style = inheritedStyle.merge(span.style);
     final transformedChildren = <InlineSpan>[];
     if (span.text case final text?) {
-      final segments = parseTwemojiText(text);
+      final segments = _mightContainTwemoji(text)
+          ? parseTwemojiText(text)
+          : text.isEmpty
+          ? const <TwemojiSegment>[]
+          : <TwemojiSegment>[TwemojiSegment.text(text)];
       for (final segment in segments) {
         if (!segment.isEmoji) {
           final value = segment.value;

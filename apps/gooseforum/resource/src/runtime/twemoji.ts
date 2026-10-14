@@ -185,11 +185,16 @@ export const TwemojiText = defineComponent({
 
 function nodeIsInsideEditor(node: Text): boolean {
   const parent = node.parentElement
-  return Boolean(
-    parent?.closest(
-      'script, style, textarea, [contenteditable="true"], [data-twemoji-ignore]',
-    ),
-  )
+  if (!parent) return false
+  if (parent.closest('script, style, textarea, [data-twemoji-ignore]')) return true
+
+  let current: Element | null = parent
+  while (current) {
+    const editable = current.getAttribute('contenteditable')
+    if (editable !== null && editable.toLowerCase() !== 'false') return true
+    current = current.parentElement
+  }
+  return false
 }
 
 function replaceTextNodeWithTwemoji(node: Text): void {
@@ -236,6 +241,16 @@ const twemojiHtmlDirective: Directive<HTMLElement> = {
 const lastRenderedHtml = new WeakMap<HTMLElement, string>()
 const copyListeners = new WeakSet<Document>()
 
+function htmlWithTwemojiFromFragment(fragment: DocumentFragment): string {
+  const copy = fragment.cloneNode(true) as DocumentFragment
+  for (const image of copy.querySelectorAll<HTMLImageElement>('img.twemoji')) {
+    image.replaceWith(document.createTextNode(image.dataset.emoji ?? image.alt))
+  }
+  const container = document.createElement('div')
+  container.append(copy)
+  return container.innerHTML
+}
+
 function textWithTwemojiFromFragment(fragment: DocumentFragment): string {
   const blockTags = new Set([
     'blockquote',
@@ -281,7 +296,9 @@ function preserveTwemojiCopy(event: ClipboardEvent): void {
   if (!fragments.some((fragment) => fragment.querySelector('img.twemoji'))) return
 
   const copiedText = fragments.map(textWithTwemojiFromFragment).join('')
+  const copiedHtml = fragments.map(htmlWithTwemojiFromFragment).join('')
   event.clipboardData.setData('text/plain', copiedText)
+  event.clipboardData.setData('text/html', copiedHtml)
   event.preventDefault()
 }
 

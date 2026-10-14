@@ -146,7 +146,7 @@ importers:
         specifier: ^8.0.16
         version: 8.1.0(@types/node@25.9.2)(jiti@2.7.0)
       vue:
-        specifier: ^3.5.25
+        specifier: 3.5.34
         version: 3.5.34(typescript@6.0.3)
       vue-i18n:
         specifier: ^11.4.4

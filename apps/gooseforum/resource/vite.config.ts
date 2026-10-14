@@ -1,4 +1,6 @@
 import { defineConfig } from 'vite'
+// Keep vue and @vue/compiler-dom pinned to one version: the helper Symbols below
+// must come from the same compiler-core instance used by @vitejs/plugin-vue.
 import vue from '@vitejs/plugin-vue'
 import {
   ElementTypes,
@@ -68,7 +70,7 @@ function twemojiNodeTransform(node: any, context: any) {
 
       const isEditable = node.props.some((prop: any) =>
         prop.type === NodeTypes.ATTRIBUTE
-          ? prop.name.toLowerCase() === 'contenteditable' && prop.value?.content !== 'false'
+          ? prop.name.toLowerCase() === 'contenteditable' && prop.value?.content?.toLowerCase() !== 'false'
           : prop.type === NodeTypes.DIRECTIVE && prop.name === 'model',
       )
       if (isEditable || hasVHtml) return

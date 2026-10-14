@@ -1,12 +1,24 @@
 // @vitest-environment happy-dom
 import { mount } from '@vue/test-utils'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { version as vueVersion } from 'vue'
 import { describe, expect, it } from 'vitest'
 import TwemojiHtmlFixture from './fixtures/TwemojiHtmlFixture.vue'
+import TwemojiEditableFixture from './fixtures/TwemojiEditableFixture.vue'
 import TwemojiTemplateFixture from './fixtures/TwemojiTemplateFixture.vue'
 import { renderMarkdownPreview } from '../src/runtime/markdown'
 import { parseTwemoji, renderTwemojiHtml, TWEMOJI_VERSION } from '../src/runtime/twemoji'
 
+const compilerDomPackage = JSON.parse(
+  readFileSync(resolve(process.cwd(), 'node_modules/@vue/compiler-dom/package.json'), 'utf8'),
+) as { version: string }
+
 describe('shared Twemoji mapping', () => {
+  it('keeps compiler helper symbols on the same Vue compiler version', () => {
+    expect(compilerDomPackage.version).toBe(vueVersion)
+  })
+
   it('keeps Unicode text and matches complete joined, regional, keycap, and tone sequences', () => {
     const text = '中文 A😀 🐦‍🔥 🇺🇸 1️⃣ 👩🏽‍💻!'
     const segments = parseTwemoji(text)
@@ -35,6 +47,20 @@ describe('shared Twemoji mapping', () => {
 })
 
 describe('Vue Twemoji rendering', () => {
+  it('keeps contenteditable text untouched in both compiled and runtime HTML', () => {
+    const wrapper = mount(TwemojiEditableFixture)
+    expect(wrapper.find('p img.twemoji').exists()).toBe(true)
+    expect(wrapper.find('[contenteditable] img.twemoji').exists()).toBe(false)
+    expect(wrapper.find('[contenteditable]').text()).toBe('editable 🐦‍🔥')
+
+    const richHtml = document.createElement('div')
+    richHtml.innerHTML = '<p contenteditable="">editable 🐦‍🔥</p>'
+    renderTwemojiHtml(richHtml)
+    expect(richHtml.querySelector('img.twemoji')).toBeNull()
+    expect(richHtml.textContent).toBe('editable 🐦‍🔥')
+    wrapper.unmount()
+  })
+
   it('renders the Vditor preview after syntax highlighting without changing its structure', () => {
     const preview = document.createElement('div')
     preview.innerHTML = `<pre><code><span class="hljs-keyword">const</span> emoji = '🐦‍🔥'</code></pre>`
@@ -101,10 +127,10 @@ describe('Vue Twemoji rendering', () => {
     wrapper.unmount()
   })
 
-  it('copies the original Unicode sequence when selected rich text includes an image', () => {
+  it('preserves rich HTML and plain Unicode when copying selected Twemoji content', () => {
     const wrapper = mount(TwemojiHtmlFixture, {
       props: {
-        html: '<p>复制 🐦‍🔥 and ❤️</p><pre><code>代码 🔥</code></pre><p>第二段 🧪</p>',
+        html: '<p><strong>复制 🐦‍🔥</strong> and <a href="https://example.com"><em>❤️</em></a></p><ul><li>list 🔥</li></ul>',
       },
     })
     const range = document.createRange()
@@ -121,7 +147,8 @@ describe('Vue Twemoji rendering', () => {
     document.dispatchEvent(event)
 
     expect(event.defaultPrevented).toBe(true)
-    expect(values['text/plain']).toBe('复制 🐦‍🔥 and ❤️\n代码 🔥\n第二段 🧪')
+    expect(values['text/plain']).toBe('复制 🐦‍🔥 and ❤️\nlist 🔥')
+    expect(values['text/html']).toBe('<p><strong>复制 🐦‍🔥</strong> and <a href="https://example.com"><em>❤️</em></a></p><ul><li>list 🔥</li></ul>')
     selection.removeAllRanges()
     wrapper.unmount()
   })

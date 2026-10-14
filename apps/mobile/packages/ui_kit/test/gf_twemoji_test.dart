@@ -27,6 +27,30 @@ void main() {
       },
     );
 
+    testWidgets('fast candidate scan keeps symbol, flag and keycap artwork', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: GfText('© ® ™ ❤️ 🐦‍🔥 🇺🇸 1️⃣ #️⃣')),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byType(Image), findsNWidgets(8));
+      expect(find.bySemanticsLabel('🐦‍🔥'), findsOneWidget);
+      expect(find.bySemanticsLabel('🇺🇸'), findsOneWidget);
+    });
+
+    testWidgets('ordinary digits are not treated as keycap Emoji', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: GfText('2026 and 514'))),
+      );
+      await tester.pump();
+      expect(find.byType(Image), findsNothing);
+      expect(find.text('2026 and 514'), findsOneWidget);
+    });
+
     test('keeps unsupported joined sequences together as original text', () {
       expect(parseTwemojiText('🐦‍🛹'), <TwemojiSegment>[
         const TwemojiSegment.text('🐦‍🛹'),

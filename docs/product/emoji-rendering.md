@@ -71,6 +71,7 @@ not equal to the source-file total.
 
 ## Implementation and verification references
 
+- [Decision rationale: MADR 0092](../decisions/0092-unified-twemoji-rendering.md)
 - [Web renderer tests](../../apps/gooseforum/resource/test/twemoji.test.ts)
 - [Flutter UI Kit Twemoji tests](../../apps/mobile/packages/ui_kit/test/gf_twemoji_test.dart)
 - [Asset generator](../../apps/mobile/packages/ui_kit/tool/generate_twemoji_manifest.mjs)
