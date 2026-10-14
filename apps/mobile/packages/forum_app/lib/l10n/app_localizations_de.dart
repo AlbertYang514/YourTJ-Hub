@@ -1937,7 +1937,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get notificationNew => 'Du hast eine neue Systemmitteilung';
+  String get notificationNew => 'Du hast eine neue Systembenachrichtigung';
 
   @override
   String get notificationSomeone => 'Jemand';
@@ -3813,13 +3813,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get pushMentionsAndReplies => 'Erwähnungen und Antworten';
 
   @override
-  String get pushActivity => 'Likes und Aktivitäten';
+  String get pushActivity => 'Likes';
 
   @override
-  String get pushFollowing => 'Abonnierte Updates';
+  String get pushFollowing => 'Abonnierte Aktivitäten';
 
   @override
-  String get pushSystem => 'Systemmitteilungen';
+  String get pushSystem => 'System und Moderation';
 
   @override
   String notificationMentionTopic(String actor, String topic) {

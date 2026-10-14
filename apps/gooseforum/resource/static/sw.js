@@ -13,7 +13,7 @@ const FALLBACK_URL = '/notifications';
 // Share source IDs and a bounded durable ledger with page notifications.
 // The timestamp preserves compatibility with pages running the previous worker.
 const DEDUP_CHANNEL_NAME = 'goose:browser-notifications-dedup';
-// shortcut: retain the latest 256 source IDs; use an expiry store if replay windows outgrow this bound.
+// Client id → peer id of the conversation that client currently shows.
 const activeChats = new Map();
 self.addEventListener('message', event => {
   if (event.source && event.data && event.data.type === 'goose:active-chat') {
@@ -79,6 +79,8 @@ self.addEventListener('push', (event) => {
       await self.registration.showNotification(payload.title, notificationOptions);
       try { if (cache) {
         await cache.put(key, new Response('1'));
+        // The ledger only needs to cover the replay window; 256 newest entries
+        // are enough for the polling interval. A longer window needs expiry.
         const keys = await cache.keys();
         for (const old of keys.slice(0, Math.max(0, keys.length - 256))) await cache.delete(old);
       } } catch {}

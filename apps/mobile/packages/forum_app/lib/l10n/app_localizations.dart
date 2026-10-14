@@ -6819,19 +6819,19 @@ abstract class AppLocalizations {
   /// No description provided for @pushActivity.
   ///
   /// In en, this message translates to:
-  /// **'Likes and activity'**
+  /// **'Likes'**
   String get pushActivity;
 
   /// No description provided for @pushFollowing.
   ///
   /// In en, this message translates to:
-  /// **'Following updates'**
+  /// **'Following activity'**
   String get pushFollowing;
 
   /// No description provided for @pushSystem.
   ///
   /// In en, this message translates to:
-  /// **'System notifications'**
+  /// **'System and moderation'**
   String get pushSystem;
 
   /// No description provided for @notificationMentionTopic.

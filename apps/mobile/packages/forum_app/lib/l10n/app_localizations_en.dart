@@ -3774,13 +3774,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pushMentionsAndReplies => 'Mentions and replies';
 
   @override
-  String get pushActivity => 'Likes and activity';
+  String get pushActivity => 'Likes';
 
   @override
-  String get pushFollowing => 'Following updates';
+  String get pushFollowing => 'Following activity';
 
   @override
-  String get pushSystem => 'System notifications';
+  String get pushSystem => 'System and moderation';
 
   @override
   String notificationMentionTopic(String actor, String topic) {

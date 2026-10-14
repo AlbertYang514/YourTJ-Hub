@@ -3635,13 +3635,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get pushMentionsAndReplies => 'メンションと返信';
 
   @override
-  String get pushActivity => 'いいねと反応';
+  String get pushActivity => 'いいね';
 
   @override
-  String get pushFollowing => 'フォロー更新';
+  String get pushFollowing => 'フォローの更新';
 
   @override
-  String get pushSystem => 'システム通知';
+  String get pushSystem => 'システムと審査';
 
   @override
   String notificationMentionTopic(String actor, String topic) {

@@ -17,7 +17,8 @@ import type { NotificationPayload } from '@gooseforum/client'
 const STORAGE_KEY = 'goose:browser-notifications'
 const DEDUP_CHANNEL_NAME = 'goose:browser-notifications-dedup'
 const DEDUP_STORAGE_KEY = 'goose:notification-shown-at'
-// shortcut: retain the latest 256 source IDs; use an expiry store if replay windows outgrow this bound.
+// Bounded source ledger (localStorage + Cache API): the newest 256 source IDs
+// cover the polling replay window. A longer window needs an expiry store.
 const SOURCE_STORAGE_KEY = 'goose:notification-sources'
 // 去重窗口取轮询间隔（30s）的两倍：各标签页轮询相位不同，最坏情况两个 tab 的翻转检测相差近一个周期。
 const DEDUP_WINDOW_MS = 60_000

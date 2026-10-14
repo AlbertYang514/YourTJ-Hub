@@ -1002,8 +1002,8 @@
   },
   "notificationWikiUpdated": "A Wiki page you follow was updated",
   "@notificationWikiUpdated": {
-  "placeholders": {}
-},
+    "placeholders": {}
+  },
   "notificationBadge": "You earned the “{badge}” badge",
   "@notificationBadge": {
     "placeholders": {
@@ -1812,9 +1812,9 @@
   "notificationsSystem": "System",
   "pushChat": "Direct messages",
   "pushMentionsAndReplies": "Mentions and replies",
-  "pushActivity": "Likes and activity",
-  "pushFollowing": "Following updates",
-  "pushSystem": "System notifications",
+  "pushActivity": "Likes",
+  "pushFollowing": "Following activity",
+  "pushSystem": "System and moderation",
   "notificationMentionTopic": "{actor} mentioned you in “{topic}”",
   "notificationCommentTopic": "{actor} commented on “{topic}”",
   "notificationTopicPostTopic": "{actor} posted a reply in “{topic}”, which you follow",

@@ -62,8 +62,13 @@ func webRouteToMobile(webURL string) string {
 		return mobileFallbackRoute
 	}
 	if strings.HasPrefix(parsed.Path, "/wiki/") && parsed.RawQuery == "" && parsed.Fragment == "" {
+		// RawPath keeps an encoded separator that Path decoding already turned
+		// into a real one; reject it before splitting into segments.
+		if strings.Contains(strings.ToLower(parsed.RawPath), "%2f") {
+			return mobileFallbackRoute
+		}
 		for _, part := range strings.Split(strings.TrimPrefix(parsed.Path, "/wiki/"), "/") {
-			if part == "" || part == "." || part == ".." || strings.ContainsAny(part, "\\?#%") || strings.Contains(strings.ToLower(parsed.RawPath), "%2f") {
+			if part == "" || part == "." || part == ".." || strings.ContainsAny(part, "\\?#%") {
 				return mobileFallbackRoute
 			}
 		}

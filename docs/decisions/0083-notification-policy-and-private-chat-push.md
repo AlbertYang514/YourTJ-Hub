@@ -1,7 +1,7 @@
 # Notification policy and private chat push
 
 ## Status
-Proposed
+Accepted
 Class: feature
 
 ## Context and Problem Statement

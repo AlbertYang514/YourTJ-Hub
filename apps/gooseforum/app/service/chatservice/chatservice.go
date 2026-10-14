@@ -190,8 +190,12 @@ func sendMessageWithEffectsAndReply(conn *gorm.DB, senderId, peerId uint64, cont
 					if rollbackErr := tx.RollbackTo("chat_push").Error; rollbackErr != nil {
 						return rollbackErr
 					}
-					slog.Warn("chat push enqueue failed", "messageId", message.Id)
+					slog.Warn("chat push enqueue failed", "messageId", message.Id, "err", err)
 				}
+			} else {
+				// An unavailable savepoint skips both channels as well; the message
+				// still commits, so record the lost push instead of failing the send.
+				slog.Warn("chat push savepoint failed", "messageId", message.Id, "err", err)
 			}
 
 			if err := tx.Model(&imConversations.Entity{}).Where("id = ?", convId).

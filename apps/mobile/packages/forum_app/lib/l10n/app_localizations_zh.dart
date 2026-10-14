@@ -3591,16 +3591,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get pushChat => '私信';
 
   @override
-  String get pushMentionsAndReplies => '提及与回复';
+  String get pushMentionsAndReplies => '提及和回复';
 
   @override
-  String get pushActivity => '赞与互动';
+  String get pushActivity => '赞';
 
   @override
-  String get pushFollowing => '关注更新';
+  String get pushFollowing => '关注动态';
 
   @override
-  String get pushSystem => '系统通知';
+  String get pushSystem => '系统与审核';
 
   @override
   String notificationMentionTopic(String actor, String topic) {

@@ -953,11 +953,7 @@
   },
   "notificationWikiUpdated": "你订阅的 Wiki 页面有更新",
   "@notificationWikiUpdated": {
-    "placeholders": {
-      "actor": {
-        "type": "String"
-      }
-    }
+    "placeholders": {}
   },
   "notificationBadge": "你获得了「{badge}」徽章",
   "@notificationBadge": {
@@ -1651,10 +1647,10 @@
   "notificationsFollowing": "关注",
   "notificationsSystem": "系统",
   "pushChat": "私信",
-  "pushMentionsAndReplies": "提及与回复",
-  "pushActivity": "赞与互动",
-  "pushFollowing": "关注更新",
-  "pushSystem": "系统通知",
+  "pushMentionsAndReplies": "提及和回复",
+  "pushActivity": "赞",
+  "pushFollowing": "关注动态",
+  "pushSystem": "系统与审核",
   "notificationMentionTopic": "{actor} 在《{topic}》中提到了你",
   "notificationCommentTopic": "{actor} 评论了《{topic}》",
   "notificationTopicPostTopic": "{actor} 在你关注的《{topic}》中发表了新回复",
