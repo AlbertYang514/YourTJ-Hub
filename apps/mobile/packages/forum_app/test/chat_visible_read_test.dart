@@ -200,6 +200,7 @@ void main() {
     tester,
   ) async {
     final h = await pumpChat(tester, messages: [makeChatMessage(1)]);
+    expect(visibleChatPeer.value, greaterThan(0));
     h.container.read(realtimeHealthyProvider.notifier).setHealthy(true);
     await tester.pump();
     final before = h.repo.afterCalls;
@@ -210,6 +211,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(visibleChatPeer.value, 0);
     h.repo.messages.add(makeChatMessage(2));
     h.container.read(realtimeInvalidationsProvider.notifier).chat(1);
     h.container.read(realtimeInvalidationsProvider.notifier).chat(2);
@@ -218,6 +220,7 @@ void main() {
 
     h.navigator.currentState!.pop();
     await tester.pumpAndSettle();
+    expect(visibleChatPeer.value, greaterThan(0));
     expect(h.repo.afterCalls, greaterThan(before));
     expect(find.text('消息 2'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
@@ -231,12 +234,14 @@ void main() {
     shellDrawerOpen.value = true;
     await tester.pump();
     await dwell(tester);
+    expect(visibleChatPeer.value, 0);
     expect(h.repo.batches, isEmpty);
 
     shellDrawerOpen.value = false;
     await tester.pump();
     await dwell(tester);
     expect(h.repo.batches.length, 1);
+    expect(visibleChatPeer.value, greaterThan(0));
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

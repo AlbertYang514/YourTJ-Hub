@@ -927,7 +927,7 @@
       }
     }
   },
-  "notificationTopicPost": "{actor} 在你关注的主题中发表了回复",
+  "notificationTopicPost": "{actor} 在你关注的主题中发表了新回复",
   "@notificationTopicPost": {
     "placeholders": {
       "actor": {
@@ -951,15 +951,11 @@
       }
     }
   },
-  "notificationWikiUpdated": "{actor} 更新了你关注的 Wiki 页面",
+  "notificationWikiUpdated": "你订阅的 Wiki 页面有更新",
   "@notificationWikiUpdated": {
-    "placeholders": {
-      "actor": {
-        "type": "String"
-      }
-    }
+    "placeholders": {}
   },
-  "notificationBadge": "你获得了“{badge}”徽章",
+  "notificationBadge": "你获得了「{badge}」徽章",
   "@notificationBadge": {
     "placeholders": {
       "badge": {
@@ -967,7 +963,7 @@
       }
     }
   },
-  "notificationNew": "新通知",
+  "notificationNew": "你有一条新的系统通知",
   "notificationSomeone": "有人",
   "profileRoleAdmin": "管理员",
   "profileOnline": "在线",
@@ -1644,5 +1640,19 @@
   "anonymousStatusRestricted": "已被管理员限制，暂时不能用它发言",
   "anonymousStatusDisabled": "已停用，暂时不能用它发言",
   "anonymousLinkabilityHint": "用这个身份发的内容会集中在它的主页上，别人可能把它们联系起来；内容本身也可能透露你是谁。",
-  "anonymousViewProfile": "查看匿名主页"
+  "anonymousViewProfile": "查看匿名主页",
+  "notificationsMentions": "@我",
+  "notificationsReplies": "回复",
+  "notificationsLikes": "赞",
+  "notificationsFollowing": "关注",
+  "notificationsSystem": "系统",
+  "pushChat": "私信",
+  "pushMentionsAndReplies": "提及和回复",
+  "pushActivity": "赞",
+  "pushFollowing": "关注动态",
+  "pushSystem": "系统与审核",
+  "notificationMentionTopic": "{actor} 在《{topic}》中提到了你",
+  "notificationCommentTopic": "{actor} 评论了《{topic}》",
+  "notificationTopicPostTopic": "{actor} 在你关注的《{topic}》中发表了新回复",
+  "notificationWikiTopic": "《{topic}》有更新"
 }

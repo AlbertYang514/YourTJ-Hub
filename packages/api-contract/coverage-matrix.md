@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：400
-- /api JSON 路由：331，已入契约：332（100%），已知未覆盖：0
+- 快照路由总数：402
+- /api JSON 路由：333，已入契约：334（100%），已知未覆盖：0
 - 非 API 排除路由：68
 
-## 已覆盖（332）
+## 已覆盖（334）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -80,6 +80,7 @@
 | GET | `/api/forum/posts/revisions` | `getPostRevisions` |
 | GET | `/api/forum/posts/window` | `getPostWindow` |
 | GET | `/api/forum/push/config` | `getPushConfig` |
+| GET | `/api/forum/push/preferences` | `getPushPreferences` |
 | GET | `/api/forum/search` | `searchForum` |
 | GET | `/api/forum/stickers` | `forumStickerList` |
 | GET | `/api/forum/unread-status` | `getUnreadStatus` |
@@ -342,6 +343,7 @@
 | POST | `/file/img-upload/init` | `initDirectImageUpload` |
 | PUT | `/api/forum/course-reviews/:reviewId/dislike` | `markReviewDislike` |
 | PUT | `/api/forum/course-reviews/:reviewId/helpful` | `markReviewHelpful` |
+| PUT | `/api/forum/push/preferences` | `updatePushPreferences` |
 | PUT | `/api/pk/plan-items` | `pkPutPlanItem` |
 | PUT | `/api/pk/plans` | `pkPutPlans` |
 

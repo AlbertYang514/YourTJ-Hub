@@ -976,7 +976,7 @@
       }
     }
   },
-  "notificationTopicPost": "{actor} posted in a topic you watch",
+  "notificationTopicPost": "{actor} posted a reply in a topic you follow",
   "@notificationTopicPost": {
     "placeholders": {
       "actor": {
@@ -1000,13 +1000,9 @@
       }
     }
   },
-  "notificationWikiUpdated": "{actor} updated a wiki page you watch",
+  "notificationWikiUpdated": "A Wiki page you follow was updated",
   "@notificationWikiUpdated": {
-    "placeholders": {
-      "actor": {
-        "type": "String"
-      }
-    }
+    "placeholders": {}
   },
   "notificationBadge": "You earned the “{badge}” badge",
   "@notificationBadge": {
@@ -1016,7 +1012,7 @@
       }
     }
   },
-  "notificationNew": "New notification",
+  "notificationNew": "You have a new system notification",
   "notificationSomeone": "Someone",
   "profileRoleAdmin": "Admin",
   "profileOnline": "Online",
@@ -1808,5 +1804,23 @@
   "anonymousStatusRestricted": "Restricted by an admin — you can't post with it right now",
   "anonymousStatusDisabled": "Turned off — you can't post with it right now",
   "anonymousLinkabilityHint": "Everything you post with it is gathered on one profile, so people may connect it. The content itself can still reveal who you are.",
-  "anonymousViewProfile": "View anonymous profile"
+  "anonymousViewProfile": "View anonymous profile",
+  "notificationsMentions": "Mentions",
+  "notificationsReplies": "Replies",
+  "notificationsLikes": "Likes",
+  "notificationsFollowing": "Following",
+  "notificationsSystem": "System",
+  "pushChat": "Direct messages",
+  "pushMentionsAndReplies": "Mentions and replies",
+  "pushActivity": "Likes",
+  "pushFollowing": "Following activity",
+  "pushSystem": "System and moderation",
+  "notificationMentionTopic": "{actor} mentioned you in “{topic}”",
+  "notificationCommentTopic": "{actor} commented on “{topic}”",
+  "notificationTopicPostTopic": "{actor} posted a reply in “{topic}”, which you follow",
+  "notificationWikiTopic": "“{topic}” was updated",
+  "@notificationMentionTopic": {"placeholders": {"actor": {"type": "String"}, "topic": {"type": "String"}}},
+  "@notificationCommentTopic": {"placeholders": {"actor": {"type": "String"}, "topic": {"type": "String"}}},
+  "@notificationTopicPostTopic": {"placeholders": {"actor": {"type": "String"}, "topic": {"type": "String"}}},
+  "@notificationWikiTopic": {"placeholders": {"topic": {"type": "String"}}}
 }
