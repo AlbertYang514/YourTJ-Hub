@@ -180,6 +180,8 @@ void main() {
           code: 'name',
           name: 'Colorful 🐦‍🔥',
           kind: 'nicknameStyle',
+          lightColors: ['#123456', '#654321'],
+          darkColors: ['#abcdef', '#fedcba'],
         ),
       ],
       ownedCodes: const [],
