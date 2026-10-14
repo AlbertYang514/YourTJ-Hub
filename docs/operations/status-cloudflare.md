@@ -174,7 +174,13 @@ production Wrangler 配置声明 `status.yourtj.de` Custom Domain；首次部署
 
 ### 采集排队排障
 
-若 job 卡在 `status-collector` environment 等待（状态为 `waiting`，没有审批人、`wait_timer` 为 0）超过约二十分钟，job 级 `cancel-in-progress` 通常清不掉它，后续 `public` 与 `devices` 定时采集都会被挡住。独立调度器在每次 dispatch 前会用 `GITHUB_DISPATCH_TOKEN`（需 `Actions: Read and write`）尝试 `force-cancel` 这类卡住的 `collect-status.yml` main run；清理失败不影响新的 dispatch。
+若 job 卡在 `status-collector` environment 等待（状态为 `waiting`）超过约二十分钟，job 级 `cancel-in-progress` 通常清不掉它，后续 `public` 与 `devices` 定时采集都会被挡住。独立调度器在每次 dispatch 前会用 `GITHUB_DISPATCH_TOKEN`（需 `Actions: Read and write`）列出 `collect-status.yml` 的 main、`waiting`、创建时间早于约二十分钟的 runs（`per_page=100`，并按页翻到没有更多结果），再对每个候选调用 `GET .../actions/runs/{id}/pending_deployments`：
+
+- **可 force-cancel**：`pending_deployments` 为空，或每一项的 `reviewers` 都为空且 `wait_timer === 0`（无审批人、无等待计时，视为环境保护规则失灵导致的卡住）。
+- **跳过**：任一 pending deployment 有非空 `reviewers`，或 `wait_timer > 0`（合法审批/计时，不得取消）。
+- 读取 pending_deployments 失败时跳过该 run，不误取消。清理失败不影响新的 dispatch。
+
+运维约束：若以后给 `status-collector` 环境配置审批人或 wait timer，上述判别会自动跳过合法等待，无需改调度器；不要把本缓解当成根因修复——根因仍是 environment 在无保护规则时把 run 挂在 `waiting`。
 
 手动恢复：
 

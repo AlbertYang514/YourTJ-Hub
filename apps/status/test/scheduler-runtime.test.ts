@@ -27,7 +27,7 @@ beforeAll(async () => {
     `,
     outboundService: async request => {
       calls.push({ url: request.url, method: request.method, authorization: request.headers.get('Authorization') })
-      if (request.url.includes('/runs?status=waiting')) {
+      if (request.url.includes('/runs?') && request.url.includes('status=waiting')) {
         return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200 })
       }
       return new Response(null, { status, headers: status === 302 ? { Location: 'https://other.example/private' } : {} })
@@ -45,26 +45,20 @@ it('dispatches in Workers and rejects redirects without forwarding the token', a
   const redirect = await mf.dispatchFetch('http://worker/trigger')
   expect(redirect.status).toBe(502)
   expect(await redirect.text()).toBe('Status dispatch rejected (302)')
-  expect(calls).toEqual([
-    {
-      url: 'https://api.github.com/repos/YourTongji/YourTJ-Hub/actions/workflows/collect-status.yml/runs?status=waiting&per_page=20',
-      method: 'GET',
-      authorization: 'Bearer test-only-token',
-    },
-    {
+  expect(calls).toHaveLength(4)
+  for (const i of [0, 2]) {
+    expect(calls[i].method).toBe('GET')
+    expect(calls[i].authorization).toBe('Bearer test-only-token')
+    expect(calls[i].url).toContain('/actions/workflows/collect-status.yml/runs?')
+    expect(calls[i].url).toContain('status=waiting')
+    expect(calls[i].url).toContain('branch=main')
+    expect(calls[i].url).toContain('per_page=100')
+  }
+  for (const i of [1, 3]) {
+    expect(calls[i]).toEqual({
       url: 'https://api.github.com/repos/YourTongji/YourTJ-Hub/actions/workflows/collect-status.yml/dispatches',
       method: 'POST',
       authorization: 'Bearer test-only-token',
-    },
-    {
-      url: 'https://api.github.com/repos/YourTongji/YourTJ-Hub/actions/workflows/collect-status.yml/runs?status=waiting&per_page=20',
-      method: 'GET',
-      authorization: 'Bearer test-only-token',
-    },
-    {
-      url: 'https://api.github.com/repos/YourTongji/YourTJ-Hub/actions/workflows/collect-status.yml/dispatches',
-      method: 'POST',
-      authorization: 'Bearer test-only-token',
-    },
-  ])
+    })
+  }
 })
