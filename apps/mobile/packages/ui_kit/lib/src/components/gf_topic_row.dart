@@ -34,6 +34,9 @@ class GfTopicRow extends StatelessWidget {
     required this.description,
     required this.categories,
     required this.participantAvatarUrls,
+    this.participantFrameColors = const [],
+    this.participantFrameAssetUrls = const [],
+    this.participantFrameScales = const [],
     required this.activityText,
     required this.replyCount,
     this.onTap,
@@ -52,6 +55,9 @@ class GfTopicRow extends StatelessWidget {
   final String description;
   final List<GfTopicCategory> categories;
   final List<String> participantAvatarUrls;
+  final List<List<Color>> participantFrameColors;
+  final List<String> participantFrameAssetUrls;
+  final List<double> participantFrameScales;
   final String activityText;
   final int replyCount;
   final VoidCallback? onTap;
@@ -240,7 +246,13 @@ class GfTopicRow extends StatelessWidget {
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         if (avatars.isNotEmpty)
-          GfAvatarStack(avatarUrls: avatars, size: GfAvatarStackSize.sm),
+          GfAvatarStack(
+            avatarUrls: avatars,
+            frameColors: participantFrameColors,
+            frameAssetUrls: participantFrameAssetUrls,
+            frameScales: participantFrameScales,
+            size: GfAvatarStackSize.sm,
+          ),
         GfText(activityText, style: style),
         Row(
           mainAxisSize: MainAxisSize.min,

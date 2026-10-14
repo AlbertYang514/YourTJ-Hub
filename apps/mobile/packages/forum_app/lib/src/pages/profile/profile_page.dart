@@ -1,3 +1,4 @@
+import '../../widgets/user_decoration.dart';
 import '../settings/anonymous_identity_page.dart';
 import 'profile_header_sliver.dart';
 import 'profile_tabs.dart';
@@ -626,12 +627,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                GfText(
+                GfDecoratedName(
                   privateDisplayName(
                     context,
                     user.userId,
                     user.username,
                     user.nickname,
+                  ),
+                  colors: decorationColors(
+                    context,
+                    user.decoration?.nicknameStyle,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1034,21 +1039,28 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       ? null
       : UserWornBadge(user.wornBadge!, avatarSize: 88);
 
-  Widget _immersiveHeader(BuildContext context, UserProfileProps props) =>
-      ProfileHeaderSliver(
-        avatarUrl: props.user.avatarUrl,
-        coverUrl: props.user.profileCoverUrl,
-        avatarBadge: _wornBadge(props.user),
-        title: _profileTitle(context, AppLocalizations.of(context)),
-        actions: _profileButtons(props),
-        actionHeightFor: (context, width) =>
-            _actionBandHeight(context, props, width),
-        navigationActions: (context, glass) => _profileActions(
-          context,
-          AppLocalizations.of(context),
-          glass: glass,
-        ),
-      );
+  Widget _immersiveHeader(
+    BuildContext context,
+    UserProfileProps props,
+  ) => ProfileHeaderSliver(
+    avatarUrl: props.user.avatarUrl,
+    avatarFrameColors: decorationColors(
+      context,
+      props.user.decoration?.avatarFrame,
+    ),
+    avatarFrameAssetUrl: decorationFrameAssetUrl(
+      props.user.decoration?.avatarFrame,
+    ),
+    avatarFrameScale: props.user.decoration?.avatarFrame?.assetScale ?? 1.25,
+    coverUrl: props.user.profileCoverUrl,
+    avatarBadge: _wornBadge(props.user),
+    title: _profileTitle(context, AppLocalizations.of(context)),
+    actions: _profileButtons(props),
+    actionHeightFor: (context, width) =>
+        _actionBandHeight(context, props, width),
+    navigationActions: (context, glass) =>
+        _profileActions(context, AppLocalizations.of(context), glass: glass),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -1416,6 +1428,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       showHeader: false,
       coverUrl: resolveApiAssetUrl(user.profileCoverUrl),
       avatarUrl: resolveApiAssetUrl(user.avatarUrl),
+      avatarFrameColors: decorationColors(
+        context,
+        user.decoration?.avatarFrame,
+      ),
+      avatarFrameAssetUrl: decorationFrameAssetUrl(
+        user.decoration?.avatarFrame,
+      ),
+      avatarFrameScale: user.decoration?.avatarFrame?.assetScale ?? 1.25,
+      nicknameColors: decorationColors(context, user.decoration?.nicknameStyle),
       avatarBadge: _wornBadge(user),
       name: privateDisplayName(
         context,
@@ -1638,6 +1659,19 @@ class _ProfileBody extends StatelessWidget {
             props.user.nickname,
           ),
           avatarUrl: resolveApiAssetUrl(props.user.avatarUrl),
+          avatarFrameColors: decorationColors(
+            context,
+            props.user.decoration?.avatarFrame,
+          ),
+          avatarFrameAssetUrl: decorationFrameAssetUrl(
+            props.user.decoration?.avatarFrame,
+          ),
+          avatarFrameScale:
+              props.user.decoration?.avatarFrame?.assetScale ?? 1.25,
+          nicknameColors: decorationColors(
+            context,
+            props.user.decoration?.nicknameStyle,
+          ),
           contextSymbol: switch (action) {
             'signup' => 'user-round',
             'post' => 'square-pen',
@@ -1830,6 +1864,18 @@ class _ProfileBody extends StatelessWidget {
           final isFollowing = follow.following ?? (user.isFollowing ?? false);
           return GfConnectionRow(
             avatarUrl: resolveApiAssetUrl(user.avatarUrl),
+            avatarFrameColors: decorationColors(
+              context,
+              user.decoration?.avatarFrame,
+            ),
+            avatarFrameAssetUrl: decorationFrameAssetUrl(
+              user.decoration?.avatarFrame,
+            ),
+            avatarFrameScale: user.decoration?.avatarFrame?.assetScale ?? 1.25,
+            nicknameColors: decorationColors(
+              context,
+              user.decoration?.nicknameStyle,
+            ),
             name: privateDisplayName(
               context,
               user.id,
@@ -1873,6 +1919,18 @@ class _ProfileBody extends StatelessWidget {
             author.nickname,
           ),
     avatarUrl: resolveApiAssetUrl(author?.avatarUrl ?? ''),
+    avatarFrameColors: decorationColors(
+      context,
+      author?.decoration?.avatarFrame,
+    ),
+    avatarFrameAssetUrl: decorationFrameAssetUrl(
+      author?.decoration?.avatarFrame,
+    ),
+    avatarFrameScale: author?.decoration?.avatarFrame?.assetScale ?? 1.25,
+    nicknameColors: decorationColors(
+      context,
+      author?.decoration?.nicknameStyle,
+    ),
     title: title,
     text: excerpt,
     thumbnailUrl: resolveApiAssetUrl(thumbnail),

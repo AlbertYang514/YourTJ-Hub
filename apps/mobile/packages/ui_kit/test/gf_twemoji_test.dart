@@ -65,6 +65,34 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('decorated names keep Twemoji artwork colors', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              GfDecoratedName(
+                '昵称 🐦‍🔥',
+                colors: <Color>[Colors.red, Colors.blue],
+              ),
+              GfDecoratedName(
+                '渐变昵称',
+                colors: <Color>[Colors.red, Colors.blue],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(Image), findsOneWidget);
+    expect(find.bySemanticsLabel('🐦‍🔥'), findsOneWidget);
+    expect(find.byType(ShaderMask), findsOneWidget);
+    final emojiElement = tester.element(find.byType(Image));
+    expect(emojiElement.findAncestorWidgetOfExactType<ShaderMask>(), isNull);
+  });
+
   testWidgets('selectable Emoji copy restores its complete source sequence', (
     tester,
   ) async {
