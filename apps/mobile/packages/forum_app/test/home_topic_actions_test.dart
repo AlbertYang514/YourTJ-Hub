@@ -526,6 +526,14 @@ void main() {
         final hot = tester.widget<GfTopicList>(find.byType(GfTopicList));
         hot.controller!.jumpTo(500);
         await tester.pump();
+        final statusBarSurface = tester.widget<GfStatusBarScrollToTop>(
+          find.byType(GfStatusBarScrollToTop),
+        );
+        expect(statusBarSurface.controller?.isAttached, isTrue);
+        expect(
+          statusBarSurface.controller?.scrollController,
+          same(hot.controller),
+        );
 
         final logoButton = find.byKey(
           const ValueKey<String>('home-logo-scroll-to-top'),
@@ -543,8 +551,7 @@ void main() {
         final callsBeforeLogoTap = Map<String, int>.of(pages.calls);
         final nextCallsBeforeLogoTap = List<String>.of(pages.nextCalls);
         final routePushesBeforeLogoTap = observer.pushes;
-        container.read(readingChromeProvider).show();
-        await tester.pumpAndSettle();
+        expect(logoButton.hitTestable(), findsOneWidget);
         await tester.tap(logoButton);
         await tester.pump(const Duration(milliseconds: 50));
         expect(hot.controller!.offset, greaterThan(0));
