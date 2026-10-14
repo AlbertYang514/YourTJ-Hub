@@ -563,6 +563,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
           onChanged: (_) => setState(() {}),
         ),
       ),
+      statusBarScrollToTopController: _scrollToTopController,
       body: (top, bottom) => _conversationBody(drafts, top, bottom),
     );
   }
@@ -633,6 +634,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   bool _readSyncUnsupported = false;
   int _scrollAdjustmentGeneration = 0;
   bool _adjustingScroll = false;
+  bool _suppressEdgePaginationAfterStatusBarTap = false;
   double? _messageViewportHeight;
   ChatReplyTarget? _replyTarget;
   int _replySelection = 0;
@@ -895,14 +897,20 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
         _scrollController.position.extentAfter < 24) {
       setState(() => _unseenNewMessages = false);
     }
-    if (_scrollController.hasClients &&
+    if (!_suppressEdgePaginationAfterStatusBarTap &&
+        _scrollController.hasClients &&
         _scrollController.position.pixels < 80) {
       _loadOlder();
     }
-    if (_scrollController.hasClients &&
+    if (!_suppressEdgePaginationAfterStatusBarTap &&
+        _scrollController.hasClients &&
         _scrollController.position.extentAfter < 80) {
       _loadNewer();
     }
+  }
+
+  void _handleStatusBarTap() {
+    _suppressEdgePaginationAfterStatusBarTap = true;
   }
 
   void _dismissReplyReturnAtBottom() {
@@ -928,6 +936,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
 
   bool _onUserScroll(ScrollStartNotification notification) {
     if (notification.dragDetails != null) {
+      _suppressEdgePaginationAfterStatusBarTap = false;
       _scrollAdjustmentGeneration++;
       _adjustingScroll = false;
       _visibleReads.changed(restartDwell: true);
@@ -1967,7 +1976,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     _publishPushVisibility();
     final List<ChatTimelineItem> timeline = buildChatTimeline(_messages);
 
-    return PopScope(
+    final page = PopScope(
       canPop: !_selecting,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop && _selecting) _endSelection();
@@ -2060,6 +2069,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                   if (notification is ScrollEndNotification &&
                       notification.depth == 0) {
                     _dismissReplyReturnAtBottom();
+                    _suppressEdgePaginationAfterStatusBarTap = false;
                   }
                   if (notification is ScrollMetricsNotification &&
                       notification.depth == 0 &&
@@ -2506,6 +2516,11 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
           ],
         ),
       ),
+    );
+    return GfStatusBarScrollToTop(
+      scrollController: _scrollController,
+      onStatusBarTap: _handleStatusBarTap,
+      child: page,
     );
   }
 }
