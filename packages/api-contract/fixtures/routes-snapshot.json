@@ -97,6 +97,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/admin/decorations"
+  },
+  {
+    "method": "GET",
     "path": "/api/admin/feed/summary"
   },
   {
@@ -190,6 +194,10 @@
   {
     "method": "GET",
     "path": "/api/admin/terms-of-service"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/user-decorations"
   },
   {
     "method": "GET",
@@ -394,6 +402,10 @@
   {
     "method": "GET",
     "path": "/api/user-notes"
+  },
+  {
+    "method": "GET",
+    "path": "/api/user/decorations"
   },
   {
     "method": "GET",
@@ -790,6 +802,18 @@
   {
     "method": "POST",
     "path": "/api/admin/data/import/tasks/:taskId/replay"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/decoration-grant"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/decoration-revoke"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/decoration-save"
   },
   {
     "method": "POST",
@@ -1510,6 +1534,10 @@
   {
     "method": "POST",
     "path": "/api/user-note"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/decorations/equip"
   },
   {
     "method": "POST",
