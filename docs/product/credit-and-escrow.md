@@ -62,7 +62,7 @@ Forum built-in OIDC Provider (numeric sub = users.id)
   legacy points or prestige path. Trusted business-event adapters must map anonymous personas to
   their owning account before settlement; manual reversals and rule publications carry the actor from
   authenticated server context, while automated awards use the system actor. See the [XP ledger and
-  dynamic-level decision](../decisions/0087-xp-ledger-and-dynamic-levels.md).
+  dynamic-level decision](../decisions/0090-xp-ledger-and-dynamic-levels.md).
 - **Cross-platform credit is `Planned`**: services/credit is a deployment placeholder; it is
   not deployed or wired, and the local ledger is not presented as the future settlement source.
 - No top-up/withdrawal/fiat exchange/free transfers.
