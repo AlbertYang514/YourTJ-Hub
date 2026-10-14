@@ -602,10 +602,22 @@ class _LoginPageState extends ConsumerState<LoginPage>
     }
   }
 
+  Future<bool> _passkeyAvailableOnDevice() {
+    final availability = PasskeyAuthenticator().getAvailability();
+    return resolvePasskeyAvailability(
+      isWeb: kIsWeb,
+      platform: defaultTargetPlatform,
+      web: () async => (await availability.web()).hasPasskeySupport,
+      android: () async => (await availability.android()).hasPasskeySupport,
+      ios: () async => (await availability.iOS()).hasPasskeySupport,
+    );
+  }
+
   Future<void> _loadPasskeyStatus() async {
     try {
       final status = await AuthRepository(_authClient).getPasskeyStatus();
-      if (mounted) setState(() => _passkeyEnabled = status.enabled);
+      final available = status.enabled && await _passkeyAvailableOnDevice();
+      if (mounted) setState(() => _passkeyEnabled = available);
     } catch (_) {
       if (mounted) setState(() => _passkeyEnabled = false);
     }
@@ -622,17 +634,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
     });
     try {
       final authenticator = PasskeyAuthenticator();
-      final availability = authenticator.getAvailability();
-      final canAuthenticate = kIsWeb
-          ? (await availability.web()).hasPasskeySupport
-          : switch (defaultTargetPlatform) {
-              TargetPlatform.android =>
-                (await availability.android()).hasPasskeySupport,
-              TargetPlatform.iOS =>
-                (await availability.iOS()).hasPasskeySupport,
-              _ => false,
-            };
-      if (!canAuthenticate) {
+      if (!await _passkeyAvailableOnDevice()) {
         throw StateError(l10n.authPasskeyUnavailable);
       }
       final repository = AuthRepository(_authClient);

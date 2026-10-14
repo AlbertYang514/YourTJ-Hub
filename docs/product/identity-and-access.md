@@ -48,6 +48,7 @@ private binding and restricted audits indefinitely and prevents subsequent perso
   account. Adding, renaming or revoking a credential requires a fresh password check and, when TOTP
   is enabled, a current TOTP code. Account closure removes credentials and pending ceremonies.
   Email/password recovery does not depend on passkeys.
+  The implementation decision is recorded in [MADR 0091](../decisions/0091-forum-owned-cross-platform-passkeys.md).
 - GitHub OAuth and Google OAuth (goth): callbacks bind or sign in and issue a session token. Google
   requests only `openid`, `email`, and `profile` scopes; its email is treated as trusted for account
   binding only when the Google userinfo response contains `verified_email=true`. GitHub/Google OAuth callbacks

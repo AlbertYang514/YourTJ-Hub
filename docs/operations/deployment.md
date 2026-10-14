@@ -1020,7 +1020,7 @@ key fingerprint in place of Play's app-signing certificate, and verify values ag
 records before adding them. iOS Associated Domains include the exact main and dev hosts; the matching
 AASA `appID` must be `<TeamID>.tj.yourtj.forumApp`. Each configured hostname must serve its matching
 AASA or Digital Asset Links document directly over HTTPS without redirects. Android association
-binds the package name to the configured certificate fingerprints.
+binds the package name to the configured certificate fingerprints. Passkey credential encryption and user handles derive from `app.signingKey`; rotating that key makes existing credentials unusable. Keep it stable and include credential re-enrollment in any planned key rotation.
 
 After a reviewed config rollout, verify both files and the public enabled flag:
 

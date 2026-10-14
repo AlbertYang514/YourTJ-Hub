@@ -878,6 +878,8 @@ export interface SponsorsRulePayload {
 }
 
 export interface NotificationsPageProps {
+  category?: NotificationCategory
+  filter?: NotificationFilter
   total: number
   unreadCount: number
   notifications: NotificationPayload[]
@@ -890,6 +892,7 @@ export interface NotificationsPageProps {
 }
 
 export type NotificationFilter = 'all' | 'unread'
+export type NotificationCategory = 'all' | 'mentions' | 'replies' | 'likes' | 'following' | 'system'
 
 export interface NotificationListResponse {
   items: NotificationPayload[]
@@ -963,6 +966,7 @@ export interface NotificationPayload {
   payload: {
     title?: string
     content?: string
+    hasDirectMention?: boolean
     templateKey?: NotificationTemplateKey
     templateParams?: NotificationTemplateParams
     actorId: number

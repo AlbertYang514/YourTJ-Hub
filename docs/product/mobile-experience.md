@@ -1021,7 +1021,7 @@ identity survive this layout change. The header keeps a small outer margin for i
   password check and TOTP when enabled. The flow depends on matching iOS Associated Domains and
   Android Digital Asset Links. The Flutter Android authenticator requires Android API 28 or later
   at runtime; older versions retain password and OAuth login. Physical-device acceptance, including
-  Android OEM providers, remains outstanding.
+  Android OEM providers, remains outstanding. The authentication decision is recorded in [MADR 0091](../decisions/0091-forum-owned-cross-platform-passkeys.md).
 - `Current`: native routes that require a session lead guests to sign-in before constructing the
   private page. Login retains the original native location, including topic reply position, composer
   context and chat recipient, using an explicit route/query allowlist. External, recursive and
@@ -1374,8 +1374,12 @@ native cleanup is pending.
   Enable taps during startup/resume or stop are queued; a later disable or account change cancels
   queued consent. Failed unbinding is retained and retried on resume while push stays disabled,
   using the owning account; signing in to a different account does not acknowledge that cleanup.
-- `Current`: notifications use the existing event copy and only navigate to supported in-app topic,
-  profile and notification routes. Logout stops native delivery and attempts server unbinding;
+- `Current`: notifications use four-language actor/action/object copy and controlled topic-floor, profile,
+  Wiki and chat routes. A push recipient must match the restored account before opening a private
+  conversation; object pages re-authorize access. A loaded, uncovered foreground conversation
+  suppresses its own system alert; other conversations remain eligible. Account-level grouped
+  preferences are independent of OS permission, and private chat text never enters push payloads. Logout stops native delivery and attempts server
+  unbinding;
   the next account requires fresh consent. Optional JPush analytics/location collection is disabled.
 - See [activation and device validation](../operations/mobile-releases.md#native-push-activation-and-verification)
   for credentials, supported OEMs and delivery limitations.

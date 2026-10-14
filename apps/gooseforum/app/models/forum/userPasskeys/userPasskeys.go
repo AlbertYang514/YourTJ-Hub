@@ -39,7 +39,7 @@ type ChallengeEntity struct {
 	SessionJti  string    `gorm:"column:session_jti;type:varchar(64);not null;default:''" json:"-"`
 	SessionData string    `gorm:"column:session_data;type:text;not null;default:''" json:"-"`
 	Attempts    int       `gorm:"column:attempts;not null;default:0" json:"-"`
-	ExpiresAt   time.Time `gorm:"column:expires_at;not null;index:idx_passkey_challenge_kind_expiry" json:"-"`
+	ExpiresAt   time.Time `gorm:"column:expires_at;not null;index:idx_passkey_challenge_kind_expiry;index:idx_passkey_challenge_expires_at" json:"-"`
 	CreatedAt   time.Time `gorm:"column:created_at;autoCreateTime;<-:create" json:"-"`
 }
 

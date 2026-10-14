@@ -28,6 +28,7 @@ import '../../widgets/language_picker.dart';
 import '../../widgets/user_badge.dart';
 import '../../site_theme.dart';
 import '../../push/push_service.dart';
+import '../../push/push_preferences_panel.dart';
 import '../../widgets/status_views.dart';
 import '../../current_user.dart';
 import '../../navigation/auth_navigation.dart';
@@ -1558,6 +1559,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       ? () => ref.read(pushControllerProvider.notifier).enable()
                       : null,
                 ),
+                const PushPreferencesPanel(),
                 if (!isIOS) ...[
                   const GfDivider(),
                   GfSettingRow(

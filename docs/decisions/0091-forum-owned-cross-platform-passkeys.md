@@ -1,8 +1,8 @@
-# Draft: Forum-owned cross-platform passkeys
+# Forum-owned cross-platform passkeys
 
 ## Status
 
-Proposed
+Accepted
 Class: feature
 
 ## Context and Problem Statement
