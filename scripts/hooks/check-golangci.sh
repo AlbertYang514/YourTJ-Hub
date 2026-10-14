@@ -94,19 +94,46 @@ if [[ ! "$base_repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || ! git check-ref-
 fi
 
 base_repo_lower=$(printf '%s' "$base_repo" | tr '[:upper:]' '[:lower:]')
+github_repo_from_remote_url() {
+  local remote_url=$1 authority host_port host path host_lower
+
+  case "$remote_url" in
+    https://*|http://*|ssh://*|git://*)
+      remote_url=${remote_url#*://}
+      [[ "$remote_url" == */* ]] || return 1
+      authority=${remote_url%%/*}
+      path=${remote_url#*/}
+      host_port=${authority##*@}
+      host=${host_port%%:*}
+      ;;
+    *@*:* )
+      authority=${remote_url%%:*}
+      host=${authority##*@}
+      path=${remote_url#*:}
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  host_lower=$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')
+  [[ "$host_lower" == "github.com" ]] || return 1
+
+  path=${path%%\?*}
+  path=${path%%\#*}
+  path=${path%/}
+  path=${path%.git}
+  [[ "$path" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || return 1
+  printf '%s' "$path"
+}
+
 base_remote=""
 while IFS= read -r remote; do
   [[ -n "$remote" ]] || continue
   remote_url=$(git config --get "remote.${remote}.url" 2>/dev/null || true)
   [[ -n "$remote_url" ]] || continue
 
-  case "$remote_url" in
-    *github.com:*) remote_repo=${remote_url#*github.com:} ;;
-    *github.com/*) remote_repo=${remote_url#*github.com/} ;;
-    *) continue ;;
-  esac
-  remote_repo=${remote_repo%%\?*}
-  remote_repo=${remote_repo%.git}
+  remote_repo=$(github_repo_from_remote_url "$remote_url") || continue
   remote_repo_lower=$(printf '%s' "$remote_repo" | tr '[:upper:]' '[:lower:]')
   if [[ "$remote_repo_lower" == "$base_repo_lower" ]]; then
     base_remote=$remote

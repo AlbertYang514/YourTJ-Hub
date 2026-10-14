@@ -187,6 +187,28 @@ test('a single canonical remote works with a nonstandard remote name', (t) => {
   assert.deepEqual(readLines(f.lintArgs), ['run', '--new-from-rev=' + freshSha]);
 });
 
+for (const [description, url] of [
+  ['a mirror URL containing github.com in its path', 'https://mirror.example/github.com/YourTongji/YourTJ-Hub.git'],
+  ['a hostname with a github.com suffix', 'https://github.com.evil.example/YourTongji/YourTJ-Hub.git'],
+  ['a github.com userinfo value with a different actual host', 'https://github.com@mirror.example/YourTongji/YourTJ-Hub.git'],
+  ['a GitHub URL with an extra repository path segment', 'https://github.com/YourTongji/YourTJ-Hub.git/extra'],
+]) {
+  test(`does not reuse a remote for ${description}`, (t) => {
+    const f = fixture({
+      remotes: [['mirror', url]],
+      prBase: 'YourTongji/YourTJ-Hub\tdev\n',
+    });
+    t.after(() => rmSync(f.directory, { recursive: true, force: true }));
+
+    const result = runHook(f);
+    assert.equal(result.status, 0, result.stderr);
+    const gitCalls = readLines(f.gitLog);
+    assert.ok(gitCalls.some((line) => line === 'fetch --no-tags --quiet https://github.com/YourTongji/YourTJ-Hub.git +refs/heads/dev'));
+    assert.ok(!gitCalls.some((line) => line === 'fetch --no-tags --quiet mirror +refs/heads/dev'));
+    assert.deepEqual(readLines(f.lintArgs), ['run', '--new-from-rev=' + freshSha]);
+  });
+}
+
 test('an existing PR targeting a non-dev branch selects that exact repository and branch', (t) => {
   const f = fixture({
     remotes: [['origin', 'git@github.com:AlbertYang514/YourTJ-Hub.git']],
