@@ -1367,8 +1367,12 @@ native cleanup is pending.
   Enable taps during startup/resume or stop are queued; a later disable or account change cancels
   queued consent. Failed unbinding is retained and retried on resume while push stays disabled,
   using the owning account; signing in to a different account does not acknowledge that cleanup.
-- `Current`: notifications use the existing event copy and only navigate to supported in-app topic,
-  profile and notification routes. Logout stops native delivery and attempts server unbinding;
+- `Current`: notifications use four-language actor/action/object copy and controlled topic-floor, profile,
+  Wiki and chat routes. A push recipient must match the restored account before opening a private
+  conversation; object pages re-authorize access. A loaded, uncovered foreground conversation
+  suppresses its own system alert; other conversations remain eligible. Account-level grouped
+  preferences are independent of OS permission, and private chat text never enters push payloads. Logout stops native delivery and attempts server
+  unbinding;
   the next account requires fresh consent. Optional JPush analytics/location collection is disabled.
 - See [activation and device validation](../operations/mobile-releases.md#native-push-activation-and-verification)
   for credentials, supported OEMs and delivery limitations.
