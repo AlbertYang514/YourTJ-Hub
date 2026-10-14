@@ -427,13 +427,17 @@ void main() {
           'topic_post' => l10n.notificationTopicPost('Alice'),
           'follow' => l10n.notificationFollow('Alice'),
           'like' => l10n.notificationLike('Alice'),
-          'wiki_updated' => l10n.notificationWikiUpdated('Alice'),
+          // Wiki copy names the subscribed page, not the actor.
+          'wiki_updated' => l10n.notificationWikiUpdated,
           _ => throw StateError('Unexpected social notification: $eventType'),
         };
 
         expect(row.actorName, 'Alice');
         expect(row.title, expectedTitle);
-        expect(_boldedNotificationSegments(tester, row.title), ['Alice']);
+        expect(
+          _boldedNotificationSegments(tester, row.title),
+          eventType == 'wiki_updated' ? isEmpty : equals(['Alice']),
+        );
       });
     }
   }
