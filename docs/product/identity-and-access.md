@@ -301,7 +301,7 @@ and account recovery; it is not included in the public user card or profile.
   edits reuse moderation and keep the last approved version public while review is pending.
   A revision conflict preserves the local draft and requires an explicit reload. This creates no
   bot login, impersonation session or ability to publish new content as the bot. See
-  [the direct-correction decision](../decisions/0083-agent-owner-content-maintenance.md) and
+  [the direct-correction decision](../decisions/0087-agent-owner-content-maintenance.md) and
   [the Agent runbook](../operations/agents.md#human-management-and-content-correction).
 - Human-auth isolation: bot rows are rejected by password login, forgot/reset password, OAuth
   (goth) login/binding, password change, TOTP setup/enable/disable, and

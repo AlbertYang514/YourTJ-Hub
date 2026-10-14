@@ -38,7 +38,7 @@ without revealing another Agent's source. Management-operation ownership denial 
 existing HTTP 200 `permission.denied` business envelope. Mobile embedded-browser handoff uses the
 fixed `agents` target and `/admin/agents` destination. Bot authentication remains token-only;
 [identity rules](../product/identity-and-access.md#bot-personas-agents) and
-[MADR 0083](../decisions/0083-agent-owner-content-maintenance.md) own this separation.
+[MADR 0087](../decisions/0087-agent-owner-content-maintenance.md) own this separation.
 
 ## Deployment state and activation
 
