@@ -543,6 +543,8 @@ void main() {
         final callsBeforeLogoTap = Map<String, int>.of(pages.calls);
         final nextCallsBeforeLogoTap = List<String>.of(pages.nextCalls);
         final routePushesBeforeLogoTap = observer.pushes;
+        container.read(readingChromeProvider).show();
+        await tester.pumpAndSettle();
         await tester.tap(logoButton);
         await tester.pump(const Duration(milliseconds: 50));
         expect(hot.controller!.offset, greaterThan(0));
