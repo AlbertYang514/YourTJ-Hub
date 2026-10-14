@@ -1,6 +1,7 @@
 package forum
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -28,7 +29,7 @@ func TestAgentProfileManagementEntryUsesLiveHumanPermissions(t *testing.T) {
 	check := func(viewer uint64, target users.EntityComplete, want bool) {
 		t.Helper()
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
-		c.Request = httptest.NewRequest("GET", "/u/979804", nil)
+		c.Request = httptest.NewRequest(http.MethodGet, "/u/979804", nil)
 		c.Set("userId", viewer)
 		props := buildUserProfileProps(c, target, userProfileSectionBadges, userProfileActivityTimeline)
 		if props.CanManageAgent != want {

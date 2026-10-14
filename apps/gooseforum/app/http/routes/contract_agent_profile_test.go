@@ -3,6 +3,7 @@ package routes
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
@@ -78,7 +79,7 @@ func TestManagedBotAvatarUploadTargetsBotAndChargesHuman(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := agentservice.Update(otherBot.User.Id, agentservice.UpdateParams{ActorID: stranger.Id, AvatarUrl: &result.AvatarUrl}); err != agentservice.ErrAgentNicknameInvalid {
+	if _, err := agentservice.Update(otherBot.User.Id, agentservice.UpdateParams{ActorID: stranger.Id, AvatarUrl: &result.AvatarUrl}); !errors.Is(err, agentservice.ErrAgentNicknameInvalid) {
 		t.Fatalf("foreign avatar accepted: %v", err)
 	}
 	if _, err := agentservice.Update(created.User.Id, agentservice.UpdateParams{ActorID: owner.Id, AvatarUrl: &result.AvatarUrl}); err != nil {
@@ -112,7 +113,7 @@ func TestManagedBotAvatarUploadTargetsBotAndChargesHuman(t *testing.T) {
 
 func TestManagedBotProfileRejectsUnsafeAndSensitiveFields(t *testing.T) {
 	setupAgentAdminTestDB(t)
-	router := agentAdminRouter(t, 1)
+	router := agentAdminRouter(t)
 	conn := db.Connect()
 	if err := conn.AutoMigrate(&pageConfig.Entity{}, &moderationLog.Entity{}); err != nil {
 		t.Fatal(err)
@@ -132,7 +133,10 @@ func TestManagedBotProfileRejectsUnsafeAndSensitiveFields(t *testing.T) {
 		{"profileCoverUrl", "javascript:alert(1)", string(component.MessageRequestInvalidParams)},
 		{"avatarUrl", "https://example.com/arbitrary.png", string(component.MessageRequestInvalidParams)},
 	} {
-		body, _ := json.Marshal(map[string]any{"agentId": created.User.Id, tc.field: tc.value})
+		body, err := json.Marshal(map[string]any{"agentId": created.User.Id, tc.field: tc.value})
+		if err != nil {
+			t.Fatal(err)
+		}
 		_, response := postAgent(t, router, "/api/admin/agent-update", string(body))
 		if response["messageCode"] != tc.code {
 			t.Fatalf("%s: %v", tc.field, response)
