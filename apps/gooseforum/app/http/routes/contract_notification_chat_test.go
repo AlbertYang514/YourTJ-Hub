@@ -48,7 +48,7 @@ func setupNotificationChatContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	forumLoginAPI.POST("/notification/mark-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkAsRead))
 	forumLoginAPI.POST("/notification/mark-all-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkAllAsRead))
 	forumLoginAPI.GET("/push/preferences", middleware.NoUpdateUserActivity, UpButterReq(api.GetPushPreferences))
-	forumLoginAPI.PUT("/push/preferences", middleware.CheckWritableAccount, UpButterReq(api.UpdatePushPreferences))
+	forumLoginAPI.PUT("/push/preferences", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedStrictJsonReq(4<<10, api.UpdatePushPreferences))
 	forumLoginAPI.GET("/push/config", middleware.NoUpdateUserActivity, UpButterReq(api.GetPushConfig))
 	forumLoginAPI.POST("/push/subscribe", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.SubscribePush))
 	forumLoginAPI.POST("/push/unsubscribe", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.UnsubscribePush))
