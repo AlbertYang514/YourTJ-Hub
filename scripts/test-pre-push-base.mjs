@@ -188,6 +188,49 @@ test('a single canonical remote works with a nonstandard remote name', (t) => {
 });
 
 for (const [description, url] of [
+  ['HTTPS', 'https://github.com/YourTongji/YourTJ-Hub.git'],
+  ['SSH URL', 'ssh://git@github.com/YourTongji/YourTJ-Hub.git'],
+  ['SCP-style SSH with a username', 'git@github.com:YourTongji/YourTJ-Hub.git'],
+  ['SCP-style SSH without a username', 'github.com:YourTongji/YourTJ-Hub.git'],
+]) {
+  test(`reuses a secure ${description} remote for the exact base repository`, (t) => {
+    const f = fixture({
+      remotes: [['canonical', url]],
+      prBase: 'YourTongji/YourTJ-Hub\tdev\n',
+    });
+    t.after(() => rmSync(f.directory, { recursive: true, force: true }));
+
+    const result = runHook(f);
+    assert.equal(result.status, 0, result.stderr);
+    const gitCalls = readLines(f.gitLog);
+    assert.ok(gitCalls.includes('fetch --no-tags --quiet canonical +refs/heads/dev'));
+    assert.ok(!gitCalls.includes('fetch --no-tags --quiet https://github.com/YourTongji/YourTJ-Hub.git +refs/heads/dev'));
+    assert.deepEqual(readLines(f.lintArgs), ['run', '--new-from-rev=' + freshSha]);
+  });
+}
+
+for (const [description, url] of [
+  ['HTTP transport', 'http://github.com/YourTongji/YourTJ-Hub.git'],
+  ['git transport', 'git://github.com/YourTongji/YourTJ-Hub.git'],
+  ['wrong repository path', 'https://github.com/YourTongji/Other.git'],
+]) {
+  test(`uses canonical HTTPS instead of a ${description} remote`, (t) => {
+    const f = fixture({
+      remotes: [['untrusted', url]],
+      prBase: 'YourTongji/YourTJ-Hub\tdev\n',
+    });
+    t.after(() => rmSync(f.directory, { recursive: true, force: true }));
+
+    const result = runHook(f);
+    assert.equal(result.status, 0, result.stderr);
+    const gitCalls = readLines(f.gitLog);
+    assert.ok(gitCalls.includes('fetch --no-tags --quiet https://github.com/YourTongji/YourTJ-Hub.git +refs/heads/dev'));
+    assert.ok(!gitCalls.includes('fetch --no-tags --quiet untrusted +refs/heads/dev'));
+    assert.deepEqual(readLines(f.lintArgs), ['run', '--new-from-rev=' + freshSha]);
+  });
+}
+
+for (const [description, url] of [
   ['a mirror URL containing github.com in its path', 'https://mirror.example/github.com/YourTongji/YourTJ-Hub.git'],
   ['a hostname with a github.com suffix', 'https://github.com.evil.example/YourTongji/YourTJ-Hub.git'],
   ['a github.com userinfo value with a different actual host', 'https://github.com@mirror.example/YourTongji/YourTJ-Hub.git'],

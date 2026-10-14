@@ -98,7 +98,7 @@ github_repo_from_remote_url() {
   local remote_url=$1 authority host_port host path host_lower
 
   case "$remote_url" in
-    https://*|http://*|ssh://*|git://*)
+    https://*|ssh://*)
       remote_url=${remote_url#*://}
       [[ "$remote_url" == */* ]] || return 1
       authority=${remote_url%%/*}
@@ -106,7 +106,10 @@ github_repo_from_remote_url() {
       host_port=${authority##*@}
       host=${host_port%%:*}
       ;;
-    *@*:* )
+    *://*)
+      return 1
+      ;;
+    *:*)
       authority=${remote_url%%:*}
       host=${authority##*@}
       path=${remote_url#*:}
