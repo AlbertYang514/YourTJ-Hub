@@ -553,6 +553,7 @@ void main() {
         final routePushesBeforeLogoTap = observer.pushes;
         expect(logoButton.hitTestable(), findsOneWidget);
         await tester.tap(logoButton);
+        await tester.pump();
         await tester.pump(const Duration(milliseconds: 50));
         expect(hot.controller!.offset, greaterThan(0));
         expect(hot.controller!.offset, lessThan(500));
