@@ -322,7 +322,7 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           navigatorObservers: [
-            if (navigatorObserver != null) navigatorObserver,
+            ?navigatorObserver,
           ],
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(
