@@ -509,6 +509,13 @@ void main() {
     testWidgets(
       'home logo smoothly scrolls only the selected feed on ${platform.name}',
       (tester) async {
+        if (platform == TargetPlatform.iOS) {
+          const statusBarInsets = FakeViewPadding(top: 59, bottom: 34);
+          addTearDown(tester.view.reset);
+          tester.view.physicalSize = const Size(390, 844);
+          tester.view.padding = statusBarInsets;
+          tester.view.viewPadding = statusBarInsets;
+        }
         final pages = _SortedPages();
         final observer = _CountingNavigatorObserver();
         final container = await pump(
