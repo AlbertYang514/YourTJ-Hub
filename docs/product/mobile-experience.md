@@ -163,6 +163,11 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   behavior; a real iOS status-bar tap still requires simulator or device
   verification. In-app browser content and modal/editor-local scroll regions
   are outside this Flutter page-level behavior.
+- `Current`: the centered YourTJ mark in the Home header is an accessible
+  48-by-48 logical-pixel action. On iOS and Android it smoothly returns the
+  selected feed (`最新`, `关注`, `热门`, `流行`, or the available feed tabs) to
+  the top using that feed's existing scroll controller. Other tabs retain their
+  reading position; the action does not reload data or navigate.
 - `Current`: four persistent destinations — Home, Campus, Notifications and Messages — use an
   icon-only bottom bar on compact windows, with the selected Filled icon, indicator and unread state
   kept together at a fixed compact height, so labels never add height or grow with text size. Each
