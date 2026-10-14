@@ -49,7 +49,12 @@ func setupAgentAdminTestDB(t *testing.T) {
 
 // agentAdminRouter registers the agent routes with an authenticated admin
 // user injected via middleware, matching the production POST contract.
-func agentAdminRouter(userID uint64) *gin.Engine {
+func agentAdminRouter(t *testing.T, userID uint64) *gin.Engine {
+	t.Helper()
+	admin := users.EntityComplete{Id: userID, Username: "agent-admin-" + strconv.FormatUint(userID, 10), RoleId: 1, IsActivated: users.ActivationSuccess, ActorType: users.ActorTypeHuman}
+	if err := db.Connect().Create(&admin).Error; err != nil {
+		t.Fatalf("create authenticated admin fixture: %v", err)
+	}
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
@@ -96,7 +101,7 @@ func decodeAgentResult(t *testing.T, resp map[string]any) map[string]any {
 
 func TestAgentCreateReturnsTokenOnceAndPersists(t *testing.T) {
 	setupAgentAdminTestDB(t)
-	router := agentAdminRouter(1)
+	router := agentAdminRouter(t, 1)
 
 	code, resp := postAgent(t, router, "/api/admin/agent-create", `{"username":"admin-agent-1","nickname":"Admin Agent","webhookEndpoint":"https://example.com/hook"}`)
 	if code != http.StatusOK || resp["code"].(float64) != 0 {
@@ -132,7 +137,7 @@ func TestAgentCreateReturnsTokenOnceAndPersists(t *testing.T) {
 
 func TestAgentCreateRejectsInvalidUsername(t *testing.T) {
 	setupAgentAdminTestDB(t)
-	router := agentAdminRouter(1)
+	router := agentAdminRouter(t, 1)
 
 	_, resp := postAgent(t, router, "/api/admin/agent-create", `{"username":"bad"}`)
 	if resp["code"].(float64) == 0 {
@@ -145,7 +150,7 @@ func TestAgentCreateRejectsInvalidUsername(t *testing.T) {
 
 func TestAgentCreateRejectsDuplicateUsername(t *testing.T) {
 	setupAgentAdminTestDB(t)
-	router := agentAdminRouter(1)
+	router := agentAdminRouter(t, 1)
 	if _, resp := postAgent(t, router, "/api/admin/agent-create", `{"username":"dup-admin"}`); resp["code"].(float64) != 0 {
 		t.Fatalf("first create failed: %s", mustJSON(resp))
 	}
@@ -160,7 +165,7 @@ func TestAgentCreateRejectsDuplicateUsername(t *testing.T) {
 
 func TestAgentCreateRejectsInvalidWebhook(t *testing.T) {
 	setupAgentAdminTestDB(t)
-	router := agentAdminRouter(1)
+	router := agentAdminRouter(t, 1)
 	_, resp := postAgent(t, router, "/api/admin/agent-create", `{"username":"bad-hook-admin","webhookEndpoint":"ftp://x"}`)
 	if resp["code"].(float64) == 0 {
 		t.Fatal("invalid webhook should fail")
@@ -172,7 +177,7 @@ func TestAgentCreateRejectsInvalidWebhook(t *testing.T) {
 
 func TestAgentListReturnsAgents(t *testing.T) {
 	setupAgentAdminTestDB(t)
-	router := agentAdminRouter(1)
+	router := agentAdminRouter(t, 1)
 	for _, username := range []string{"list-admin-1", "list-admin-2"} {
 		if _, resp := postAgent(t, router, "/api/admin/agent-create", `{"username":"`+username+`"}`); resp["code"].(float64) != 0 {
 			t.Fatalf("create %s failed: %s", username, mustJSON(resp))
@@ -247,7 +252,7 @@ func createAgentAdminAuthUser(t *testing.T, conn *gorm.DB, userID, roleID uint64
 
 func TestAgentUpdateProfileWebhookAndEnable(t *testing.T) {
 	setupAgentAdminTestDB(t)
-	router := agentAdminRouter(1)
+	router := agentAdminRouter(t, 1)
 	_, resp := postAgent(t, router, "/api/admin/agent-create", `{"username":"upd-admin","nickname":"Before","webhookEndpoint":"https://a.example.com"}`)
 	if resp["code"].(float64) != 0 {
 		t.Fatalf("create failed: %s", mustJSON(resp))
@@ -282,7 +287,7 @@ func TestAgentUpdateProfileWebhookAndEnable(t *testing.T) {
 
 func TestAgentRotateTokenReturnsNewTokenAndInvalidatesOld(t *testing.T) {
 	setupAgentAdminTestDB(t)
-	router := agentAdminRouter(1)
+	router := agentAdminRouter(t, 1)
 	_, resp := postAgent(t, router, "/api/admin/agent-create", `{"username":"rotate-admin"}`)
 	if resp["code"].(float64) != 0 {
 		t.Fatalf("create failed: %s", mustJSON(resp))
@@ -311,7 +316,7 @@ func TestAgentRotateTokenReturnsNewTokenAndInvalidatesOld(t *testing.T) {
 
 func TestAgentDisableEndpoint(t *testing.T) {
 	setupAgentAdminTestDB(t)
-	router := agentAdminRouter(1)
+	router := agentAdminRouter(t, 1)
 	_, resp := postAgent(t, router, "/api/admin/agent-create", `{"username":"disable-admin"}`)
 	if resp["code"].(float64) != 0 {
 		t.Fatalf("create failed: %s", mustJSON(resp))
@@ -334,7 +339,7 @@ func TestAgentDisableEndpoint(t *testing.T) {
 
 func TestAgentUpdateNotFound(t *testing.T) {
 	setupAgentAdminTestDB(t)
-	router := agentAdminRouter(1)
+	router := agentAdminRouter(t, 1)
 	_, resp := postAgent(t, router, "/api/admin/agent-update", `{"agentId":999999,"nickname":"X"}`)
 	if resp["code"].(float64) == 0 {
 		t.Fatal("update of missing agent should fail")

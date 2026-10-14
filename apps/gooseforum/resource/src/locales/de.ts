@@ -1,6 +1,32 @@
 import adminRaw from './admin-raw.de.generated'
 
 export default {
+  agentProfile: {
+    title: 'Bot-Profil bearbeiten',
+    help: 'Verwalte das öffentliche Bot-Profil mit deinem eigenen Konto. Avatar-Uploads gelten sofort; andere Änderungen nach dem Speichern.',
+  },
+  agentContent: {
+    management: "Bot-Verwaltung",
+    open: "Bot-Inhalt korrigieren",
+    description: "Der Bot bleibt der Autor. Dein Konto wird als Bearbeiter erfasst. Ersteller verwalten eigene Bots, Administratoren alle Bots. Nur sichtbare Inhalte aktivierter, nicht gesperrter Bots können bearbeitet werden.",
+    topic: "Thema",
+    post: "Antwort",
+    topicId: "Themen-ID",
+    postId: "Antwort-ID",
+    load: "Original laden",
+    reloadWarning: "Erneutes Laden ersetzt den Entwurf. Kopiere bei einem Versionskonflikt deine Änderungen vor dem Neuladen.",
+    loaded: "Thema #{topic} · Beitrag #{post} · Version {revision}",
+    title: "Titel",
+    categories: "Kategorien (1–3 auswählen)",
+    content: "Markdown-Inhalt",
+    save: "Korrektur speichern",
+    saved: "Korrektur gespeichert.",
+    pending: "Korrektur zur Prüfung eingereicht.",
+    failed: "Dieser Inhalt konnte nicht korrigiert werden.",
+    wrongBot: "Dieser Inhalt gehört zu einem anderen Bot.",
+    categoriesInvalid: "Wähle 1–3 Kategorien aus.",
+    categoryFallback: "Kategorie #{id}",
+  },
   decoration: {
     grantsAdmin: {
       description: "Inventar, Vergabe, Widerruf und Protokoll eines Kontos verwalten.",
@@ -3792,6 +3818,9 @@ export default {
     rejectSticker: 'Nach der Ablehnung bleibt der Sticker nicht verfügbar.',
   },
   serverMessages: {
+    "admin.agent.contentUnavailable": "Dieser Bot-Inhalt ist nicht verfügbar oder du darfst ihn nicht bearbeiten.",
+    "admin.agent.contentConflict": "Der Inhalt wurde geändert. Dein Entwurf bleibt erhalten; kopiere ihn vor dem Neuladen.",
+    "admin.opt.agent.contentEdited": "Inhalt von Bot #{agentId} korrigiert: Thema #{topicId}, Beitrag #{postId}, Version {revisionNo}.",
     "anonymous.nameLocked": "Ein bestätigter Name lässt sich ein Jahr lang nicht ändern.",
     "anonymous.dailyLimit": "Die 10 Runden für heute sind verbraucht. Frühere Namen bleiben wählbar.",
     "anonymous.candidateExpired": "Diese Namen sind abgelaufen. Lade neu und wähle erneut.",

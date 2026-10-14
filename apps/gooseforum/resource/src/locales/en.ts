@@ -1,6 +1,32 @@
 import adminRaw from './admin-raw.en.generated'
 
 export default {
+  agentProfile: {
+    title: 'Edit bot profile',
+    help: 'Manage this bot’s public profile using your own account. Avatar uploads apply immediately; other changes apply when saved.',
+  },
+  agentContent: {
+    management: "Bot management",
+    open: "Correct bot content",
+    description: "The author remains the bot. Your account is recorded as the editor. Creators manage their own bots; administrators manage all bots. Only enabled, unfrozen bots and visible forum content can be edited.",
+    topic: "Topic",
+    post: "Reply",
+    topicId: "Topic ID",
+    postId: "Reply ID",
+    load: "Load source",
+    reloadWarning: "Loading source again replaces your draft. After a conflict, copy your changes before reloading.",
+    loaded: "Topic #{topic} · Post #{post} · Revision {revision}",
+    title: "Title",
+    categories: "Categories (choose 1–3)",
+    content: "Markdown content",
+    save: "Save correction",
+    saved: "Correction saved.",
+    pending: "Correction submitted for moderation.",
+    failed: "Could not correct this content.",
+    wrongBot: "This content belongs to another bot.",
+    categoriesInvalid: "Choose 1–3 categories.",
+    categoryFallback: "Category #{id}",
+  },
   decoration: {
     grantsAdmin: {
       description: "Review account inventory, manage grants and revocations, and inspect the audit trail.",
@@ -3793,6 +3819,9 @@ export default {
     rejectSticker: 'The sticker will remain unavailable after rejection.',
   },
   serverMessages: {
+    "admin.agent.contentUnavailable": "This bot content is unavailable or you do not have permission to edit it.",
+    "admin.agent.contentConflict": "This content changed. Your draft is kept; copy it before reloading the source.",
+    "admin.opt.agent.contentEdited": "Bot #{agentId} content corrected: topic #{topicId}, post #{postId}, revision {revisionNo}.",
     "anonymous.nameLocked": "A confirmed name can't be changed for a year.",
     "anonymous.dailyLimit": "All 10 batches for today are used. You can still pick from earlier batches.",
     "anonymous.candidateExpired": "These names have expired. Reload and pick again.",

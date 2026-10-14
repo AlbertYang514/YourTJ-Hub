@@ -4789,6 +4789,11 @@ UploadAvatarRequest:
   type: object
   required: [avatar]
   properties:
+    agentId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Optional managed Bot target; human creator or station admin remains uploader and pays quotas.
     avatar:
       type: string
       format: binary
@@ -6275,8 +6280,18 @@ AdminOperationResponse:
 
 AdminAgentItem:
   type: object
-  required: [agentId, username, nickname, avatarUrl, email, tokenPrefix, webhookEndpoint, enabled, createdBy, lastUsedAt, createdAt, updatedAt, configVersion, eventsEnabled, eventTypes, subscriptionGeneration, webhookEnabled, endpointGeneration, secretConfigured, secretVersion, latestAcceptedAt, pendingCount, pauseReason, summaryUnavailable]
+  required: [agentId, username, nickname, avatarUrl, profileCoverUrl, bio, signature, website, websiteName, email, tokenPrefix, webhookEndpoint, enabled, createdBy, lastUsedAt, createdAt, updatedAt, configVersion, eventsEnabled, eventTypes, subscriptionGeneration, webhookEnabled, endpointGeneration, secretConfigured, secretVersion, latestAcceptedAt, pendingCount, pauseReason, summaryUnavailable]
   properties:
+    profileCoverUrl:
+      type: string
+    bio:
+      type: string
+    signature:
+      type: string
+    website:
+      type: string
+    websiteName:
+      type: string
     configVersion:
       type: integer
       minimum: 0
@@ -6417,6 +6432,29 @@ AdminAgentUpdateRequest:
   type: object
   required: [agentId]
   properties:
+    avatarUrl:
+      type: string
+      description: Applied only when present; must be a built-in preset or ready image file owned by the human actor or target Bot.
+    profileCoverUrl:
+      type: string
+      maxLength: 512
+      description: Applied only when present; empty text clears the field.
+    bio:
+      type: string
+      maxLength: 500
+      description: Applied only when present; empty text clears the field.
+    signature:
+      type: string
+      maxLength: 255
+      description: Applied only when present; empty text clears the field.
+    website:
+      type: string
+      maxLength: 255
+      description: Applied only when present; empty text clears the field.
+    websiteName:
+      type: string
+      maxLength: 64
+      description: Applied only when present; empty text clears the field.
     agentId:
       type: integer
       format: uint64
