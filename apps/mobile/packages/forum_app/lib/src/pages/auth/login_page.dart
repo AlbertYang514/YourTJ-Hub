@@ -27,6 +27,7 @@ import 'android_oidc_callback_source.dart';
 import 'android_oidc_coordinator.dart';
 import 'login_captcha_handoff.dart';
 import 'passkey_error_message.dart';
+import 'passkey_availability.dart';
 import 'sign_in_methods_sheet.dart';
 
 /// 登录页模式。
