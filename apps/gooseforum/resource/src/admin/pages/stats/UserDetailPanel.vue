@@ -14,7 +14,7 @@ const props = defineProps<{
   target: { userId?: number, username?: string }
 }>()
 
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: []; notFound: [] }>()
 
 const { t } = useI18n()
 
@@ -41,6 +41,11 @@ function errorText(error: unknown) {
   return error instanceof Error && error.message ? error.message : t('statsAdmin.loadFailed')
 }
 
+// 目标不存在（user.notFound）时父级还有一次按用户名重试的机会，见 UserStatsSection。
+function isNotFound(error: unknown) {
+  return error instanceof Error && (error as Error & { messageCode?: string }).messageCode === 'user.notFound'
+}
+
 async function loadDetail() {
   const seq = ++detailSeq
   loading.value = true
@@ -58,6 +63,8 @@ async function loadDetail() {
     if (seq !== detailSeq) return
     detail.value = undefined
     error.value = errorText(fetchError)
+    // 纯数字搜索可能是用户 ID，也可能是合法用户名：ID 查不到时交给父级按用户名重试一次。
+    if (isNotFound(fetchError)) emit('notFound')
   } finally {
     if (seq === detailSeq) loading.value = false
   }

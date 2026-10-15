@@ -33,6 +33,24 @@
   - `dev` — test line, `/opt/yourtj/dev`
   - DB sync is one-way: dev gets a consistent snapshot of main on each deploy (below).
 
+### 服务器时区：必须无夏令时
+
+进程按容器/宿主机的系统时区（Go 的 `time.Local`）换算「自然日」。逐日口径不止一处依赖它：
+`dailyStats` 用 `time.Now().Format("2006-01-02")` 写日键，内容贡献统计（`/api/admin/stats/*`）
+把请求区间换算成本地日边界，并在 SQL 里用**查询时刻的时区偏移**统一作用于整段区间
+（`app/models/forum/contributionstats` 的 `localDayExpr`）。只有**无夏令时**的时区才与逐日换算
+完全一致：跨 DST 边界会静默错桶，`MaxRangeDays`（366 自然日）的跨度判定也会差 1。
+
+- 部署要求：运行容器的时区必须是固定偏移。UTC 与 `Asia/Shanghai` 都满足；`Europe/*`、
+  `America/*` 等有 DST 的时区不满足。
+- 当前 compose/Dockerfile 都不设置 `TZ`，容器按镜像默认运行（未挂载 `/etc/localtime`）。
+  需要固定到某个偏移时显式设置 `TZ`（如 `TZ: Asia/Shanghai`）；镜像已装 `tzdata`。
+- 该前提有测试兜底：`TestDeploymentTimezoneHasNoDST`
+  （`apps/gooseforum/app/models/forum/contributionstats/contributionstats_rep_test.go`）在
+  Jan/Jul 偏移不一致的时区直接失败，而不是让统计默默给出错误分桶。
+- 接口返回的 `coverage.timezone` 就是进程实际使用的时区，管理端界面直接显示；改动部署时区会
+  改变管理员看到的分日口径，切换前需说明历史对比口径。
+
 ### Foreground event stream
 
 `GET /api/forum/events` holds one authenticated SSE connection for a foreground client. The

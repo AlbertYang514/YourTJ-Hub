@@ -453,7 +453,11 @@ Principle: projections must be rebuildable from the fact source; never treat a p
 
 The AI-readable exports are public text representations, not JSON API operations in the controlled
 OpenAPI surface. Their visibility boundary is the existing forum publication and moderation state:
-draft, blocked, pending-review, soft-deleted, or first-post-blocked content is excluded. The index follows
+draft, blocked, pending-review, soft-deleted, or first-post-blocked content is excluded. Wiki pages
+(`topics.topic_type = 1`) are excluded as well — the forum export covers forum topics, while wiki
+content is the read-only GitHub-synced projection served under `/wiki` (MADR-0005); the index and
+full-text exports never listed wiki pages, and the per-topic document
+(`GET /p/posts/{id}.md`) follows the same boundary. The index follows
 the llms.txt Markdown structure (site heading, optional description, and a `Topics` link list); full-text
 and per-topic documents preserve the stored Markdown source.
 
@@ -545,6 +549,19 @@ each batch checks ownership. Jobs bind to the configured server origin and requi
 `meilisearch.maintenance_enabled`, preventing main snapshot tasks from running on dev.
 Status responses omit raw errors, document bodies and the instance fingerprint.
 See the [maintenance decision](../decisions/0024-admin-search-index-maintenance.md).
+
+## Profile section privacy
+
+`Current`: `user_privacy_settings` keeps one row per member (`user_id` primary key) with a
+`varchar(16)` audience for each profile section, defaulting to `everyone`; a missing row reads as
+all defaults, so existing accounts need no backfill. Writes lock the row, merge a validated partial
+update and upsert only the supplied columns in one transaction, so two first saves of different
+sections both persist; the response is re-read from storage. `profileprivacyservice` evaluates the viewer once per
+profile request (follow state in one query, blocks fail closed) before section queries, and the
+timeline query filters `action IN (...)` so hidden actions cannot surface through rows or cursors.
+Account closure deletes the row in the same transaction as private notes and blocks. Anonymous
+profiles never read it, so a persona's page cannot echo its owner's audiences.
+See [0088](../decisions/0088-profile-section-privacy.md).
 
 ## Private user-name overlays
 

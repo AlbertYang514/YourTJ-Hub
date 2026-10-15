@@ -29,7 +29,7 @@ func setupBatchDeleteTestDB(t *testing.T) *gorm.DB {
 	if err := conn.AutoMigrate(
 		&users.EntityComplete{}, &userOAuth.Entity{},
 		&userPasskeys.CredentialEntity{}, &userPasskeys.ChallengeEntity{},
-		&users.PrivateNoteEntity{}, &users.BlockEntity{},
+		&users.PrivateNoteEntity{}, &users.BlockEntity{}, &users.PrivacySettingsEntity{},
 		&topics.Entity{},
 		&posts.Entity{},
 		&optRecord.Entity{},

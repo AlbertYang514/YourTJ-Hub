@@ -633,7 +633,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsTabProfile => 'プロフィール';
 
   @override
-  String get settingsTabAccount => 'アカウント';
+  String get settingsTabAccount => 'アカウント・セキュリティ・プライバシー';
 
   @override
   String get settingsTabPrivacy => 'プライバシー';
@@ -3614,6 +3614,137 @@ class AppLocalizationsJa extends AppLocalizations {
   String get anonymousViewProfile => '匿名プロフィールを見る';
 
   @override
+  String get profilePrivacyTitle => 'プロフィールの公開範囲';
+
+  @override
+  String get profilePrivacyDescription => 'プロフィールの各項目を誰に見せるかを選びます。';
+
+  @override
+  String get profilePrivacyScope =>
+      'ここで変わるのはプロフィール上の表示だけです。投稿したトピックや返信はカテゴリ・検索・元のスレッドに引き続き表示され、フォロワー数などの数値も表示されたままです。';
+
+  @override
+  String get profilePrivacyViewProfile => '自分のプロフィールを見る';
+
+  @override
+  String get profilePrivacyTopics => '投稿';
+
+  @override
+  String get profilePrivacyTopicsDescription => 'あなたの投稿の一覧';
+
+  @override
+  String get profilePrivacyActivity => 'アクティビティ';
+
+  @override
+  String get profilePrivacyActivityDescription =>
+      '返信などの記録。投稿・いいね・フォローの記録はそれぞれの設定にも従います';
+
+  @override
+  String get profilePrivacyLikes => 'いいねした投稿';
+
+  @override
+  String get profilePrivacyLikesDescription => 'いいねした投稿の一覧';
+
+  @override
+  String get profilePrivacyFollowing => 'フォロー中のリスト';
+
+  @override
+  String get profilePrivacyFollowingDescription => 'あなたがフォローしている人';
+
+  @override
+  String get profilePrivacyFollowers => 'フォロワーのリスト';
+
+  @override
+  String get profilePrivacyFollowersDescription => 'あなたをフォローしている人';
+
+  @override
+  String get profilePrivacyBookmarksDescription => 'ブックマークした投稿。常にあなただけが見られます';
+
+  @override
+  String get profilePrivacyEveryone => '全員';
+
+  @override
+  String get profilePrivacyMembers => 'ログイン中のユーザー';
+
+  @override
+  String get profilePrivacyFollowersOnly => 'フォロワー';
+
+  @override
+  String get profilePrivacyMutual => '相互フォロー';
+
+  @override
+  String get profilePrivacySelf => '自分のみ';
+
+  @override
+  String profilePrivacyAudienceTitle(String section) {
+    return '$sectionを見られる人';
+  }
+
+  @override
+  String get profilePrivacyLoadFailed => 'プロフィールの公開範囲を読み込めませんでした。';
+
+  @override
+  String get profilePrivacySaved => '公開範囲をアカウントに保存しました';
+
+  @override
+  String get profilePrivacySaveFailed =>
+      '保存できなかったため、設定は変わっていません。接続を確認してもう一度お試しください。';
+
+  @override
+  String get profilePrivacyWidenTitle => '公開範囲を広げますか？';
+
+  @override
+  String profilePrivacyWidenDescription(String section, String audience) {
+    return '「$section」が「$audience」に公開されます。非公開にしていた間の記録も表示されます。';
+  }
+
+  @override
+  String get profilePrivacyWidenConfirm => '公開範囲を広げる';
+
+  @override
+  String get profileHiddenTitle => 'この項目は公開されていません';
+
+  @override
+  String profileHiddenPrivate(String name) {
+    return '$name さんはこの項目をプロフィールに表示していません。';
+  }
+
+  @override
+  String profileHiddenSignin(String name) {
+    return '$name さんはこの項目をログイン中のユーザーにだけ表示しています。';
+  }
+
+  @override
+  String profileHiddenFollowers(String name) {
+    return '$name さんはこの項目をフォロワーにだけ表示しています。フォローすると見られます。';
+  }
+
+  @override
+  String profileHiddenFollowersGuest(String name) {
+    return '$name さんはこの項目をフォロワーにだけ表示しています。ログインしてフォローすると見られます。';
+  }
+
+  @override
+  String profileHiddenMutual(String name) {
+    return '$name さんはこの項目を相互フォローの人にだけ表示しています。';
+  }
+
+  @override
+  String get profileHiddenSignIn => 'ログイン';
+
+  @override
+  String get profileOwnerMembers => 'ログイン中のユーザーだけがこの項目を見られます。';
+
+  @override
+  String get profileOwnerFollowers => 'フォロワーだけがこの項目を見られます。';
+
+  @override
+  String get profileOwnerMutual => '相互フォローの人だけがこの項目を見られます。';
+
+  @override
+  String get profileOwnerSelf => 'この項目を見られるのはあなただけです。';
+
+  @override
   String get notificationsMentions => 'メンション';
 
   @override
@@ -3664,51 +3795,78 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get authPasskey => "パスキーでログイン";
+  String get authPasskey => 'パスキーでログイン';
+
   @override
-  String get authPasskeyUnavailable => "この端末ではパスキーを利用できません。";
+  String get authPasskeyUnavailable => 'この端末ではパスキーを利用できません。';
+
   @override
-  String get authPasskeyFailed => "パスキーでログインできませんでした。再試行するか、パスワードをお使いください。";
+  String get authPasskeyFailed => 'パスキーでログインできませんでした。再試行するか、パスワードをお使いください。';
+
   @override
-  String get authPasskeyCancelled => 'パスキーが選択されていないか、利用できません。再試行するか、パスワードでログインしてください。';
+  String get authPasskeyCancelled =>
+      'パスキーが選択されていないか、利用できません。再試行するか、パスワードでログインしてください。';
+
   @override
-  String get settingsPasskeyTitle => "パスキー";
+  String get settingsPasskeyTitle => 'パスキー';
+
   @override
-  String get settingsPasskeyManage => "パスキーを管理";
+  String get settingsPasskeyManage => 'パスキーを管理';
+
   @override
-  String get settingsPasskeyDescription => "端末のパスキーを使ってパスワードなしでログインできます。二段階認証が有効でもパスキーでログインできます。";
+  String get settingsPasskeyDescription =>
+      '端末のパスキーを使ってパスワードなしでログインできます。二段階認証が有効でもパスキーでログインできます。';
+
   @override
-  String get settingsPasskeyReauthHint => "パスキーの追加、名前変更、削除にはログインパスワードが必要です。二段階認証が有効な場合は現在のコードも必要です。";
+  String get settingsPasskeyReauthHint =>
+      'パスキーの追加、名前変更、削除にはログインパスワードが必要です。二段階認証が有効な場合は現在のコードも必要です。';
+
   @override
-  String get settingsPasskeyName => "パスキー名";
+  String get settingsPasskeyName => 'パスキー名';
+
   @override
-  String get settingsPasskeyPassword => "ログインパスワード";
+  String get settingsPasskeyPassword => 'ログインパスワード';
+
   @override
-  String get settingsPasskeyAdd => "パスキーを追加";
+  String get settingsPasskeyAdd => 'パスキーを追加';
+
   @override
-  String get settingsPasskeyAddedAt => "追加日";
+  String get settingsPasskeyAddedAt => '追加日';
+
   @override
-  String get settingsPasskeyLastUsed => "最終使用";
+  String get settingsPasskeyLastUsed => '最終使用';
+
   @override
-  String get settingsPasskeyNeverUsed => "未使用";
+  String get settingsPasskeyNeverUsed => '未使用';
+
   @override
-  String get settingsPasskeySyncCapable => "同期可能";
+  String get settingsPasskeySyncCapable => '同期可能';
+
   @override
-  String get settingsPasskeyDeviceBound => "このデバイスのみ";
+  String get settingsPasskeyDeviceBound => 'このデバイスのみ';
+
   @override
-  String get settingsPasskeyBackedUp => "同期済み";
+  String get settingsPasskeyBackedUp => '同期済み';
+
   @override
-  String get settingsPasskeyRevokedHint => "YourTJ から削除しても、パスワードマネージャーに保存されたパスキーは削除されません。";
+  String get settingsPasskeyRevokedHint =>
+      'YourTJ から削除しても、パスワードマネージャーに保存されたパスキーは削除されません。';
+
   @override
-  String get settingsPasskeyRename => "名前を変更";
+  String get settingsPasskeyRename => '名前を変更';
+
   @override
-  String get settingsPasskeyRevoke => "削除";
+  String get settingsPasskeyRevoke => '削除';
+
   @override
-  String get settingsPasskeyAdded => "パスキーを追加しました";
+  String get settingsPasskeyAdded => 'パスキーを追加しました';
+
   @override
-  String get settingsPasskeyRevoked => "パスキーを削除しました";
+  String get settingsPasskeyRevoked => 'パスキーを削除しました';
+
   @override
-  String get settingsPasskeyEmpty => "登録済みのパスキーはありません。";
+  String get settingsPasskeyEmpty => '登録済みのパスキーはありません。';
+
   @override
-  String get settingsPasskeyUnavailable => "このサーバーではパスキーが有効になっていません。";
+  String get settingsPasskeyUnavailable => 'このサーバーではパスキーが有効になっていません。';
 }
