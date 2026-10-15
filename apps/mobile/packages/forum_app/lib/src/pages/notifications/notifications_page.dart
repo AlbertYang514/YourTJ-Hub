@@ -385,6 +385,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           const LogoMotionLoader(showMessage: true),
       title: l10n.notificationsTitle,
       showComposeAction: false,
+      statusBarScrollToTopController: _scroll,
       actions: <Widget>[
         if (_markingAll)
           SizedBox(

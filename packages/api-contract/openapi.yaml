@@ -455,6 +455,12 @@ paths:
     $ref: ./paths/admin-topics.yaml#/adminEditTopicCategories
   /api/admin/posts/delete:
     $ref: ./paths/admin-topics.yaml#/adminDeletePost
+  /api/admin/agents/content-source:
+    $ref: ./paths/admin-agent-content.yaml#/adminAgentContentSource
+  /api/admin/agents/edit-topic:
+    $ref: ./paths/admin-agent-content.yaml#/adminAgentEditTopic
+  /api/admin/agents/edit-post:
+    $ref: ./paths/admin-agent-content.yaml#/adminAgentEditPost
   /api/admin/agent-list:
     $ref: ./paths/admin-operations.yaml#/adminAgentList
   /api/admin/agent-create:

@@ -1185,8 +1185,9 @@ export async function setPassword(newPassword: string): Promise<boolean> {
   return true
 }
 
-export async function uploadAvatar(avatar: Blob | Blob[]): Promise<string> {
+export async function uploadAvatar(avatar: Blob | Blob[], agentId?: number): Promise<string> {
   const formData = new FormData()
+  if (agentId !== undefined) formData.append('agentId', String(agentId))
   const avatars = Array.isArray(avatar) ? avatar : [avatar]
   const fields = ['avatar', 'avatarMedium']
   const filenames = ['avatar.webp', 'avatar_medium.webp']

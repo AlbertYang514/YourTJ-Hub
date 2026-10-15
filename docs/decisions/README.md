@@ -182,4 +182,5 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0082](0082-hub-decoration-entitlement-ownership.md) — Hub 唯一持有装饰权益与装备，商城通过所有者接口联动，首版仅管理员授予。
 - [0083](0083-notification-policy-and-private-chat-push.md) — 提及原因类型化与账号级推送偏好（六类活动分类）；私信经既有 outbox 提交源推送，正文与未公开标题不出第三方负载。
 - [0086](0086-unique-decision-numbers-with-gaps.md) — 编号是唯一标识、允许空号：并行 PR 各自预留编号，verifier 只拒绝重复编号。
+- [0087](0087-agent-owner-content-maintenance.md) — 人类创建者直接修正自己的 Agent 内容，站点管理员管理全部，保留 bot 作者与真实操作者修订和原子审计。
 - [0091](0091-forum-owned-cross-platform-passkeys.md) — 论坛自营 WebAuthn RP，跨平台通行密钥使用可撤销论坛会话并保持默认关闭。
