@@ -12,6 +12,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
@@ -177,10 +178,15 @@ func servePWAStatic(name, contentType string) func(*gin.Context) {
 
 func apiRoute(ginApp *gin.Engine) {
 	campusRoutes(ginApp)
+	ginApp.GET("/.well-known/apple-app-site-association", api.AppleWebCredentialsAssociation)
+	ginApp.GET("/.well-known/assetlinks.json", api.AndroidDigitalAssetLinks)
 	baseApi := ginApp.Group("api")
 
 	baseApi.POST("login", middleware.RateLimit(middleware.RateLimitLogin), api.Login)
 	baseApi.GET("login-public-key", api.LoginPublicKey)
+	baseApi.GET("auth/passkey/status", api.PasskeyStatus)
+	baseApi.POST("auth/passkey/login/begin", middleware.RateLimit(middleware.RateLimitLogin), passkeyBodyLimit(8<<10), api.PasskeyAuthenticationBegin)
+	baseApi.POST("auth/passkey/login/finish", middleware.RateLimit(middleware.RateLimitLogin), passkeyBodyLimit(64<<10), api.PasskeyAuthenticationFinish)
 	baseApi.GET("auth/tongji/registration", api.TongjiRegistrationStatus)
 	baseApi.POST("auth/tongji/registration", middleware.RateLimit(middleware.RateLimitRegister), api.TongjiRegister)
 	baseApi.POST("register", middleware.RateLimit(middleware.RateLimitRegister), api.Register)
@@ -241,6 +247,12 @@ func apiRoute(ginApp *gin.Engine) {
 	// GET/HEAD/OPTIONS 与匿名请求原样放行（匿名 POST 仍由 JWTAuthCheck 回 401）。
 	loginApi := ginApp.Group("api").Use(middleware.CSRFProtection, middleware.JWTAuthCheck)
 	loginApi.POST("set-user-info", middleware.CheckWritableAccount, UpButterReq(api.EditUserInfo))
+	loginApi.POST("user/passkeys/reauth", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), passkeyBodyLimit(8<<10), api.PasskeyReauthenticate)
+	loginApi.POST("user/passkeys/registration/begin", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), passkeyBodyLimit(8<<10), api.PasskeyRegistrationBegin)
+	loginApi.POST("user/passkeys/registration/finish", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), passkeyBodyLimit(64<<10), api.PasskeyRegistrationFinish)
+	loginApi.GET("user/passkeys", api.PasskeyCredentialList)
+	loginApi.POST("user/passkeys/rename", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), passkeyBodyLimit(8<<10), api.PasskeyCredentialRename)
+	loginApi.POST("user/passkeys/revoke", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), passkeyBodyLimit(8<<10), api.PasskeyCredentialRevoke)
 	loginApi.POST("set-user-profile-cover", middleware.CheckWritableAccount, UpButterReq(api.EditUserProfileCover))
 	loginApi.POST("set-user-email", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitEmailChange), UpButterReq(api.EditUserEmail))
 	loginApi.POST("resend-activation-email", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.ResendActivationEmail))
@@ -637,6 +649,18 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("review-queue", UpButterReq(api.ReviewQueue)).
 		POST("review-action", UpButterReq(api.ReviewAction))
 
+}
+
+func passkeyBodyLimit(maxBytes int64) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.ContentLength > maxBytes {
+			c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageRequestParseFailed, nil))
+			c.Abort()
+			return
+		}
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+		c.Next()
+	}
 }
 
 func fileServer(ginApp *gin.Engine) {

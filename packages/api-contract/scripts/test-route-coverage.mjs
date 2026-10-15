@@ -15,19 +15,23 @@ test("parallel route additions regenerate only the temporary report and omission
   const routes = [
     { method: "GET", path: "/api/first" },
     { method: "POST", path: "/api/second/:id" },
+    { method: "GET", path: "/.well-known/example" },
   ];
   await writeFile(path.join(dir, "fixtures/routes-snapshot.json"), JSON.stringify(routes));
   const bundle = { paths: {
     "/api/first": { get: { operationId: "first" } },
     "/api/second/{id}": { post: { operationId: "second" } },
+    "/.well-known/example": { get: { operationId: "wellKnown" } },
   } };
   await writeFile(path.join(dir, ".tmp/openapi.bundle.json"), JSON.stringify(bundle));
   const run = () => spawnSync(process.execPath, [path.join(dir, "scripts/check-route-coverage.mjs")], { encoding: "utf8" });
   const success = run();
   assert.equal(success.status, 0, success.stderr);
   const report = path.join(dir, ".tmp/coverage-matrix.md");
-  assert.match(await readFile(report, "utf8"), /2 routes|快照路由总数：2/);
-  assert.match(await readFile(report, "utf8"), /second/);
+  const matrix = await readFile(report, "utf8");
+  assert.match(matrix, /快照路由总数：3/);
+  assert.match(matrix, /\/api JSON 路由：2，已入契约：2（100%）/);
+  assert.match(matrix, /second/);
   assert.equal(await readFile(path.join(dir, "coverage-matrix.md"), "utf8"), "# Stable entry point\n");
 
   delete bundle.paths["/api/second/{id}"];

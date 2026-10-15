@@ -126,7 +126,7 @@ if (failures.length > 0) {
 
 // --- regenerate the temporary coverage report ---
 const apiTotal = snapshot.filter((r) => r.path.startsWith("/api/")).length;
-const apiCovered = coveredRows.length;
+const apiCovered = coveredRows.filter(({ route }) => route.path.startsWith("/api/")).length;
 const lines = [];
 lines.push("# Route → Contract 覆盖矩阵");
 lines.push("");
