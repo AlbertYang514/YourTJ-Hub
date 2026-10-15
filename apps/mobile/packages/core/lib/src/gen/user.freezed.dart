@@ -2520,6 +2520,11 @@ mixin _$UserProfileProps {
   String get messageUrl => throw _privateConstructorUsedError;
   String get settingsUrl => throw _privateConstructorUsedError;
 
+  /// issue #1124: server-resolved section visibility. Servers without
+  /// profile privacy omit it, and every section is then public.
+  UserProfileVisibilityPayload get visibility =>
+      throw _privateConstructorUsedError;
+
   /// Serializes this UserProfileProps to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -2557,6 +2562,7 @@ abstract class $UserProfilePropsCopyWith<$Res> {
     bool canFollow,
     String messageUrl,
     String settingsUrl,
+    UserProfileVisibilityPayload visibility,
   });
 
   $UserCardPayloadCopyWith<$Res> get user;
@@ -2597,6 +2603,7 @@ class _$UserProfilePropsCopyWithImpl<$Res, $Val extends UserProfileProps>
     Object? canFollow = null,
     Object? messageUrl = null,
     Object? settingsUrl = null,
+    Object? visibility = null,
   }) {
     return _then(
       _value.copyWith(
@@ -2676,6 +2683,10 @@ class _$UserProfilePropsCopyWithImpl<$Res, $Val extends UserProfileProps>
                 ? _value.settingsUrl
                 : settingsUrl // ignore: cast_nullable_to_non_nullable
                       as String,
+            visibility: null == visibility
+                ? _value.visibility
+                : visibility // ignore: cast_nullable_to_non_nullable
+                      as UserProfileVisibilityPayload,
           )
           as $Val,
     );
@@ -2731,6 +2742,7 @@ abstract class _$$UserProfilePropsImplCopyWith<$Res>
     bool canFollow,
     String messageUrl,
     String settingsUrl,
+    UserProfileVisibilityPayload visibility,
   });
 
   @override
@@ -2772,6 +2784,7 @@ class __$$UserProfilePropsImplCopyWithImpl<$Res>
     Object? canFollow = null,
     Object? messageUrl = null,
     Object? settingsUrl = null,
+    Object? visibility = null,
   }) {
     return _then(
       _$UserProfilePropsImpl(
@@ -2851,6 +2864,10 @@ class __$$UserProfilePropsImplCopyWithImpl<$Res>
             ? _value.settingsUrl
             : settingsUrl // ignore: cast_nullable_to_non_nullable
                   as String,
+        visibility: null == visibility
+            ? _value.visibility
+            : visibility // ignore: cast_nullable_to_non_nullable
+                  as UserProfileVisibilityPayload,
       ),
     );
   }
@@ -2879,6 +2896,7 @@ class _$UserProfilePropsImpl implements _UserProfileProps {
     required this.canFollow,
     required this.messageUrl,
     required this.settingsUrl,
+    this.visibility = const UserProfileVisibilityPayload(),
   }) : _tabs = tabs,
        _activityTabs = activityTabs,
        _badges = badges,
@@ -2994,9 +3012,15 @@ class _$UserProfilePropsImpl implements _UserProfileProps {
   @override
   final String settingsUrl;
 
+  /// issue #1124: server-resolved section visibility. Servers without
+  /// profile privacy omit it, and every section is then public.
+  @override
+  @JsonKey()
+  final UserProfileVisibilityPayload visibility;
+
   @override
   String toString() {
-    return 'UserProfileProps(user: $user, section: $section, activityTab: $activityTab, tabs: $tabs, activityTabs: $activityTabs, pagination: $pagination, badges: $badges, topics: $topics, activities: $activities, likes: $likes, bookmarks: $bookmarks, following: $following, followers: $followers, isOwnProfile: $isOwnProfile, canManageAgent: $canManageAgent, canMessage: $canMessage, canFollow: $canFollow, messageUrl: $messageUrl, settingsUrl: $settingsUrl)';
+    return 'UserProfileProps(user: $user, section: $section, activityTab: $activityTab, tabs: $tabs, activityTabs: $activityTabs, pagination: $pagination, badges: $badges, topics: $topics, activities: $activities, likes: $likes, bookmarks: $bookmarks, following: $following, followers: $followers, isOwnProfile: $isOwnProfile, canManageAgent: $canManageAgent, canMessage: $canMessage, canFollow: $canFollow, messageUrl: $messageUrl, settingsUrl: $settingsUrl, visibility: $visibility)';
   }
 
   @override
@@ -3045,7 +3069,9 @@ class _$UserProfilePropsImpl implements _UserProfileProps {
             (identical(other.messageUrl, messageUrl) ||
                 other.messageUrl == messageUrl) &&
             (identical(other.settingsUrl, settingsUrl) ||
-                other.settingsUrl == settingsUrl));
+                other.settingsUrl == settingsUrl) &&
+            (identical(other.visibility, visibility) ||
+                other.visibility == visibility));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -3071,6 +3097,7 @@ class _$UserProfilePropsImpl implements _UserProfileProps {
     canFollow,
     messageUrl,
     settingsUrl,
+    visibility,
   ]);
 
   /// Create a copy of UserProfileProps
@@ -3111,6 +3138,7 @@ abstract class _UserProfileProps implements UserProfileProps {
     required final bool canFollow,
     required final String messageUrl,
     required final String settingsUrl,
+    final UserProfileVisibilityPayload visibility,
   }) = _$UserProfilePropsImpl;
 
   factory _UserProfileProps.fromJson(Map<String, dynamic> json) =
@@ -3158,6 +3186,11 @@ abstract class _UserProfileProps implements UserProfileProps {
   String get messageUrl;
   @override
   String get settingsUrl;
+
+  /// issue #1124: server-resolved section visibility. Servers without
+  /// profile privacy omit it, and every section is then public.
+  @override
+  UserProfileVisibilityPayload get visibility;
 
   /// Create a copy of UserProfileProps
   /// with the given fields replaced by the non-null parameter values.

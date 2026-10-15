@@ -3,6 +3,7 @@ import '../settings/anonymous_identity_page.dart';
 import 'profile_header_sliver.dart';
 import 'profile_tabs.dart';
 import 'profile_edit_button.dart';
+import 'profile_section_privacy.dart';
 import '../../user_blocks.dart';
 import '../../private_notes.dart';
 import '../../navigation/auth_navigation.dart';
@@ -388,11 +389,17 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   Future<void> _toggleFollow(UserCardPayload user) async {
     if (user.isSelf) return;
+    final wasFollowing =
+        ref.read(userFollowStateProvider(user.userId)).following ??
+        user.isFollowing;
     try {
       await ref
           .read(userFollowStateProvider(user.userId).notifier)
           .toggle(userId: user.userId, fallback: user.isFollowing);
       invalidateUserProfilePreview(user.userId);
+      if (mounted && !wasFollowing && _followCanReveal()) {
+        _refreshAfterFollowChange();
+      }
     } catch (error) {
       if (mounted) {
         showGfToast(
@@ -402,6 +409,35 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         );
       }
     }
+  }
+
+  /// Whether following could open a section this viewer cannot see yet.
+  bool _followCanReveal() {
+    final visibility = _active.props?.visibility;
+    if (visibility == null) return false;
+    return [
+      visibility.profileTopics,
+      visibility.profileActivity,
+      visibility.profileLikes,
+      visibility.followingList,
+      visibility.followersList,
+    ].any(
+      (section) =>
+          !section.visible &&
+          (section.reason == 'followers' || section.reason == 'mutual'),
+    );
+  }
+
+  /// Following can reveal followers-only sections (issue #1124): drop the
+  /// other cached tabs and re-read this one in place, so nobody has to pull
+  /// to refresh after tapping Follow. Unfollowing keeps what was already
+  /// seen until the next read, which the server checks again.
+  void _refreshAfterFollowChange() {
+    for (final key in _streams.keys.toList()) {
+      if (key == _stream) continue;
+      _cancelStreamRead(_streams.remove(key)!);
+    }
+    _load(streamKey: _stream);
   }
 
   Future<void> _toggleConnection(UserConnectionPayload user) async {
@@ -1136,6 +1172,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             child: ProfileTabs(
                               tabs: tabs,
                               index: selectedIndex,
+                              locks: profileTabLocks(
+                                l10n,
+                                _active.props ?? props,
+                              ),
                               onChanged: (selected) =>
                                   _selectStream(tabs[selected].key),
                             ),
@@ -1558,6 +1598,22 @@ class _ProfileBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
+    // Hidden sections arrive empty; say why instead of showing an empty list.
+    final privacy = profileStreamVisibility(props, selectedKey);
+    if (privacy != null && !privacy.visible) {
+      final user = props.user;
+      return SliverToBoxAdapter(
+        child: ProfileSectionHidden(
+          state: privacy,
+          name: user.nickname.isNotEmpty ? user.nickname : user.username,
+          returnTo: '/u/${user.userId}',
+        ),
+      );
+    }
+    return _streamRows(context, l10n);
+  }
+
+  Widget _streamRows(BuildContext context, AppLocalizations l10n) {
     return switch (selectedKey) {
       'badges' =>
         props.badges.isEmpty
