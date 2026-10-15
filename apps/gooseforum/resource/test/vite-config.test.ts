@@ -44,8 +44,18 @@ describe('vite 配置约束', () => {
 
   test('开发服务器提供前端与 Twemoji 资源并拒绝仓库外部文件', async () => {
     const vite = await createServer({
-      configFile: fileURLToPath(new URL('../vite.config.ts', import.meta.url)),
-      server: { host: '127.0.0.1', port: 0, strictPort: false, open: false },
+      ...config,
+      configFile: false,
+      root: resourceRoot,
+      plugins: [],
+      optimizeDeps: { noDiscovery: true },
+      server: {
+        ...config.server,
+        host: '127.0.0.1',
+        port: 0,
+        strictPort: false,
+        open: false,
+      },
       logLevel: 'silent',
     })
 
@@ -55,11 +65,13 @@ describe('vite 配置约束', () => {
       if (!address || typeof address === 'string') throw new Error('Vite did not open a TCP listener')
       const origin = `http://127.0.0.1:${address.port}`
 
-      const appModule = await fetch(`${origin}/assets/src/site/main.ts`)
+      const appModulePath = resolve(resourceRoot, 'src/site/main.ts')
+      const appModule = await fetch(`${origin}/assets/@fs${appModulePath}?raw`)
       expect(appModule.status).toBe(200)
       expect(await appModule.text()).toContain('createApp')
 
-      const sharedClient = await fetch(`${origin}/assets/packages/client/src/index.ts`)
+      const sharedClientPath = resolve(resourceRoot, 'packages/client/src/index.ts')
+      const sharedClient = await fetch(`${origin}/assets/@fs${sharedClientPath}?raw`)
       expect(sharedClient.status).toBe(200)
 
       const twemoji = await fetch(`${origin}/assets/twemoji/72x72/1f600.png`)
@@ -67,7 +79,7 @@ describe('vite 配置约束', () => {
       expect(twemoji.headers.get('content-type')).toContain('image/png')
 
       const privateFile = resolve(repositoryRoot, 'docs/README.md')
-      const denied = await fetch(`${origin}/assets/@fs/${privateFile}`)
+      const denied = await fetch(`${origin}/assets/@fs${privateFile}`)
       expect(denied.status).toBe(403)
     } finally {
       await vite.close()
