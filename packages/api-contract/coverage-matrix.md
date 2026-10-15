@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：402
-- /api JSON 路由：333，已入契约：334（100%），已知未覆盖：0
+- 快照路由总数：405
+- /api JSON 路由：336，已入契约：337（100%），已知未覆盖：0
 - 非 API 排除路由：68
 
-## 已覆盖（334）
+## 已覆盖（337）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -127,6 +127,9 @@
 | POST | `/api/admin/agent-webhook-redeliver` | `adminAgentWebhookRedeliver` |
 | POST | `/api/admin/agent-webhook-rotate-secret` | `adminAgentWebhookRotateSecret` |
 | POST | `/api/admin/agent-webhook-test` | `adminAgentWebhookTest` |
+| POST | `/api/admin/agents/content-source` | `adminAgentContentSource` |
+| POST | `/api/admin/agents/edit-post` | `adminAgentEditPost` |
+| POST | `/api/admin/agents/edit-topic` | `adminAgentEditTopic` |
 | POST | `/api/admin/ai-moderation/decisions` | `adminListAiModerationDecisions` |
 | POST | `/api/admin/ai-moderation/decisions/label` | `adminLabelAiModerationDecision` |
 | POST | `/api/admin/ai-moderation/replay` | `adminReplayAiModerationDecisions` |

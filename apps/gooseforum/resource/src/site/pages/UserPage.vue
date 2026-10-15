@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import AgentProfileEditor from '@/site/components/AgentProfileEditor.vue'
+import { useRouter } from 'vue-router'
 import UserNickname from '@/site/components/UserNickname.vue'
 import ProfileHeader from '@/site/components/ProfileHeader.vue'
 import ProfileManageButton from '@/site/components/ProfileManageButton.vue'
@@ -45,6 +47,7 @@ const page = defineProps<{
 }>()
 
 const { t } = useI18n()
+const router = useRouter()
 const isFollowing = ref(page.props.user.isFollowing)
 const followLoading = ref(false)
 const connectionLoading = ref<number | null>(null)
@@ -452,6 +455,7 @@ function safeProfileUrl(value?: string) {
             </aside>
           </template>
           <template #actions>
+            <AgentProfileEditor v-if="page.props.canManageAgent" :key="page.props.user.userId" :user="page.props.user" @saved="router.go(0)" />
             <ProfileManageButton v-if="page.props.isOwnProfile" :href="page.props.settingsUrl" />
             <a
               v-else-if="page.props.canMessage"
