@@ -82,9 +82,9 @@ class _TwemojiSelectionRegistry {
 
   void reserveSource(String source) {
     for (final codeUnit in source.codeUnits) {
-      // If a child is added or rebuilt after allocation and introduces a
-      // source character already used as a placeholder, copying becomes
-      // ambiguous. Fail closed rather than changing user text.
+      // A new source character can only collide when a selection owner failed
+      // to include dynamically displayed text in selectionSource. Do not copy
+      // an ambiguous marker as if it were source text.
       if (emojiByPlaceholder.containsKey(codeUnit)) _isSafeToCopy = false;
       _sourceCodeUnits.add(codeUnit);
     }
@@ -100,9 +100,8 @@ class _TwemojiSelectionRegistry {
             emojiByPlaceholder.containsKey(_nextPlaceholder))) {
       _nextPlaceholder++;
     }
-    // The finite private-use pool can be exhausted by valid input. In that
-    // case the span builder keeps this Emoji as Unicode text instead of
-    // borrowing Flutter's U+FFFC native WidgetSpan placeholder.
+    // If the finite PUA pool is exhausted by valid input, keep this Emoji as
+    // Unicode text rather than borrow Flutter's native U+FFFC placeholder.
     if (_nextPlaceholder > 0xf8ff) return null;
 
     final placeholder = _nextPlaceholder++;
@@ -129,8 +128,7 @@ InlineSpan buildTwemojiTextSpan(
   required TextScaler textScaler,
 }) {
   final registry = _TwemojiSelectionScope.maybeOf(context);
-  // Register even plain-text spans before any sibling can allocate a
-  // placeholder. The area also seeds this registry with its complete source.
+  // Register plain and Emoji text before allocating any sibling placeholder.
   registry?.reserveSource(sourceSpan.toPlainText());
   if (sourceSpan is TextSpan &&
       !_mightContainTwemoji(
@@ -173,10 +171,9 @@ class GfSelectionArea extends StatefulWidget {
 
   final Widget child;
 
-  /// Complete original text represented by [child], including text encoded in
-  /// HTML entities or hidden behind image spans. Keep this in sync whenever
-  /// [child] changes so no legal source character can collide with an image
-  /// placeholder.
+  /// Complete original text represented by [child], including decoded HTML
+  /// entities and asynchronous rich-text labels. Reserve it before any Emoji
+  /// placeholder is allocated, and update it when selectable content changes.
   final String selectionSource;
   final FocusNode? focusNode;
   final TextSelectionControls? selectionControls;
@@ -651,7 +648,14 @@ class GfSelectableText extends StatelessWidget {
     final inheritedStyle = DefaultTextStyle.of(context).style;
     final baseStyle = inheritedStyle.merge(style);
     final scaler = textScaler ?? MediaQuery.textScalerOf(context);
-    final sourceSpan = textSpan ?? TextSpan(text: data ?? '');
+    final InlineSpan inputSpan = textSpan ?? TextSpan(text: data ?? '');
+    // SelectableText.rich is built from a TextSpan root. Gf's public rich API
+    // accepts any InlineSpan, so wrap a root WidgetSpan instead of asserting
+    // that the caller supplied a TextSpan. This keeps its one-unit source
+    // offset and leaves nested WidgetSpan rendering unchanged.
+    final TextSpan sourceSpan = inputSpan is TextSpan
+        ? inputSpan
+        : TextSpan(children: <InlineSpan>[inputSpan]);
     final containsEmoji = _mightContainTwemoji(
       sourceSpan.toPlainText(includePlaceholders: false),
     );
@@ -777,9 +781,33 @@ class _TwemojiSpanBuilder {
   InlineSpan build(InlineSpan span, TextStyle inheritedStyle) {
     if (span is TextSpan &&
         !_mightContainTwemoji(span.toPlainText(includePlaceholders: false))) {
+      _recordIdentityOffsets(span);
       return span;
     }
     return _transform(span, inheritedStyle);
+  }
+
+  void _recordIdentityOffsets(InlineSpan span) {
+    if (span is WidgetSpan) {
+      _sourceOffset++;
+      _displayToSource.add(_sourceOffset);
+      return;
+    }
+    if (span is TextSpan) {
+      _recordTextOffsets(span.text ?? '');
+      for (final child in span.children ?? const <InlineSpan>[]) {
+        _recordIdentityOffsets(child);
+      }
+      return;
+    }
+    _recordTextOffsets(span.toPlainText());
+  }
+
+  void _recordTextOffsets(String text) {
+    for (var i = 0; i < text.length; i++) {
+      _sourceOffset++;
+      _displayToSource.add(_sourceOffset);
+    }
   }
 
   TextSelection sourceRangeForDisplayRange(int start, int end) {

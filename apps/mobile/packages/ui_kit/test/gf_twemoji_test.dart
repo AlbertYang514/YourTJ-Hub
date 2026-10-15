@@ -322,11 +322,12 @@ void main() {
     expect(copied, '\uE000🐦‍🔥');
   });
 
-  testWidgets('selection area falls back safely when private-use pool is full', (
+  testWidgets('selection copy safely falls back when valid text fills PUA pool', (
     tester,
   ) async {
     final source =
-        '${String.fromCharCodes(List<int>.generate(0x1900, (i) => 0xe000 + i))}🐦‍🔥';
+        '${String.fromCharCodes(List<int>.generate(0x1900, (i) => 0xe000 + i))}'
+        '${String.fromCharCode(0xf0000)}${String.fromCharCode(0x10fffd)}🐦‍🔥';
     String? copied;
     _captureClipboard(tester, (text) => copied = text);
     await tester.pumpWidget(
@@ -551,5 +552,147 @@ void main() {
     await tester.pump();
 
     expect(copied, 'a\uFFFC🐦‍🔥z');
+  });
+
+  testWidgets('SelectableText.rich accepts a root WidgetSpan without Emoji', (
+    tester,
+  ) async {
+    String? copied;
+    _captureClipboard(tester, (text) => copied = text);
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: GfSelectableText.rich(
+            WidgetSpan(child: SizedBox(width: 8, height: 8)),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    final selectable = tester.widget<SelectableText>(
+      find.byType(SelectableText),
+    );
+    expect(selectable.textSpan, isA<TextSpan>());
+    expect(selectable.textSpan!.children!.single, isA<WidgetSpan>());
+    final editable = tester.state<EditableTextState>(find.byType(EditableText));
+    editable.selectAll(SelectionChangedCause.keyboard);
+    await tester.pump();
+    final toolbar =
+        selectable.contextMenuBuilder!(
+              tester.element(find.byType(EditableText)),
+              editable,
+            )
+            as AdaptiveTextSelectionToolbar;
+    toolbar.buttonItems!
+        .singleWhere((item) => item.type == ContextMenuButtonType.copy)
+        .onPressed!();
+    await tester.pump();
+
+    expect(copied, '\uFFFC');
+  });
+
+  testWidgets(
+    'SelectableText.rich accepts a root WidgetSpan with Emoji child',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: GfSelectableText.rich(WidgetSpan(child: GfText('widget 😀'))),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(Image), findsOneWidget);
+      expect(find.bySemanticsLabel('😀'), findsOneWidget);
+    },
+  );
+
+  testWidgets('nested WidgetSpan without Emoji keeps selectable copy offsets', (
+    tester,
+  ) async {
+    String? copied;
+    _captureClipboard(tester, (text) => copied = text);
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: GfSelectableText.rich(
+            TextSpan(
+              children: <InlineSpan>[
+                TextSpan(text: 'before'),
+                WidgetSpan(child: SizedBox(width: 8, height: 8)),
+                TextSpan(text: 'after'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final editable = tester.state<EditableTextState>(find.byType(EditableText));
+    editable.selectAll(SelectionChangedCause.keyboard);
+    await tester.pump();
+    final selectable = tester.widget<SelectableText>(
+      find.byType(SelectableText),
+    );
+    final toolbar =
+        selectable.contextMenuBuilder!(
+              tester.element(find.byType(EditableText)),
+              editable,
+            )
+            as AdaptiveTextSelectionToolbar;
+    toolbar.buttonItems!
+        .singleWhere((item) => item.type == ContextMenuButtonType.copy)
+        .onPressed!();
+    await tester.pump();
+
+    expect(copied, 'before\uFFFCafter');
+  });
+
+  testWidgets('nested WidgetSpan with Emoji keeps selectable copy offsets', (
+    tester,
+  ) async {
+    String? copied;
+    _captureClipboard(tester, (text) => copied = text);
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: GfSelectableText.rich(
+            TextSpan(
+              children: <InlineSpan>[
+                TextSpan(text: 'before '),
+                WidgetSpan(child: SizedBox(width: 8, height: 8)),
+                TextSpan(text: ' 🐦‍🔥 after'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(Image), findsOneWidget);
+    final editable = tester.state<EditableTextState>(find.byType(EditableText));
+    editable.selectAll(SelectionChangedCause.keyboard);
+    await tester.pump();
+    final selectable = tester.widget<SelectableText>(
+      find.byType(SelectableText),
+    );
+    final toolbar =
+        selectable.contextMenuBuilder!(
+              tester.element(find.byType(EditableText)),
+              editable,
+            )
+            as AdaptiveTextSelectionToolbar;
+    toolbar.buttonItems!
+        .singleWhere((item) => item.type == ContextMenuButtonType.copy)
+        .onPressed!();
+    await tester.pump();
+
+    expect(copied, 'before \uFFFC 🐦‍🔥 after');
   });
 }
