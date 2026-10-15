@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-11
+> Last verified: 2026-10-13
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
@@ -26,9 +26,13 @@ corresponding planned ownership and lifecycle contracts.
 
 `Current`: Android and iOS display a static YourTJ brand mark in their native launch surface.
 Android selects light/dark launch resources using the saved app appearance; Flutter continues with
-the resolved app theme, a transparent animated mark and the caption “未济非终，皆有可能”. The
-animation yields to the interactive app within 1.2 seconds and is skipped for reduced motion.
-Session and Home requests run beneath the launch surface. Home mounts its base sort tabs before
+the resolved app theme, a transparent animated mark and the caption “未济非终，皆有可能”. Local
+storage preparation (database open plus recovery or a pending reset) runs beneath this brand layer:
+the layer holds after its animation until storage is ready, then yields to the interactive app, so
+cold start shows a single waiting surface instead of a separate data-preparation page. A failed
+bootstrap reveals the storage gate's retry UI, and a bootstrap that never settles falls back to the
+same gate after a safety cap. The animation is skipped for reduced motion, which exposes the gate
+states directly. Session and Home requests run beneath the launch surface. Home mounts its base sort tabs before
 server navigation arrives, then fills the existing skeleton. Initial cached/network rows prefetch
 at most four author avatars with a 240-millisecond ceiling using the same image keys as the visible
 avatars. Avatar decode sizes snap to a ladder (24/40/48/64/96 logical pixels; larger avatars round up
@@ -146,6 +150,24 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   left edge. Android keeps the shared mobile fade/rise transition. Horizontal
   scroll rails keep working; the back gesture only claims the narrow left-edge
   band.
+- `Partial`: iOS status-bar taps use Flutter `Scaffold`'s built-in callback and
+  `PrimaryScrollController` for the active main scroll region. Root feeds,
+  notifications, messages, campus tabs, topic/profile/search pages, drafts,
+  settings, publishing, course catalog/detail, Wiki detail and conversation
+  detail provide their current explicit controller; profile's nested scroll
+  view keeps its coordinated outer/inner behavior. Ordinary vertical scroll
+  views without an explicit controller continue using the route's default
+  primary controller. Programmatic scrolling does not create a drag gesture,
+  so it does not arm pull-to-refresh or footer pagination. Android and Web do
+  not receive this adapter. Widget tests cover target selection and callback
+  behavior; a real iOS status-bar tap still requires simulator or device
+  verification. In-app browser content and modal/editor-local scroll regions
+  are outside this Flutter page-level behavior.
+- `Current`: the centered YourTJ mark in the Home header is an accessible
+  48-by-48 logical-pixel action. On iOS and Android it smoothly returns the
+  selected feed (`最新`, `关注`, `热门`, `流行`, or the available feed tabs) to
+  the top using that feed's existing scroll controller. Other tabs retain their
+  reading position; the action does not reload data or navigate.
 - `Current`: four persistent destinations — Home, Campus, Notifications and Messages — use an
   icon-only bottom bar on compact windows, with the selected Filled icon, indicator and unread state
   kept together at a fixed compact height, so labels never add height or grow with text size. Each
@@ -529,17 +551,27 @@ validation; simulator/debug execution does not establish production frame-rate g
   catalog, global search, Wiki and scheduler. Search fields provide a localized clear action and keyboard
   submission where applicable. Clearing global search resets results, scope and pagination, and
   invalidates pending requests; account and publishing forms retain their separate form styling.
-- `Current`: global search starts with guidance and direct course, scheduler and Wiki destinations.
-  Result scope buttons stay available during loading, empty results and failures, and scroll
-  horizontally at larger text sizes. Switching scope or retrying uses the last submitted keyword;
-  typing a different keyword does not search it until submission. Each result section identifies its
-  type and shows displayed rows separately from matching totals; unqueried scopes are not labelled
-  as zero, and the all-scope view does not treat the topic total as an aggregate total.
+- `Current`: global search opens with its field focused beside a back action when entered from
+  inside the app; a deep link to search opens without one. The empty field shows
+  two equal tiles that carry the current input to the native course catalog and Wiki search, followed
+  by recent searches. Recent searches keep up to ten distinct queries per site and account (with a
+  separate guest list), in device preferences only; users can remove one or clear all. Storage
+  failure does not block searching. Before the first submission, typing offers explicit rows to
+  search the forum, courses or the Wiki for the typed text, plus matching recent searches; nothing
+  is sent until a row or keyboard submission is chosen.
+  Result type tabs pair each label with its symbol, share the width evenly and scroll horizontally
+  when they no longer fit, such as at larger text sizes; they stay available during loading, empty
+  results and failures. Swiping the results moves to the adjacent type with the shared tab gesture,
+  normalized to the width of the results area. Switching type or retrying uses the last submitted
+  keyword; typing a different keyword does not search it until submission. Each result section identifies its
+  type and shows displayed rows separately from matching totals; in the all view, See all switches
+  to that type when more matches exist. Unqueried scopes are not labelled as zero, and the all-scope
+  view does not treat the topic total as an aggregate total. Empty results name the submitted keyword
+  in every type; the all and topics views also offer course and Wiki search, and a results-bearing
+  all view keeps a compact course/Wiki row above its groups. Category marks keep at least 3:1
+  contrast against the tinted wash they sit on, shifting the tone toward the text color.
   Users, topics and categories build one row at a time near the viewport. Only topics paginate;
   appending a page retains the other groups, and a failed page keeps the current rows with a retry.
-  Course and Wiki search actions carry the current input into the matching native page.
-  Recent searches keep up to ten distinct queries per site and account (with a separate guest list),
-  in device preferences only; users can clear them. Storage failure does not block searching.
 - `Current`: topic view/reply metrics remain below the body; reply, like, bookmark and watch actions
   share one bottom dock. The AppBar shows a generic topic label until the body title scrolls out of
   view, then shows that title. Actions use Web's semantic tints and localized accessible labels;
@@ -754,7 +786,7 @@ identity survive this layout change. The header keeps a small outer margin for i
   The Campus bottom destination opens this page directly. Course reviews, the scheduler and Wiki
   have visible shortcuts at the top of its home view, also available to guests, unbound users and
   when school services fail. Pushed tools return to the Campus destination. Explore campus retains
-  public course previews; shortcuts are shared with search discovery. See [campus semantics](campus.md) for binding, privacy and provider limits.
+  public course previews. See [campus semantics](campus.md) for binding, privacy and provider limits.
 - `Current`: while the app stays in the foreground, Campus remembers its selected section,
   independent academic/notice search text and scroll positions, and selected timetable week when
   switching sections, bottom destinations or returning from a pushed page. Scroll restoration waits
@@ -987,7 +1019,10 @@ identity survive this layout change. The header keeps a small outer margin for i
   localized message instead of spending a login attempt. On
   Android, auth-field pointer-down or keyboard Next creates a short-lived target token; if the secure keyboard
   reclaims the password focus during that token's settling window, the app makes at most two
-  bounded attempts to return focus to the explicitly tapped field and then stops. A focused field
+  bounded attempts to return focus to the explicitly tapped field and then stops. Only fields that
+  receive passwords keep `enableSuggestions: false`: the Android engine maps that flag to a
+  password-class inputType, which ColorOS treats as a credential field, force-switching to its
+  secure keyboard and blocking paste; every other field stays a plain text input (issue #1111). A focused field
   also has a finite view-insets-based IME show watchdog. Dismissing an already-visible
   keyboard cancels recovery and is honored as user intent; a transient hidden IME during an
   explicit password-to-username/captcha handoff remains recoverable. Blank-space and button taps
@@ -998,6 +1033,13 @@ identity survive this layout change. The header keeps a small outer margin for i
   intentionally bypasses flutter_appauth/AppAuth/CustomTabs. No OAuth provider uses a WebView for
   Android login. Non-Android platforms retain AppAuth. `Partial`: the new Android path awaits a
   physical-device APK test; the exact native crash stack remains unproven without logcat.
+- `Partial`: when the server enables passkeys, a separate native sign-in action uses discoverable
+  credentials and platform user verification, then completes through the ordinary staged token and
+  offline-cache cleanup path. Account security can add, rename and revoke passkeys after a fresh
+  password check and TOTP when enabled. The flow depends on matching iOS Associated Domains and
+  Android Digital Asset Links. The Flutter Android authenticator requires Android API 28 or later
+  at runtime; older versions retain password and OAuth login. Physical-device acceptance, including
+  Android OEM providers, remains outstanding. The authentication decision is recorded in [MADR 0091](../decisions/0091-forum-owned-cross-platform-passkeys.md).
 - `Current`: native routes that require a session lead guests to sign-in before constructing the
   private page. Login retains the original native location, including topic reply position, composer
   context and chat recipient, using an explicit route/query allowlist. External, recursive and
@@ -1069,6 +1111,20 @@ or production push delivery behavior. The shared business and privacy rules are 
 [anonymous identity](anonymous-identity.md).
 
 ## Profile and privacy
+
+- `Current`: account settings (Account, security & privacy, also on the Settings index) →
+  Privacy → Profile visibility lists the five profile sections with
+  their saved audience, then a fixed, non-tappable bookmarks row reading "only you" with a lock
+  in the chevron slot. Tapping a row opens a bottom-sheet picker limited to that section's
+  audiences; a row changes only after the server confirms, failures keep the saved value with an
+  error toast, and widening asks for confirmation. Loading uses the settings skeleton, load errors
+  offer retry and signed-out visits offer sign-in. Profile streams follow the server-resolved
+  visibility: other members and guests see a "not public" state naming the owner and reason, with
+  sign-in only when it could help. Profile tabs mark such sections, and for the owner every
+  section narrower than everyone, with a lock badge on the tab icon that leaves tab widths and
+  labels unchanged; long press and screen readers name who can see the section. Servers
+  without profile privacy keep every stream public. See
+  [profile visibility](identity-and-access.md#profile-visibility).
 
 - `Current`: visit statistics run automatically for guests and signed-in users in official Android/iOS
   release builds against `https://f.yourtj.de`, with no settings switch or consent preference. Fresh
@@ -1350,8 +1406,12 @@ native cleanup is pending.
   Enable taps during startup/resume or stop are queued; a later disable or account change cancels
   queued consent. Failed unbinding is retained and retried on resume while push stays disabled,
   using the owning account; signing in to a different account does not acknowledge that cleanup.
-- `Current`: notifications use the existing event copy and only navigate to supported in-app topic,
-  profile and notification routes. Logout stops native delivery and attempts server unbinding;
+- `Current`: notifications use four-language actor/action/object copy and controlled topic-floor, profile,
+  Wiki and chat routes. A push recipient must match the restored account before opening a private
+  conversation; object pages re-authorize access. A loaded, uncovered foreground conversation
+  suppresses its own system alert; other conversations remain eligible. Account-level grouped
+  preferences are independent of OS permission, and private chat text never enters push payloads. Logout stops native delivery and attempts server
+  unbinding;
   the next account requires fresh consent. Optional JPush analytics/location collection is disabled.
 - See [activation and device validation](../operations/mobile-releases.md#native-push-activation-and-verification)
   for credentials, supported OEMs and delivery limitations.
@@ -1670,3 +1730,10 @@ acceptance; simulator compilation does not establish those results.
   allowlist. Search, notification, Wiki and course pages do not gain a blanket disk cache. The media
   upload queue is not a durable offline-send service. See the authoritative
   [storage boundaries and limits](../architecture/mobile-state-and-cache.md#cache-policy).
+
+## Profile decoration settings
+
+`Current`: native settings expose administrator-granted avatar frames and nickname styles with
+preview, independent removal, save/retry and theme-aware readable presentation. The native identity
+surfaces consume the same effective payload as Web; persona/anonymous identities remain independent.
+See [profile decorations](profile-decorations.md) for ownership and qualification semantics.

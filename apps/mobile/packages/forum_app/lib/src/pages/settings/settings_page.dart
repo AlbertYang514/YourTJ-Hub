@@ -1,3 +1,5 @@
+import 'decoration_page.dart';
+import '../../widgets/user_decoration.dart';
 import '../../user_blocks.dart';
 import 'dart:async';
 
@@ -26,6 +28,7 @@ import '../../widgets/language_picker.dart';
 import '../../widgets/user_badge.dart';
 import '../../site_theme.dart';
 import '../../push/push_service.dart';
+import '../../push/push_preferences_panel.dart';
 import '../../widgets/status_views.dart';
 import '../../current_user.dart';
 import '../../navigation/auth_navigation.dart';
@@ -38,6 +41,7 @@ import '../../widgets/stickers/sticker_library_page.dart';
 import '../../widgets/stickers/sticker_strings.dart';
 import 'text_size_settings_page.dart';
 import 'username_edit_dialog.dart';
+import 'passkey_settings_page.dart';
 import 'badge_display_dialog.dart';
 import 'profile_image_editor.dart';
 import 'oauth_bindings_sheet.dart';
@@ -100,6 +104,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _googleOAuthReady = false;
   bool _appleOAuthReady = false;
   bool _autoEditProfileActive = false;
+  final GfScrollToTopController _scrollToTopController =
+      GfScrollToTopController();
   _ProfileEditSession _autoEditSession = _ProfileEditSession();
   final ImagePicker _imagePicker = ImagePicker();
   final Set<Route<dynamic>> _profileEditRoutes = {};
@@ -680,8 +686,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             fields: [
               // Disable also accepts the account password; retain its full
               // keyboard instead of forcing the numeric setup-code keypad.
+              // Obscure it so a typed password never enters the keyboard
+              // dictionary; the credential dialog then keeps suggestions off
+              // for this field (issue #1111).
               _SettingsCredentialField(
                 label: l10n.settingsTotpCode,
+                obscureText: true,
                 autofillHints: const [AutofillHints.oneTimeCode],
               ),
             ],
@@ -995,7 +1005,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
     final title = _tab?.label(l10n) ?? l10n.settingsTitle;
     final colors = GfTheme.colorsOf(context);
-    return Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: colors.base200,
       appBar: GfAppBar(
         leading: IconButton(
@@ -1016,6 +1026,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ),
       ),
     );
+    return GfStatusBarScrollToTop(
+      controller: _scrollToTopController,
+      child: scaffold,
+    );
   }
 
   void _openSection(_SettingsTab section) {
@@ -1026,133 +1040,143 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
-  Widget _buildIndex(AppLocalizations l10n) => ListView(
-    padding: const EdgeInsets.all(16),
-    children: [
-      _settingsSection(
-        context,
-        title: l10n.settingsDevice,
-        child: Column(
-          children: [
-            _categoryRow(
-              key: const ValueKey('settings-category-appearance'),
-              symbol: 'palette',
-              title: l10n.settingsAppearance,
-              description: switch (ref.watch(themeModeProvider)) {
-                ThemeMode.system => l10n.settingsLanguageSystem,
-                ThemeMode.light => l10n.settingsThemeLight,
-                ThemeMode.dark => l10n.settingsThemeDark,
-              },
-              onTap: () => _openSection(_SettingsTab.appearance),
-            ),
-            const GfDivider(),
-            _categoryRow(
-              key: const ValueKey('settings-category-language'),
-              symbol: 'languages',
-              title: l10n.settingsAppLanguage,
-              description:
-                  appLanguageNames[ref
-                      .watch(appLocaleProvider)
-                      ?.languageCode] ??
-                  l10n.settingsLanguageSystem,
-              onTap: () => showAppLanguagePicker(context),
-            ),
-            const GfDivider(),
-            _categoryRow(
-              key: const ValueKey('settings-category-privacy'),
-              symbol: 'archive',
-              title: l10n.settingsDataStorage,
-              onTap: () => _openSection(_SettingsTab.privacy),
-            ),
-            const GfDivider(),
-            _categoryRow(
-              symbol: 'info',
-              title: l10n.settingsAbout,
-              onTap: () => context.push('/about'),
-            ),
-          ],
-        ),
-      ),
-      const SizedBox(height: 24),
-      _settingsSection(
-        context,
-        title: l10n.settingsYourAccount,
-        child: Column(
-          children: [
-            if (_signedIn == true)
-              for (final section in const [
-                _SettingsTab.profile,
-                _SettingsTab.account,
-                _SettingsTab.binding,
-                _SettingsTab.notifications,
-                _SettingsTab.security,
-              ]) ...[
-                if (section != _SettingsTab.profile) const GfDivider(),
+  Widget _buildIndex(AppLocalizations l10n) => GfScrollToTop(
+    controller: _scrollToTopController,
+    semanticLabel: l10n.commonBackToTop,
+    showButton: false,
+    builder: (_, ScrollController controller) =>
+        _buildIndexList(l10n, controller),
+  );
+
+  Widget _buildIndexList(AppLocalizations l10n, ScrollController controller) =>
+      ListView(
+        controller: controller,
+        padding: const EdgeInsets.all(16),
+        children: [
+          _settingsSection(
+            context,
+            title: l10n.settingsDevice,
+            child: Column(
+              children: [
                 _categoryRow(
-                  key: ValueKey('settings-category-${section.name}'),
-                  symbol: switch (section) {
-                    _SettingsTab.profile => 'user-round',
-                    _SettingsTab.account => 'at-sign',
-                    _SettingsTab.privacy => 'folder',
-                    _SettingsTab.binding => 'link',
-                    _SettingsTab.notifications => 'bell',
-                    _ => 'shield-check',
+                  key: const ValueKey('settings-category-appearance'),
+                  symbol: 'palette',
+                  title: l10n.settingsAppearance,
+                  description: switch (ref.watch(themeModeProvider)) {
+                    ThemeMode.system => l10n.settingsLanguageSystem,
+                    ThemeMode.light => l10n.settingsThemeLight,
+                    ThemeMode.dark => l10n.settingsThemeDark,
                   },
-                  title: section.label(l10n),
-                  onTap: () => _openSection(section),
+                  onTap: () => _openSection(_SettingsTab.appearance),
                 ),
-                if (section == _SettingsTab.account) ...[
-                  const GfDivider(),
-                  GfSettingRow(
-                    symbol: 'eye-off',
-                    title: l10n.userBlocks,
-                    onTap: () => showBlockedUsers(context),
-                  ),
-                ],
-                if (section == _SettingsTab.profile) ...[
-                  const GfDivider(),
-                  GfSettingRow(
-                    symbol: 'smile',
-                    title: StickerStrings(context).title,
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const StickerLibraryPage(),
+                const GfDivider(),
+                _categoryRow(
+                  key: const ValueKey('settings-category-language'),
+                  symbol: 'languages',
+                  title: l10n.settingsAppLanguage,
+                  description:
+                      appLanguageNames[ref
+                          .watch(appLocaleProvider)
+                          ?.languageCode] ??
+                      l10n.settingsLanguageSystem,
+                  onTap: () => showAppLanguagePicker(context),
+                ),
+                const GfDivider(),
+                _categoryRow(
+                  key: const ValueKey('settings-category-privacy'),
+                  symbol: 'archive',
+                  title: l10n.settingsDataStorage,
+                  onTap: () => _openSection(_SettingsTab.privacy),
+                ),
+                const GfDivider(),
+                _categoryRow(
+                  symbol: 'info',
+                  title: l10n.settingsAbout,
+                  onTap: () => context.push('/about'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          _settingsSection(
+            context,
+            title: l10n.settingsYourAccount,
+            child: Column(
+              children: [
+                if (_signedIn == true)
+                  for (final section in const [
+                    _SettingsTab.profile,
+                    _SettingsTab.account,
+                    _SettingsTab.binding,
+                    _SettingsTab.notifications,
+                    _SettingsTab.security,
+                  ]) ...[
+                    if (section != _SettingsTab.profile) const GfDivider(),
+                    _categoryRow(
+                      key: ValueKey('settings-category-${section.name}'),
+                      symbol: switch (section) {
+                        _SettingsTab.profile => 'user-round',
+                        _SettingsTab.account => 'at-sign',
+                        _SettingsTab.privacy => 'folder',
+                        _SettingsTab.binding => 'link',
+                        _SettingsTab.notifications => 'bell',
+                        _ => 'shield-check',
+                      },
+                      title: section.label(l10n),
+                      onTap: () => _openSection(section),
+                    ),
+                    if (section == _SettingsTab.account) ...[
+                      const GfDivider(),
+                      GfSettingRow(
+                        symbol: 'eye-off',
+                        title: l10n.userBlocks,
+                        onTap: () => showBlockedUsers(context),
+                      ),
+                    ],
+                    if (section == _SettingsTab.profile) ...[
+                      const GfDivider(),
+                      GfSettingRow(
+                        symbol: 'smile',
+                        title: StickerStrings(context).title,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const StickerLibraryPage(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ]
+                else if (_signedIn == false)
+                  _categoryRow(
+                    symbol: 'login4',
+                    title: l10n.authLoginTitle,
+                    onTap: () => context.push(
+                      authLoginLocation(
+                        returnTo: _tab == null
+                            ? '/settings'
+                            : '/settings/${_tab!.name}',
                       ),
                     ),
+                  )
+                else
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: LinearProgressIndicator(),
                   ),
-                ],
-              ]
-            else if (_signedIn == false)
-              _categoryRow(
-                symbol: 'login4',
-                title: l10n.authLoginTitle,
-                onTap: () => context.push(
-                  authLoginLocation(
-                    returnTo: _tab == null
-                        ? '/settings'
-                        : '/settings/${_tab!.name}',
-                  ),
-                ),
-              )
-            else
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: LinearProgressIndicator(),
-              ),
+              ],
+            ),
+          ),
+          if (_signedIn == true) ...[
+            const SizedBox(height: 24),
+            GfButton(
+              label: l10n.settingsLogout,
+              variant: GfButtonVariant.danger,
+              expanded: true,
+              onPressed: _logout,
+            ),
           ],
-        ),
-      ),
-      if (_signedIn == true) ...[
-        const SizedBox(height: 24),
-        GfButton(
-          label: l10n.settingsLogout,
-          variant: GfButtonVariant.danger,
-          expanded: true,
-          onPressed: _logout,
-        ),
-      ],
-    ],
-  );
+        ],
+      );
 
   Widget _categoryRow({
     Key? key,
@@ -1183,6 +1207,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       );
     }
     return GfScrollToTop(
+      controller: _scrollToTopController,
       semanticLabel: l10n.commonBackToTop,
       key: ValueKey<_SettingsTab?>(_tab),
       builder: (_, ScrollController controller) {
@@ -1304,6 +1329,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ),
               const GfDivider(),
               GfSettingRow(
+                symbol: 'sparkles',
+                title: DecorationStrings(context).title,
+                onTap: user == null
+                    ? null
+                    : () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => DecorationPage(
+                              avatarUrl: user.avatarUrl,
+                              name: user.nickname.isEmpty
+                                  ? user.username
+                                  : user.nickname,
+                            ),
+                          ),
+                        );
+                        if (mounted) await _loadUser(silent: true);
+                      },
+              ),
+              const GfDivider(),
+              GfSettingRow(
                 symbol: 'camera',
                 title: l10n.settingsAvatar,
                 description: _uploadingAvatar
@@ -1312,6 +1357,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 leading: user == null
                     ? null
                     : GfAvatar(
+                        frameColors: decorationColors(
+                          context,
+                          user.decoration?.avatarFrame,
+                        ),
+                        frameAssetUrl: decorationFrameAssetUrl(
+                          user.decoration?.avatarFrame,
+                        ),
+                        frameScale:
+                            user.decoration?.avatarFrame?.assetScale ?? 1.25,
                         src: resolveApiAssetUrl(user.avatarUrl),
                         size: 32,
                       ),
@@ -1422,6 +1476,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
         ),
         const SizedBox(height: 24),
+        _settingsSection(
+          context,
+          title: l10n.settingsTabPrivacy,
+          child: GfSettingRow(
+            key: const ValueKey('settings-account-profile-privacy'),
+            symbol: 'eye',
+            title: l10n.profilePrivacyTitle,
+            description: l10n.profilePrivacyDescription,
+            trailing: const GfSymbol('chevron-right', size: 18),
+            onTap: () => context.push('/settings/profile-privacy'),
+          ),
+        ),
+        const SizedBox(height: 24),
         TextButton(
           onPressed: _accountClosing ? null : _closeAccount,
           child: Text(l10n.settingsCloseAccount),
@@ -1522,6 +1589,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       ? () => ref.read(pushControllerProvider.notifier).enable()
                       : null,
                 ),
+                const PushPreferencesPanel(),
                 if (!isIOS) ...[
                   const GfDivider(),
                   GfSettingRow(
@@ -1559,6 +1627,22 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             description: l10n.settingsTotpSetupSecret,
             trailing: const GfSymbol('chevron-right', size: 18),
             onTap: _manageTotp,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _settingsSection(
+          context,
+          title: l10n.settingsPasskeyTitle,
+          child: GfSettingRow(
+            symbol: 'key-round',
+            title: l10n.settingsPasskeyManage,
+            description: l10n.settingsPasskeyDescription,
+            trailing: const GfSymbol('chevron-right', size: 18),
+            onTap: () => Navigator.of(context).push<void>(
+              MaterialPageRoute<void>(
+                builder: (_) => const PasskeySettingsPage(),
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 12),
@@ -1979,7 +2063,10 @@ class _SettingsCredentialDialogState<T>
                   keyboardType: widget.fields[index].keyboardType,
                   autofillHints: widget.fields[index].autofillHints,
                   autocorrect: false,
-                  enableSuggestions: false,
+                  // 仅密码字段保留 enableSuggestions: false(原因见 login_page.dart
+                  // 的同款注释);邮箱、TOTP 码等非密码字段保持默认,避免 ColorOS
+                  // 将其误判为凭据输入而强制安全键盘(issue #1111)。
+                  enableSuggestions: !widget.fields[index].obscureText,
                   textInputAction: index == widget.fields.length - 1
                       ? TextInputAction.done
                       : TextInputAction.next,

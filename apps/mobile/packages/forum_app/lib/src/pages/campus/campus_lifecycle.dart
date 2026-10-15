@@ -7,7 +7,7 @@ import 'package:flutter/widgets.dart';
 ///
 /// 取舍：Flutter 自 hidden/paused 起停用帧调度，卸载产生的空白帧不会绘制，
 /// 应用切换器缩略图可能保留含隐私内容的最后一帧；恢复前台仍先核验绑定再
-/// 取数。取舍与备选方案见 MADR 0082。
+/// 取数。取舍与备选方案见 MADR 0092。
 bool isCampusForeground(AppLifecycleState? state) =>
     state == null ||
     state == AppLifecycleState.resumed ||

@@ -255,6 +255,39 @@ Future<_Harness> _mount(
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  // issue #1124: profile visibility is an account privacy setting, so it
+  // lives in the account section ("Account, security & privacy" from the
+  // profile menu) rather than on the settings index.
+  testWidgets('settings index no longer lists profile visibility', (
+    tester,
+  ) async {
+    await _mount(tester, signedIn: true, language: 'en');
+    expect(
+      find.byKey(const ValueKey('settings-category-profile-privacy')),
+      findsNothing,
+    );
+    expect(find.text('Profile visibility'), findsNothing);
+  });
+
+  testWidgets('account section lists profile visibility under privacy', (
+    tester,
+  ) async {
+    await _mount(tester, signedIn: true, section: 'account', language: 'en');
+    final entry = find.byKey(
+      const ValueKey('settings-account-profile-privacy'),
+    );
+    await tester.scrollUntilVisible(
+      entry,
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Privacy'), findsOneWidget);
+    expect(
+      find.descendant(of: entry, matching: find.text('Profile visibility')),
+      findsOneWidget,
+    );
+  });
+
   for (final brightness in Brightness.values) {
     for (final signedIn in [false, true]) {
       testWidgets(
@@ -453,6 +486,31 @@ void main() {
     expect(h.user.disabledCodes, ['123456', '123456']);
   });
 
+  testWidgets(
+    'TOTP disable field masks password-capable input and keeps suggestions off (#1111)',
+    (tester) async {
+      // Disable accepts a TOTP code or the account password; the field must be
+      // obscured so a typed password never enters the keyboard dictionary, and
+      // the credential-dialog conditional then keeps suggestions off for it.
+      final h = await _mount(
+        tester,
+        signedIn: true,
+        section: 'security',
+        language: 'en',
+      );
+      h.user.totpEnabled = true;
+      await tester.tap(find.text('Enable').first);
+      await tester.pumpAndSettle();
+
+      final field = tester.widget<TextField>(input('Enter the 6-digit code'));
+      // Locks the masked-field outcome of the credential-dialog conditional;
+      // the plain-text side (e.g. New email) is locked by the email dialog
+      // case below.
+      expect(field.obscureText, isTrue);
+      expect(field.enableSuggestions, isFalse);
+    },
+  );
+
   testWidgets('email dialog drops private inputs when the account changes', (
     tester,
   ) async {
@@ -465,6 +523,17 @@ void main() {
     h.user.emailPending = Completer<bool>();
     await tester.tap(find.text('Email').first);
     await tester.pumpAndSettle();
+    // issue #1111: the credential dialog keeps suggestions off only for
+    // password-capable fields; the email field must stay a plain text field
+    // (revert of the conditional to a hardcoded false fails this assertion).
+    expect(
+      tester.widget<TextField>(input('New email')).enableSuggestions,
+      isTrue,
+    );
+    expect(
+      tester.widget<TextField>(input('Current password')).enableSuggestions,
+      isFalse,
+    );
     await tester.enterText(input('New email'), 'next@example.com');
     await tester.enterText(input('Current password'), 'private password');
     await tester.tap(dialogAction('Save'));
