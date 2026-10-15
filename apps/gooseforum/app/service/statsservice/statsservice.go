@@ -266,12 +266,9 @@ func UserRanking(ctx context.Context, query RankingQuery) (UserRankingResult, er
 	if err != nil {
 		return UserRankingResult{}, err
 	}
-	total, err := contributionstats.UserRankingTotal(ctx, scope, actorType)
-	if err != nil {
-		return UserRankingResult{}, err
-	}
-	// coverage.estimated 只反映「本次排行计入的行」（同主体、同匿名/注销排除口径）。
-	estimated, err := contributionstats.AuthorScopedEstimated(ctx, scope, actorType)
+	// 账号总数与 coverage.estimated 由同一条扫描返回：estimated 只反映「本次排行计入的行」
+	// （同主体、同匿名/注销排除口径），且不再为估算标记重复扫一遍同一内容范围。
+	totals, err := contributionstats.UserRankingTotal(ctx, scope, actorType)
 	if err != nil {
 		return UserRankingResult{}, err
 	}
@@ -298,14 +295,18 @@ func UserRanking(ctx context.Context, query RankingQuery) (UserRankingResult, er
 			item.Nickname = identity.Nickname
 			item.ActorType = identity.ActorType
 		}
+		// 身份缺失只可能来自「聚合与身份回填之间账号被注销」的竞态（账号过滤器
+		// users.ActorAuthorIDsQueryTx 已排除查询时点已注销的账号，软删行也读不到）。
+		// 该行已经在同一口径下计入总数，因此保留行本身（昵称留空、actorType 沿用请求侧），
+		// 不为此再加查询或丢掉与 total 对不上的行（评审 nit 的显式豁免）。
 		items = append(items, item)
 	}
 	return UserRankingResult{
 		Items:    items,
 		Page:     page,
 		PageSize: pageSize,
-		Total:    total,
-		Coverage: coverage(estimated),
+		Total:    totals.Total,
+		Coverage: coverage(totals.Estimated),
 	}, nil
 }
 

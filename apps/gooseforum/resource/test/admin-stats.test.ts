@@ -346,6 +346,37 @@ describe('user statistics', () => {
     expect(wrapper.text()).toContain('DETAIL_SECTION')
   })
 
+  test('a numeric search missing as an id retries it as a username', async () => {
+    // username 允许 6-32 位字母数字下划线（component.ValidateUsername），因此「123456」既可能是
+    // userId 也可能是用户名：ID 查询未命中时按用户名重试，两次都不中才展示错误。
+    const notFound = Object.assign(new Error('用户不存在'), { messageCode: 'user.notFound' })
+    vi.mocked(getAdminStatsUserRanking).mockResolvedValue(userRanking())
+    vi.mocked(getAdminStatsUserDetail)
+      .mockRejectedValueOnce(notFound)
+      .mockResolvedValueOnce(userDetail())
+    wrapper = mountUserSection()
+    await flushPromises()
+
+    const input = wrapper.get('form input')
+    await input.setValue('123456')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(getAdminStatsUserDetail).toHaveBeenNthCalledWith(1, expect.objectContaining({ userId: 123456 }))
+    expect(getAdminStatsUserDetail).toHaveBeenNthCalledWith(2, expect.objectContaining({ username: '123456' }))
+    expect(wrapper.findComponent(UserDetailPanel).text()).not.toContain('用户不存在')
+
+    // 用户名回退也只尝试一次：再未命中时停在错误态，不再循环重试。
+    vi.mocked(getAdminStatsUserDetail)
+      .mockReset()
+      .mockRejectedValue(notFound)
+    await input.setValue('654321')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(getAdminStatsUserDetail).toHaveBeenCalledTimes(2)
+    expect(wrapper.findComponent(UserDetailPanel).text()).toContain('用户不存在')
+  })
+
   test('a slow detail response for a previous user cannot overwrite the newer one', async () => {
     vi.mocked(getAdminStatsUserRanking).mockResolvedValue(userRanking())
     let resolveSlow!: (value: AdminStatsUserDetailResult) => void
