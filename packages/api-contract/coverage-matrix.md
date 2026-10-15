@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：405
-- /api JSON 路由：336，已入契约：337（100%），已知未覆盖：0
+- 快照路由总数：416
+- /api JSON 路由：345，已入契约：348（101%），已知未覆盖：0
 - 非 API 排除路由：68
 
-## 已覆盖（337）
+## 已覆盖（348）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -17,6 +17,8 @@
 | DELETE | `/api/forum/course-reviews/:reviewId/helpful` | `unmarkReviewHelpful` |
 | DELETE | `/api/pk/plan-items` | `pkDeletePlanItem` |
 | DELETE | `/api/pk/plans` | `pkDeletePlans` |
+| GET | `/.well-known/apple-app-site-association` | `getAppleWebCredentialsAssociation` |
+| GET | `/.well-known/assetlinks.json` | `getAndroidDigitalAssetLinks` |
 | GET | `/api/admin/agent-comment-policy` | `adminGetAgentCommentPolicy` |
 | GET | `/api/admin/ai-moderation-settings` | `adminGetAiModerationSettings` |
 | GET | `/api/admin/ai-summary-settings` | `adminGetAiSummarySettings` |
@@ -58,6 +60,7 @@
 | GET | `/api/admin/wiki/sync/webhook-secret` | `getWikiWebhookSecret` |
 | GET | `/api/admin/wiki/tree` | `getAdminWikiTree` |
 | GET | `/api/auth/mobile-web-session` | `mobileWebSession` |
+| GET | `/api/auth/passkey/status` | `getPasskeyStatus` |
 | GET | `/api/auth/tongji/registration` | `tongjiRegistrationStatus` |
 | GET | `/api/campus/calendar-export` | `campusCalendarExport` |
 | GET | `/api/campus/calendar-rules` | `campusCalendarRules` |
@@ -102,6 +105,7 @@
 | GET | `/api/user-card` | `getUserCard` |
 | GET | `/api/user-notes` | `listPrivateNotes` |
 | GET | `/api/user/decorations` | `myDecorations` |
+| GET | `/api/user/passkeys` | `listPasskeyCredentials` |
 | GET | `/api/user/sessions` | `listSessions` |
 | GET | `/api/user/totp/status` | `getTotpStatus` |
 | GET | `/api/v1/agent/events` | `agentListEvents` |
@@ -222,6 +226,8 @@
 | POST | `/api/auth/apple/bind` | `bindNativeAppleAccount` |
 | POST | `/api/auth/apple/exchange` | `exchangeNativeAppleCode` |
 | POST | `/api/auth/oidc/exchange` | `exchangeMobileOidcCode` |
+| POST | `/api/auth/passkey/login/begin` | `beginPasskeyLogin` |
+| POST | `/api/auth/passkey/login/finish` | `finishPasskeyLogin` |
 | POST | `/api/auth/tongji/registration` | `tongjiRegister` |
 | POST | `/api/auth/totp/verify` | `verifyTotpLogin` |
 | POST | `/api/campus/tongji/confirm` | `campusConfirm` |
@@ -331,6 +337,11 @@
 | POST | `/api/user-block` | `setUserBlock` |
 | POST | `/api/user-note` | `setPrivateNote` |
 | POST | `/api/user/decorations/equip` | `equipDecorations` |
+| POST | `/api/user/passkeys/reauth` | `reauthenticatePasskeyManagement` |
+| POST | `/api/user/passkeys/registration/begin` | `beginPasskeyRegistration` |
+| POST | `/api/user/passkeys/registration/finish` | `finishPasskeyRegistration` |
+| POST | `/api/user/passkeys/rename` | `renamePasskeyCredential` |
+| POST | `/api/user/passkeys/revoke` | `revokePasskeyCredential` |
 | POST | `/api/user/sessions/revoke` | `revokeSession` |
 | POST | `/api/user/sessions/revoke-all` | `revokeAllSessions` |
 | POST | `/api/user/totp/disable` | `disableTotp` |
