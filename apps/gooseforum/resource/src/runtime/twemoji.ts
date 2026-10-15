@@ -248,7 +248,7 @@ const lastRenderedHtml = new WeakMap<
   HTMLElement,
   { html: string; isSuppressed: boolean }
 >()
-const copyListeners = new WeakSet<Document>()
+const copyListeners = new WeakSet<Window>()
 
 function htmlWithTwemojiFromFragment(fragment: DocumentFragment): string {
   const copy = fragment.cloneNode(true) as DocumentFragment
@@ -261,53 +261,69 @@ function htmlWithTwemojiFromFragment(fragment: DocumentFragment): string {
 }
 
 function textWithTwemojiFromFragment(fragment: DocumentFragment): string {
-  const blockTags = new Set([
-    'blockquote',
-    'div',
-    'h1',
-    'h2',
-    'h3',
-    'h4',
-    'h5',
-    'h6',
-    'li',
-    'p',
-    'pre',
-    'tr',
-  ])
-
-  const serialize = (node: Node): string => {
-    if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
-    if (!(node instanceof Element)) return ''
-    if (node.matches('img.twemoji')) {
-      const image = node as HTMLImageElement
-      return image.dataset.emoji ?? image.alt
-    }
-    if (node.localName === 'br') return '\n'
-
-    const text = Array.from(node.childNodes, serialize).join('')
-    return blockTags.has(node.localName) && text && !text.endsWith('\n')
-      ? `${text}\n`
-      : text
+  const copy = fragment.cloneNode(true) as DocumentFragment
+  const replacements: Array<[string, string]> = []
+  let tokenIndex = 0
+  for (const image of copy.querySelectorAll<HTMLImageElement>('img.twemoji')) {
+    let token: string
+    do {
+      token = `\uE000TWEMOJI_${tokenIndex++}_\uE001`
+    } while (copy.textContent?.includes(token))
+    replacements.push([token, image.dataset.emoji ?? image.alt])
+    image.replaceWith(document.createTextNode(token))
   }
 
-  return Array.from(fragment.childNodes, serialize).join('').replace(/\n$/, '')
+  // Let the browser apply its block, list, line-break and table-cell text
+  // rules. A connected offscreen host gives innerText a layout context without
+  // changing the live selection.
+  const container = document.createElement('div')
+  container.style.cssText =
+    'position:fixed;left:-100000px;top:0;width:max-content;white-space:normal'
+  container.append(copy)
+  document.body.append(container)
+  let text = container.innerText
+  container.remove()
+  for (const [token, emoji] of replacements) text = text.replaceAll(token, emoji)
+  return text
 }
 
 function preserveTwemojiCopy(event: ClipboardEvent): void {
   const selection = window.getSelection()
-  if (!event.clipboardData || !selection || selection.isCollapsed) return
+  if (
+    event.defaultPrevented ||
+    !event.clipboardData ||
+    !selection ||
+    selection.isCollapsed ||
+    selection.rangeCount === 0 ||
+    (event.clipboardData.types?.length ?? 0) > 0
+  ) {
+    return
+  }
 
   const fragments: DocumentFragment[] = []
   for (let index = 0; index < selection.rangeCount; index += 1) {
-    fragments.push(selection.getRangeAt(index).cloneContents())
+    const range = selection.getRangeAt(index)
+    if (nodeIsTwemojiExcluded(range.commonAncestorContainer)) return
+    fragments.push(range.cloneContents())
   }
-  if (!fragments.some((fragment) => fragment.querySelector('img.twemoji'))) return
+  const selectedTwemoji = fragments.flatMap((fragment) =>
+    Array.from(fragment.querySelectorAll<HTMLImageElement>('img.twemoji')),
+  )
+  if (
+    selectedTwemoji.length === 0 ||
+    selectedTwemoji.some(nodeIsTwemojiExcluded)
+  ) {
+    return
+  }
 
   const copiedText = fragments.map(textWithTwemojiFromFragment).join('')
   const copiedHtml = fragments.map(htmlWithTwemojiFromFragment).join('')
-  event.clipboardData.setData('text/plain', copiedText)
-  event.clipboardData.setData('text/html', copiedHtml)
+  try {
+    event.clipboardData.setData('text/plain', copiedText)
+    event.clipboardData.setData('text/html', copiedHtml)
+  } catch {
+    return
+  }
   event.preventDefault()
 }
 
@@ -344,9 +360,11 @@ export const twemojiVuePlugin = {
   install(app: App) {
     app.component('TwemojiText', TwemojiText)
     app.directive('twemoji-html', twemojiHtmlDirective)
-    if (typeof document !== 'undefined' && !copyListeners.has(document)) {
-      document.addEventListener('copy', preserveTwemojiCopy)
-      copyListeners.add(document)
+    if (typeof document !== 'undefined' && !copyListeners.has(window)) {
+      // Window bubble runs after target, editor and document handlers, so an
+      // existing clipboard implementation can prevent or populate the event.
+      window.addEventListener('copy', preserveTwemojiCopy)
+      copyListeners.add(window)
     }
   },
 }

@@ -113,6 +113,9 @@ class GfMessageBubble extends StatelessWidget {
         }
         if (selectable) {
           bubble = GfSelectionArea(
+            // `text` is the original message source, including sticker tokens
+            // represented by rich image spans inside `content`.
+            selectionSource: text,
             contextMenuBuilder: (context, selection, buttonItems) =>
                 AdaptiveTextSelectionToolbar.buttonItems(
                   anchors: selection.contextMenuAnchors,

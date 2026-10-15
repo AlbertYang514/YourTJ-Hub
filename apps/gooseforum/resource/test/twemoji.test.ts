@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { version as vueVersion } from 'vue'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import TwemojiHtmlFixture from './fixtures/TwemojiHtmlFixture.vue'
 import TwemojiEditableFixture from './fixtures/TwemojiEditableFixture.vue'
 import TwemojiTemplateFixture from './fixtures/TwemojiTemplateFixture.vue'
@@ -106,6 +106,31 @@ describe('Vue Twemoji rendering', () => {
     expect(richHtml.querySelector('div[contenteditable=""] img.twemoji')).toBeNull()
   })
 
+  it('re-renders direct DOM edits once and refreshes the HTML cache', () => {
+    const richHtml = document.createElement('div')
+    richHtml.innerHTML = '<p>initial 🐦‍🔥</p>'
+    renderTwemojiHtml(richHtml)
+    expect(richHtml.querySelectorAll('img.twemoji')).toHaveLength(1)
+
+    richHtml.innerHTML = '<p>direct edit ❤️ and 🇨🇳</p>'
+    renderTwemojiHtml(richHtml)
+    expect(richHtml.querySelectorAll('img.twemoji')).toHaveLength(2)
+    const rendered = richHtml.innerHTML
+    renderTwemojiHtml(richHtml)
+    expect(richHtml.innerHTML).toBe(rendered)
+
+    richHtml.setAttribute('contenteditable', 'true')
+    renderTwemojiHtml(richHtml)
+    expect(richHtml.querySelectorAll('img.twemoji')).toHaveLength(0)
+    richHtml.innerHTML = '<p>editable direct edit 🐦‍🔥</p>'
+    renderTwemojiHtml(richHtml)
+    expect(richHtml.querySelectorAll('img.twemoji')).toHaveLength(0)
+
+    richHtml.setAttribute('contenteditable', 'false')
+    renderTwemojiHtml(richHtml)
+    expect(richHtml.querySelectorAll('img.twemoji')).toHaveLength(1)
+  })
+
   it('renders the Vditor preview after syntax highlighting without changing its structure', () => {
     const preview = document.createElement('div')
     preview.innerHTML = `<pre><code><span class="hljs-keyword">const</span> emoji = '🐦‍🔥'</code></pre>`
@@ -195,6 +220,116 @@ describe('Vue Twemoji rendering', () => {
     expect(values['text/plain']).toBe('复制 🐦‍🔥 and ❤️\nlist 🔥')
     expect(values['text/html']).toBe('<p><strong>复制 🐦‍🔥</strong> and <a href="https://example.com"><em>❤️</em></a></p><ul><li>list 🔥</li></ul>')
     selection.removeAllRanges()
+    wrapper.unmount()
+  })
+
+  it('does not replace a clipboard already handled by another editor', () => {
+    const wrapper = mount(TwemojiHtmlFixture, {
+      props: { html: '<p>copy 🐦‍🔥</p>' },
+      attachTo: document.body,
+    })
+    const range = document.createRange()
+    range.selectNodeContents(wrapper.element)
+    const selection = window.getSelection()!
+    selection.removeAllRanges()
+    selection.addRange(range)
+
+    for (const mode of ['prevented', 'prepopulated'] as const) {
+      const values: Record<string, string> = {}
+      const types: string[] = []
+      const event = new Event('copy', { bubbles: true, cancelable: true })
+      const clipboardData = {
+        types,
+        setData: (type: string, value: string) => {
+          values[type] = value
+          if (!types.includes(type)) types.push(type)
+        },
+      }
+      Object.defineProperty(event, 'clipboardData', { value: clipboardData })
+      const existingHandler = (copyEvent: Event) => {
+        const copy = copyEvent as ClipboardEvent
+        if (mode === 'prevented') copy.preventDefault()
+        else copy.clipboardData?.setData('text/plain', 'editor-owned copy')
+      }
+      document.addEventListener('copy', existingHandler, {
+        once: true,
+      })
+      wrapper.element.dispatchEvent(event)
+
+      if (mode === 'prevented') {
+        expect(event.defaultPrevented).toBe(true)
+        expect(values).toEqual({})
+      } else {
+        expect(values).toEqual({ 'text/plain': 'editor-owned copy' })
+      }
+    }
+
+    selection.removeAllRanges()
+    wrapper.unmount()
+  })
+
+  it('does not take ownership of copy events inside contenteditable', () => {
+    const editor = document.createElement('div')
+    editor.contentEditable = 'true'
+    editor.innerHTML = '<p>editable 🐦‍🔥</p>'
+    const image = document.createElement('img')
+    image.className = 'twemoji'
+    image.alt = '🐦‍🔥'
+    image.dataset.emoji = '🐦‍🔥'
+    editor.querySelector('p')?.append(image)
+    document.body.append(editor)
+    const range = document.createRange()
+    range.selectNodeContents(editor)
+    const selection = window.getSelection()!
+    selection.removeAllRanges()
+    selection.addRange(range)
+    const values: Record<string, string> = {}
+    const event = new Event('copy', { bubbles: true, cancelable: true })
+    Object.defineProperty(event, 'clipboardData', {
+      value: { types: [], setData: (type: string, value: string) => (values[type] = value) },
+    })
+
+    document.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(false)
+    expect(values).toEqual({})
+    selection.removeAllRanges()
+    editor.remove()
+  })
+
+  it('joins disjoint selected ranges without altering their Unicode', () => {
+    const wrapper = mount(TwemojiHtmlFixture, {
+      props: { html: '<p>first 🐦‍🔥</p><p>second 🇨🇳</p>' },
+      attachTo: document.body,
+    })
+    const paragraphs = wrapper.element.querySelectorAll('p')
+    const ranges = Array.from(paragraphs, (paragraph) => {
+      const range = document.createRange()
+      range.selectNodeContents(paragraph)
+      return range
+    })
+    const fakeSelection = {
+      isCollapsed: false,
+      rangeCount: ranges.length,
+      getRangeAt: (index: number) => ranges[index],
+    } as Selection
+    const getSelection = vi
+      .spyOn(window, 'getSelection')
+      .mockReturnValue(fakeSelection)
+    const values: Record<string, string> = {}
+    const event = new Event('copy', { bubbles: true, cancelable: true })
+    Object.defineProperty(event, 'clipboardData', {
+      value: { types: [], setData: (type: string, value: string) => (values[type] = value) },
+    })
+
+    document.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(values['text/plain']).toContain('first 🐦‍🔥')
+    expect(values['text/plain']).toContain('second 🇨🇳')
+    expect(values['text/html']).toContain('first 🐦‍🔥')
+    expect(values['text/html']).toContain('second 🇨🇳')
+    getSelection.mockRestore()
     wrapper.unmount()
   })
 })

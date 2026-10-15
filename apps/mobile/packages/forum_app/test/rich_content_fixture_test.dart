@@ -1,9 +1,11 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
+import 'package:html/parser.dart' show parseFragment;
 import 'package:markdown_widget/markdown_widget.dart'
     show MarkdownConfig, MarkdownWidget;
 import 'package:forum_app/src/reading_preferences.dart';
@@ -707,6 +709,72 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.byType(GfCodeBlock), findsOneWidget);
+    await _dispose(tester);
+  });
+
+  testWidgets('HTML Emoji copy protects source across text nodes', (
+    tester,
+  ) async {
+    const html =
+        '<p>🐦‍🔥</p><p>&#xE000; raw <span>❤️</span></p><p>flag 🇺🇸</p>';
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String?;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: gfThemeData(Brightness.light),
+        home: Scaffold(
+          body: GfHtmlContent(
+            html: html,
+            profile: _profileFor(_Path.wikiHtml, 1),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<GfSelectionArea>(find.byType(GfSelectionArea))
+          .selectionSource,
+      parseFragment(html).text,
+    );
+    final region = tester.state<SelectableRegionState>(
+      find.byType(SelectableRegion),
+    );
+    region.selectAll(SelectionChangedCause.keyboard);
+    await tester.pump();
+    Actions.invoke(
+      tester.element(
+        find
+            .descendant(
+              of: find.byType(GfHtmlContent),
+              matching: find.byType(RichText),
+            )
+            .first,
+      ),
+      CopySelectionTextIntent.copy,
+    );
+    await tester.pump();
+
+    expect(copied, contains('🐦‍🔥'));
+    expect(copied, contains('\uE000'));
+    expect(copied, contains('❤️'));
+    expect(copied, contains('🇺🇸'));
     await _dispose(tester);
   });
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:html/parser.dart' show parseFragment;
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:ui_kit/ui_kit.dart';
 
@@ -66,6 +67,9 @@ class GfHtmlContent extends StatelessWidget {
     );
 
     return GfSelectionArea(
+      // Reserve every decoded source character before any HTML text node can
+      // allocate an Emoji placeholder. This protects collisions across nodes.
+      selectionSource: parseFragment(html).text ?? '',
       child: HtmlWidget(
         html,
         key: htmlKey,

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' as cupertino;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -69,36 +70,56 @@ bool _mightContainTwemoji(String text) {
 }
 
 class _TwemojiSelectionRegistry {
+  _TwemojiSelectionRegistry(String selectionSource) {
+    _sourceCodeUnits.addAll(selectionSource.codeUnits);
+  }
+
   final Map<String, int> _placeholderByEmoji = <String, int>{};
   final Map<int, String> emojiByPlaceholder = <int, String>{};
   final Set<int> _sourceCodeUnits = <int>{};
   var _nextPlaceholder = 0xe000;
+  var _isSafeToCopy = true;
 
   void reserveSource(String source) {
-    _sourceCodeUnits.addAll(source.codeUnits);
+    for (final codeUnit in source.codeUnits) {
+      // If a child is added or rebuilt after allocation and introduces a
+      // source character already used as a placeholder, copying becomes
+      // ambiguous. Fail closed rather than changing user text.
+      if (emojiByPlaceholder.containsKey(codeUnit)) _isSafeToCopy = false;
+      _sourceCodeUnits.add(codeUnit);
+    }
   }
 
-  int placeholderFor(String emoji) =>
-      _placeholderByEmoji.putIfAbsent(emoji, () {
-        while (_nextPlaceholder <= 0xf8ff &&
-            (_sourceCodeUnits.contains(_nextPlaceholder) ||
-                emojiByPlaceholder.containsKey(_nextPlaceholder))) {
-          _nextPlaceholder++;
-        }
-        if (_nextPlaceholder > 0xf8ff) {
-          return PlaceholderSpan.placeholderCodeUnit;
-        }
-        final placeholder = _nextPlaceholder++;
-        emojiByPlaceholder[placeholder] = emoji;
-        return placeholder;
-      });
+  int? placeholderFor(String emoji) {
+    if (!_isSafeToCopy) return null;
+    final existing = _placeholderByEmoji[emoji];
+    if (existing != null) return existing;
 
-  String restoreSelectedText(String text) => String.fromCharCodes(
-    text.runes.expand((codepoint) {
-      final emoji = emojiByPlaceholder[codepoint];
-      return emoji == null ? <int>[codepoint] : emoji.runes;
-    }),
-  );
+    while (_nextPlaceholder <= 0xf8ff &&
+        (_sourceCodeUnits.contains(_nextPlaceholder) ||
+            emojiByPlaceholder.containsKey(_nextPlaceholder))) {
+      _nextPlaceholder++;
+    }
+    // The finite private-use pool can be exhausted by valid input. In that
+    // case the span builder keeps this Emoji as Unicode text instead of
+    // borrowing Flutter's U+FFFC native WidgetSpan placeholder.
+    if (_nextPlaceholder > 0xf8ff) return null;
+
+    final placeholder = _nextPlaceholder++;
+    _placeholderByEmoji[emoji] = placeholder;
+    emojiByPlaceholder[placeholder] = emoji;
+    return placeholder;
+  }
+
+  String? restoreSelectedText(String text) {
+    if (!_isSafeToCopy) return null;
+    return String.fromCharCodes(
+      text.runes.expand((codepoint) {
+        final emoji = emojiByPlaceholder[codepoint];
+        return emoji == null ? <int>[codepoint] : emoji.runes;
+      }),
+    );
+  }
 }
 
 InlineSpan buildTwemojiTextSpan(
@@ -107,14 +128,16 @@ InlineSpan buildTwemojiTextSpan(
   required TextStyle inheritedStyle,
   required TextScaler textScaler,
 }) {
+  final registry = _TwemojiSelectionScope.maybeOf(context);
+  // Register even plain-text spans before any sibling can allocate a
+  // placeholder. The area also seeds this registry with its complete source.
+  registry?.reserveSource(sourceSpan.toPlainText());
   if (sourceSpan is TextSpan &&
       !_mightContainTwemoji(
         sourceSpan.toPlainText(includePlaceholders: false),
       )) {
     return sourceSpan;
   }
-  final registry = _TwemojiSelectionScope.maybeOf(context);
-  registry?.reserveSource(sourceSpan.toPlainText());
   return _TwemojiSpanBuilder(
     textScaler,
     registry,
@@ -141,6 +164,7 @@ class GfSelectionArea extends StatefulWidget {
   const GfSelectionArea({
     super.key,
     required this.child,
+    required this.selectionSource,
     this.focusNode,
     this.selectionControls,
     this.magnifierConfiguration,
@@ -148,6 +172,12 @@ class GfSelectionArea extends StatefulWidget {
   });
 
   final Widget child;
+
+  /// Complete original text represented by [child], including text encoded in
+  /// HTML entities or hidden behind image spans. Keep this in sync whenever
+  /// [child] changes so no legal source character can collide with an image
+  /// placeholder.
+  final String selectionSource;
   final FocusNode? focusNode;
   final TextSelectionControls? selectionControls;
   final TextMagnifierConfiguration? magnifierConfiguration;
@@ -165,8 +195,21 @@ typedef GfSelectionAreaContextMenuBuilder =
     );
 
 class _GfSelectionAreaState extends State<GfSelectionArea> {
-  final _TwemojiSelectionRegistry _registry = _TwemojiSelectionRegistry();
+  late _TwemojiSelectionRegistry _registry = _TwemojiSelectionRegistry(
+    widget.selectionSource,
+  );
   String? _selectedText;
+  var _selectionGeneration = 0;
+
+  @override
+  void didUpdateWidget(covariant GfSelectionArea oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectionSource != widget.selectionSource) {
+      _registry = _TwemojiSelectionRegistry(widget.selectionSource);
+      _selectedText = null;
+      _selectionGeneration++;
+    }
+  }
 
   List<ContextMenuButtonItem> _buttonItems(SelectableRegionState selection) =>
       selection.contextMenuButtonItems
@@ -185,9 +228,9 @@ class _GfSelectionAreaState extends State<GfSelectionArea> {
   void _copySelectedText() {
     final selectedText = _selectedText;
     if (selectedText == null) return;
-    Clipboard.setData(
-      ClipboardData(text: _registry.restoreSelectedText(selectedText)),
-    );
+    final restoredText = _registry.restoreSelectedText(selectedText);
+    if (restoredText == null) return;
+    Clipboard.setData(ClipboardData(text: restoredText));
   }
 
   void _finishCopy(SelectableRegionState selection) {
@@ -205,32 +248,37 @@ class _GfSelectionAreaState extends State<GfSelectionArea> {
   }
 
   @override
-  Widget build(BuildContext context) => SelectionArea(
-    focusNode: widget.focusNode,
-    selectionControls: widget.selectionControls,
-    magnifierConfiguration: widget.magnifierConfiguration,
-    onSelectionChanged: (content) => _selectedText = content?.plainText,
-    contextMenuBuilder: (context, selection) {
-      final buttonItems = _buttonItems(selection);
-      return widget.contextMenuBuilder?.call(context, selection, buttonItems) ??
-          AdaptiveTextSelectionToolbar.buttonItems(
-            anchors: selection.contextMenuAnchors,
-            buttonItems: buttonItems,
-          );
-    },
-    child: _TwemojiSelectionScope(
-      registry: _registry,
-      child: Actions(
-        actions: <Type, Action<Intent>>{
-          CopySelectionTextIntent: CallbackAction<CopySelectionTextIntent>(
-            onInvoke: (_) {
-              _copySelectedText();
-              return null;
-            },
-          ),
+  Widget build(BuildContext context) => Actions(
+    // SelectableRegion's CopySelectionTextIntent is overridable. Place this
+    // action above SelectionArea so its keyboard shortcut finds it while the
+    // selection region dispatches copy.
+    actions: <Type, Action<Intent>>{
+      CopySelectionTextIntent: CallbackAction<CopySelectionTextIntent>(
+        onInvoke: (_) {
+          _copySelectedText();
+          return null;
         },
-        child: widget.child,
       ),
+    },
+    child: SelectionArea(
+      key: ValueKey<int>(_selectionGeneration),
+      focusNode: widget.focusNode,
+      selectionControls: widget.selectionControls,
+      magnifierConfiguration: widget.magnifierConfiguration,
+      onSelectionChanged: (content) => _selectedText = content?.plainText,
+      contextMenuBuilder: (context, selection) {
+        final buttonItems = _buttonItems(selection);
+        return widget.contextMenuBuilder?.call(
+              context,
+              selection,
+              buttonItems,
+            ) ??
+            AdaptiveTextSelectionToolbar.buttonItems(
+              anchors: selection.contextMenuAnchors,
+              buttonItems: buttonItems,
+            );
+      },
+      child: _TwemojiSelectionScope(registry: _registry, child: widget.child),
     ),
   );
 }
@@ -608,8 +656,8 @@ class GfSelectableText extends StatelessWidget {
       sourceSpan.toPlainText(includePlaceholders: false),
     );
 
-    if (containsEmoji) {
-      final richText = GfText.rich(
+    if (containsEmoji && _TwemojiSelectionScope.maybeOf(context) != null) {
+      Widget richText = GfText.rich(
         sourceSpan,
         style: style,
         strutStyle: strutStyle,
@@ -623,88 +671,97 @@ class GfSelectableText extends StatelessWidget {
         selectionColor: selectionColor,
       );
       if (!enableInteractiveSelection) {
-        return SelectionContainer.disabled(child: richText);
+        richText = SelectionContainer.disabled(child: richText);
       }
-      if (SelectionContainer.maybeOf(context) != null) return richText;
-      return GfSelectionArea(
-        focusNode: focusNode,
-        selectionControls: selectionControls,
-        magnifierConfiguration: magnifierConfiguration,
-        child: richText,
-      );
+      if (onTap != null) {
+        richText = GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: onTap,
+          child: richText,
+        );
+      }
+      return Focus(focusNode: focusNode, autofocus: autofocus, child: richText);
     }
 
     final builder = _TwemojiSpanBuilder(scaler);
     final rendered = builder.build(sourceSpan, baseStyle) as TextSpan;
-
-    return SelectableText.rich(
-      rendered,
-      focusNode: focusNode,
-      style: style,
-      strutStyle: strutStyle,
-      textAlign: textAlign,
-      textDirection: textDirection,
-      textScaler: textScaler,
-      showCursor: showCursor,
-      autofocus: autofocus,
-      minLines: minLines,
-      maxLines: maxLines,
-      cursorWidth: cursorWidth,
-      cursorHeight: cursorHeight,
-      cursorRadius: cursorRadius,
-      cursorColor: cursorColor,
-      selectionColor: selectionColor,
-      dragStartBehavior: dragStartBehavior,
-      enableInteractiveSelection: enableInteractiveSelection,
-      selectionControls: selectionControls,
-      onTap: onTap,
-      scrollPhysics: scrollPhysics,
-      scrollBehavior: scrollBehavior,
-      semanticsLabel: semanticsLabel,
-      textHeightBehavior: textHeightBehavior,
-      textWidthBasis: textWidthBasis,
-      magnifierConfiguration: magnifierConfiguration,
-      contextMenuBuilder:
-          contextMenuBuilder ??
-          (BuildContext context, EditableTextState state) {
-            final items = state.contextMenuButtonItems
-                .map((item) {
-                  if (item.type != ContextMenuButtonType.copy) return item;
-                  return ContextMenuButtonItem(
-                    type: ContextMenuButtonType.copy,
-                    onPressed: () {
-                      final selection = state.textEditingValue.selection;
-                      if (selection.isValid && !selection.isCollapsed) {
-                        final sourceRange = builder.sourceRangeForDisplayRange(
-                          selection.start,
-                          selection.end,
-                        );
-                        final sourceText = sourceSpan.toPlainText(
-                          includePlaceholders: true,
-                        );
-                        Clipboard.setData(
-                          ClipboardData(
-                            text: sourceText.substring(
-                              sourceRange.start
-                                  .clamp(0, sourceText.length)
-                                  .toInt(),
-                              sourceRange.end
-                                  .clamp(0, sourceText.length)
-                                  .toInt(),
-                            ),
-                          ),
-                        );
-                      }
-                      state.hideToolbar();
-                    },
-                  );
-                })
-                .toList(growable: false);
-            return AdaptiveTextSelectionToolbar.buttonItems(
-              anchors: state.contextMenuAnchors,
-              buttonItems: items,
+    Widget buildContextMenu(BuildContext context, EditableTextState state) {
+      List<ContextMenuButtonItem> withTwemojiCopy(
+        List<ContextMenuButtonItem> items,
+      ) => items
+          .map((item) {
+            if (item.type != ContextMenuButtonType.copy) return item;
+            return item.copyWith(
+              onPressed: () {
+                _copySelectableText(state, sourceSpan, builder);
+                state.hideToolbar();
+              },
             );
-          },
+          })
+          .toList(growable: false);
+
+      final customBuilder = contextMenuBuilder;
+      if (customBuilder == null) {
+        return AdaptiveTextSelectionToolbar.buttonItems(
+          anchors: state.contextMenuAnchors,
+          buttonItems: withTwemojiCopy(state.contextMenuButtonItems),
+        );
+      }
+
+      final customMenu = customBuilder(context, state);
+      if (customMenu is AdaptiveTextSelectionToolbar &&
+          customMenu.buttonItems != null) {
+        return AdaptiveTextSelectionToolbar.buttonItems(
+          anchors: customMenu.anchors,
+          buttonItems: withTwemojiCopy(customMenu.buttonItems!),
+        );
+      }
+      if (customMenu is cupertino.CupertinoAdaptiveTextSelectionToolbar &&
+          customMenu.buttonItems != null) {
+        return cupertino.CupertinoAdaptiveTextSelectionToolbar.buttonItems(
+          anchors: customMenu.anchors,
+          buttonItems: withTwemojiCopy(customMenu.buttonItems!),
+        );
+      }
+      return customMenu;
+    }
+
+    return Actions(
+      actions: <Type, Action<Intent>>{
+        CopySelectionTextIntent: _TwemojiCopySelectionAction(
+          sourceSpan: sourceSpan,
+          builder: builder,
+        ),
+      },
+      child: SelectableText.rich(
+        rendered,
+        focusNode: focusNode,
+        style: style,
+        strutStyle: strutStyle,
+        textAlign: textAlign,
+        textDirection: textDirection,
+        textScaler: textScaler,
+        showCursor: showCursor,
+        autofocus: autofocus,
+        minLines: minLines,
+        maxLines: maxLines,
+        cursorWidth: cursorWidth,
+        cursorHeight: cursorHeight,
+        cursorRadius: cursorRadius,
+        cursorColor: cursorColor,
+        selectionColor: selectionColor,
+        dragStartBehavior: dragStartBehavior,
+        enableInteractiveSelection: enableInteractiveSelection,
+        selectionControls: selectionControls,
+        onTap: onTap,
+        scrollPhysics: scrollPhysics,
+        scrollBehavior: scrollBehavior,
+        semanticsLabel: semanticsLabel,
+        textHeightBehavior: textHeightBehavior,
+        textWidthBasis: textWidthBasis,
+        magnifierConfiguration: magnifierConfiguration,
+        contextMenuBuilder: buildContextMenu,
+      ),
     );
   }
 }
@@ -719,9 +776,7 @@ class _TwemojiSpanBuilder {
 
   InlineSpan build(InlineSpan span, TextStyle inheritedStyle) {
     if (span is TextSpan &&
-        !_mightContainTwemoji(
-          span.toPlainText(includePlaceholders: false),
-        )) {
+        !_mightContainTwemoji(span.toPlainText(includePlaceholders: false))) {
       return span;
     }
     return _transform(span, inheritedStyle);
@@ -809,11 +864,23 @@ class _TwemojiSpanBuilder {
             child: emoji,
           );
         }
+        final placeholder = selectionRegistry?.placeholderFor(value);
+        if (selectionRegistry != null && placeholder == null) {
+          transformedChildren.add(
+            TextSpan(
+              text: value,
+              style: style,
+              recognizer: span.recognizer,
+              mouseCursor: span.mouseCursor,
+              onEnter: span.onEnter,
+              onExit: span.onExit,
+            ),
+          );
+          continue;
+        }
         transformedChildren.add(
           _TwemojiWidgetSpan(
-            placeholder:
-                selectionRegistry?.placeholderFor(value) ??
-                PlaceholderSpan.placeholderCodeUnit,
+            placeholder: placeholder ?? PlaceholderSpan.placeholderCodeUnit,
             child: emoji,
           ),
         );
@@ -852,6 +919,53 @@ class _TwemojiWidgetSpan extends WidgetSpan {
     bool includePlaceholders = true,
   }) {
     if (includePlaceholders) buffer.writeCharCode(placeholder);
+  }
+}
+
+bool _copySelectableText(
+  EditableTextState state,
+  InlineSpan sourceSpan,
+  _TwemojiSpanBuilder builder,
+) {
+  final selection = state.textEditingValue.selection;
+  if (!selection.isValid || selection.isCollapsed) return false;
+  final sourceRange = builder.sourceRangeForDisplayRange(
+    selection.start,
+    selection.end,
+  );
+  final sourceText = sourceSpan.toPlainText(includePlaceholders: true);
+  Clipboard.setData(
+    ClipboardData(
+      text: sourceText.substring(
+        sourceRange.start.clamp(0, sourceText.length).toInt(),
+        sourceRange.end.clamp(0, sourceText.length).toInt(),
+      ),
+    ),
+  );
+  return true;
+}
+
+/// Overrides EditableText's overridable copy action so desktop keyboard copy
+/// uses source offsets just like the long-press toolbar. Native WidgetSpan
+/// placeholders remain one-to-one in the offset map and are never decoded as
+/// Emoji.
+class _TwemojiCopySelectionAction
+    extends ContextAction<CopySelectionTextIntent> {
+  _TwemojiCopySelectionAction({
+    required this.sourceSpan,
+    required this.builder,
+  });
+
+  final InlineSpan sourceSpan;
+  final _TwemojiSpanBuilder builder;
+
+  @override
+  void invoke(CopySelectionTextIntent intent, [BuildContext? context]) {
+    final state = context?.findAncestorStateOfType<EditableTextState>();
+    if (state == null || intent.collapseSelection) return;
+    if (_copySelectableText(state, sourceSpan, builder)) {
+      state.clipboardStatus.update();
+    }
   }
 }
 
