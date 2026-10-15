@@ -7,6 +7,10 @@ import {
   type App,
   type Directive,
 } from 'vue'
+import {
+  isContentEditableValue,
+  TWEMOJI_TEXT_FREE_TAGS,
+} from './twemoji-editability'
 import manifestData from '../../../../mobile/packages/ui_kit/assets/twemoji-manifest.json'
 
 type TwemojiManifest = {
@@ -183,15 +187,17 @@ export const TwemojiText = defineComponent({
   },
 })
 
-function nodeIsInsideEditor(node: Text): boolean {
-  const parent = node.parentElement
-  if (!parent) return false
-  if (parent.closest('script, style, textarea, [data-twemoji-ignore]')) return true
-
-  let current: Element | null = parent
+function nodeIsTwemojiExcluded(node: Node): boolean {
+  let current: Element | null =
+    node instanceof Element ? node : node.parentElement
   while (current) {
-    const editable = current.getAttribute('contenteditable')
-    if (editable !== null && editable.toLowerCase() !== 'false') return true
+    if (
+      TWEMOJI_TEXT_FREE_TAGS.has(current.localName.toLowerCase()) ||
+      current.hasAttribute('data-twemoji-ignore') ||
+      isContentEditableValue(current.getAttribute('contenteditable'))
+    ) {
+      return true
+    }
     current = current.parentElement
   }
   return false
@@ -238,7 +244,10 @@ const twemojiHtmlDirective: Directive<HTMLElement> = {
   },
 }
 
-const lastRenderedHtml = new WeakMap<HTMLElement, string>()
+const lastRenderedHtml = new WeakMap<
+  HTMLElement,
+  { html: string; isSuppressed: boolean }
+>()
 const copyListeners = new WeakSet<Document>()
 
 function htmlWithTwemojiFromFragment(fragment: DocumentFragment): string {
@@ -303,21 +312,32 @@ function preserveTwemojiCopy(event: ClipboardEvent): void {
 }
 
 export function renderTwemojiHtml(element: HTMLElement): void {
+  for (const image of element.querySelectorAll<HTMLImageElement>('img.twemoji')) {
+    if (nodeIsTwemojiExcluded(image)) {
+      image.replaceWith(document.createTextNode(image.dataset.emoji ?? image.alt))
+    }
+  }
+
   const currentHtml = element.innerHTML
-  if (lastRenderedHtml.get(element) === currentHtml) return
+  const isSuppressed = nodeIsTwemojiExcluded(element)
+  const previous = lastRenderedHtml.get(element)
+  if (previous?.html === currentHtml && previous.isSuppressed === isSuppressed) return
 
   const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
   const textNodes: Text[] = []
   let node = walker.nextNode()
   while (node) {
-    if (node instanceof Text && !nodeIsInsideEditor(node)) {
+    if (node instanceof Text && !nodeIsTwemojiExcluded(node)) {
       textNodes.push(node)
     }
     node = walker.nextNode()
   }
 
   for (const textNode of textNodes) replaceTextNodeWithTwemoji(textNode)
-  lastRenderedHtml.set(element, element.innerHTML)
+  lastRenderedHtml.set(element, {
+    html: element.innerHTML,
+    isSuppressed: nodeIsTwemojiExcluded(element),
+  })
 }
 
 export const twemojiVuePlugin = {

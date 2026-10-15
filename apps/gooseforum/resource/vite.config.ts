@@ -16,64 +16,94 @@ import {
 } from '@vue/compiler-dom'
 import tailwindcss from '@tailwindcss/vite'
 import { fileURLToPath, URL } from 'node:url'
+import {
+  isContentEditableValue,
+  TWEMOJI_TEXT_FREE_TAGS,
+} from './src/runtime/twemoji-editability'
 
-const rootPath = fileURLToPath(new URL('../../..', import.meta.url))
+const resourceRoot = fileURLToPath(new URL('./', import.meta.url))
 const twemojiPublicPath = fileURLToPath(
   new URL('../../mobile/packages/ui_kit/assets/twemoji-public', import.meta.url),
 )
 
 const staticEmojiPattern =
   /[\p{Extended_Pictographic}\p{Regional_Indicator}]|[#*0-9]\uFE0F?\u20E3/u
-const textFreeTags = new Set([
-  'iframe',
-  'math',
-  'option',
-  'script',
-  'select',
-  'style',
-  'svg',
-  'textarea',
-  'title',
-])
+const excludedTwemojiSubtrees = new WeakSet<object>()
 
 function isPlainTextNode(node: any) {
   return node.type === NodeTypes.TEXT || node.type === NodeTypes.INTERPOLATION
+}
+
+function hasBindingForAttribute(node: any, attribute: string): boolean {
+  return node.props.some(
+    (prop: any) =>
+      prop.type === NodeTypes.DIRECTIVE &&
+      prop.name === 'bind' &&
+      (!prop.arg ||
+        prop.arg.isStatic !== true ||
+        prop.arg.content.toLowerCase() === attribute),
+  )
+}
+
+function isTwemojiExcludedElement(node: any): boolean {
+  if (TWEMOJI_TEXT_FREE_TAGS.has(String(node.tag).toLowerCase())) return true
+  return (
+    node.props.some((prop: any) => {
+      if (prop.type === NodeTypes.DIRECTIVE && prop.name === 'model') return true
+      if (prop.type !== NodeTypes.ATTRIBUTE) return false
+
+      const name = prop.name.toLowerCase()
+      if (name === 'data-twemoji-ignore') return true
+      return name === 'contenteditable' && isContentEditableValue(prop.value?.content ?? '')
+    }) ||
+    hasBindingForAttribute(node, 'contenteditable') ||
+    hasBindingForAttribute(node, 'data-twemoji-ignore')
+  )
+}
+
+function ensureTwemojiHtmlDirective(node: any): boolean {
+  const hasVHtml = node.props.some(
+    (prop: any) => prop.type === NodeTypes.DIRECTIVE && prop.name === 'html',
+  )
+  if (!hasVHtml) return false
+
+  const hasEmojiHtmlDirective = node.props.some(
+    (prop: any) => prop.type === NodeTypes.DIRECTIVE && prop.name === 'twemoji-html',
+  )
+  if (!hasEmojiHtmlDirective) {
+    const source = node.props.find(
+      (prop: any) => prop.type === NodeTypes.DIRECTIVE && prop.name === 'html',
+    )
+    node.props.push({
+      type: NodeTypes.DIRECTIVE,
+      name: 'twemoji-html',
+      exp: undefined,
+      arg: undefined,
+      modifiers: [],
+      loc: source.loc,
+    })
+  }
+  return true
 }
 
 function twemojiNodeTransform(node: any, context: any) {
   if (node.type !== NodeTypes.ELEMENT && node.type !== NodeTypes.ROOT) return
 
   const isElement = node.type === NodeTypes.ELEMENT
-  if (isElement && textFreeTags.has(String(node.tag).toLowerCase())) return
+  const excludedByAncestor = isElement && excludedTwemojiSubtrees.has(context.parent)
+  const excludedHere = isElement && isTwemojiExcludedElement(node)
+  if (isElement && (excludedByAncestor || excludedHere)) {
+    // Vue invokes node transforms on enter, before traversing children. Record each
+    // excluded element so the same policy is inherited by every nested element.
+    excludedTwemojiSubtrees.add(node)
+    return () => {
+      ensureTwemojiHtmlDirective(node)
+    }
+  }
 
   return () => {
     if (isElement) {
-      const hasVHtml = node.props.some(
-        (prop: any) => prop.type === NodeTypes.DIRECTIVE && prop.name === 'html',
-      )
-      const hasEmojiHtmlDirective = node.props.some(
-        (prop: any) => prop.type === NodeTypes.DIRECTIVE && prop.name === 'twemoji-html',
-      )
-      if (hasVHtml && !hasEmojiHtmlDirective) {
-        const source = node.props.find(
-          (prop: any) => prop.type === NodeTypes.DIRECTIVE && prop.name === 'html',
-        )
-        node.props.push({
-          type: NodeTypes.DIRECTIVE,
-          name: 'twemoji-html',
-          exp: undefined,
-          arg: undefined,
-          modifiers: [],
-          loc: source.loc,
-        })
-      }
-
-      const isEditable = node.props.some((prop: any) =>
-        prop.type === NodeTypes.ATTRIBUTE
-          ? prop.name.toLowerCase() === 'contenteditable' && prop.value?.content?.toLowerCase() !== 'false'
-          : prop.type === NodeTypes.DIRECTIVE && prop.name === 'model',
-      )
-      if (isEditable || hasVHtml) return
+      if (ensureTwemojiHtmlDirective(node)) return
     }
 
     if (!node.children?.length) return
@@ -202,7 +232,7 @@ export default defineConfig({
   },
   server: {
     port: 3010,
-    fs: { allow: [rootPath] },
+    fs: { allow: [resourceRoot, twemojiPublicPath] },
     // 不固定 dev server 的来源地址：页面 CSP 为 script-src 'self'，固定后 `?url` 运行时资源
     // 生成绝对 URL 会被判为跨域脚本静默拦截（issue #453）。保持相对路径经后端 /assets 同源代理。
   },

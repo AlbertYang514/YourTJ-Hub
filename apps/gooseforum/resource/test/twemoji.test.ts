@@ -47,18 +47,63 @@ describe('shared Twemoji mapping', () => {
 })
 
 describe('Vue Twemoji rendering', () => {
-  it('keeps contenteditable text untouched in both compiled and runtime HTML', () => {
-    const wrapper = mount(TwemojiEditableFixture)
-    expect(wrapper.find('p img.twemoji').exists()).toBe(true)
-    expect(wrapper.find('[contenteditable] img.twemoji').exists()).toBe(false)
-    expect(wrapper.find('[contenteditable]').text()).toBe('editable 🐦‍🔥')
+  it('does not compile-transform editable subtrees and keeps ordinary and false regions rendered', async () => {
+    const wrapper = mount(TwemojiEditableFixture, {
+      props: {
+        editable: false,
+        editableAttribute: 'contenteditable',
+        editableValue: false,
+        editableAttrs: { contenteditable: false },
+      },
+    })
 
+    const ordinary = wrapper.find('.ordinary')
+    expect(ordinary.findAll('img.twemoji').map((image) => image.attributes('alt'))).toEqual([
+      '🐦‍🔥',
+      '😀',
+    ])
+    expect(ordinary.text()).toBe('ordinary 中文  mixed  text')
+    expect(wrapper.find('.editable-false').findAll('img.twemoji')).toHaveLength(1)
+
+    for (const selector of [
+      '.editable-boolean',
+      '.editable-empty',
+      '.editable-true',
+      '.editable-dynamic',
+      '.editable-dynamic-argument',
+      '.editable-object-binding',
+    ]) {
+      const editableRegion = wrapper.find(selector)
+      expect(editableRegion.exists()).toBe(true)
+      expect(editableRegion.findAll('img.twemoji')).toHaveLength(0)
+    }
+    expect(wrapper.find('.editable-boolean').text()).toContain('nested 🧑🏽‍💻')
+    expect(wrapper.find('.editable-empty').text()).toContain('nested 🇨🇳')
+    expect(wrapper.find('.editable-true').text()).toContain('nested ❤️')
+
+    await wrapper.setProps({ editable: true, editableValue: true })
+    expect(wrapper.find('.editable-dynamic').findAll('img.twemoji')).toHaveLength(0)
+    expect(wrapper.find('.editable-dynamic-argument').findAll('img.twemoji')).toHaveLength(0)
+    wrapper.unmount()
+  })
+
+  it('keeps runtime HTML replacement in sync with editable state changes', () => {
     const richHtml = document.createElement('div')
-    richHtml.innerHTML = '<p contenteditable="">editable 🐦‍🔥</p>'
+    richHtml.setAttribute('contenteditable', 'false')
+    richHtml.innerHTML = '<p>mixed 中文 🐦‍🔥 text</p><div contenteditable="">nested ✨</div>'
+    renderTwemojiHtml(richHtml)
+    expect(richHtml.querySelector('p img.twemoji')?.alt).toBe('🐦‍🔥')
+    expect(richHtml.querySelector('div[contenteditable=""] img.twemoji')).toBeNull()
+
+    richHtml.setAttribute('contenteditable', '')
     renderTwemojiHtml(richHtml)
     expect(richHtml.querySelector('img.twemoji')).toBeNull()
-    expect(richHtml.textContent).toBe('editable 🐦‍🔥')
-    wrapper.unmount()
+    expect(richHtml.textContent).toContain('🐦‍🔥')
+
+    richHtml.setAttribute('contenteditable', 'false')
+    renderTwemojiHtml(richHtml)
+    expect(richHtml.querySelector('p img.twemoji')?.alt).toBe('🐦‍🔥')
+    expect(richHtml.querySelector('div[contenteditable=""] img.twemoji')).toBeNull()
   })
 
   it('renders the Vditor preview after syntax highlighting without changing its structure', () => {
