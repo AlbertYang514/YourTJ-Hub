@@ -1070,7 +1070,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       setState(_resetStreams);
       _load();
     });
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar:
           !widget.connectionsOnly &&
               (_page.isLoading || _page.valueOrNull != null)
@@ -1111,7 +1111,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 ),
                 child: GfScrollToTop(
                   semanticLabel: l10n.commonBackToTop,
-                  controller: _isShellProfile ? _active.scrollToTop : null,
+                  controller: _active.scrollToTop,
                   threshold: 360,
                   builder: (context, controller) => NestedScrollView(
                     key: ValueKey('profile-$_profileGeneration'),
@@ -1265,6 +1265,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ),
         ),
       ),
+    );
+    return GfStatusBarScrollToTop(
+      controller: _active.scrollToTop,
+      child: scaffold,
     );
   }
 

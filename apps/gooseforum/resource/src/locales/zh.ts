@@ -1,6 +1,32 @@
 import adminRaw from './admin-raw.generated'
 
 export default {
+  agentProfile: {
+    title: '编辑机器人资料',
+    help: '以你的账号管理此机器人的公开资料，不会切换登录身份。上传头像立即生效；其余资料点击保存后生效。',
+  },
+  agentContent: {
+    management: "Bot 管理",
+    open: "修正 Bot 内容",
+    description: "作者仍为 Bot，修订记录真实操作账号。创建者可管理自己的 Bot，管理员可管理全部 Bot。仅可编辑已启用且未冻结 Bot 的可见论坛内容。",
+    topic: "话题",
+    post: "回复",
+    topicId: "话题 ID",
+    postId: "回复 ID",
+    load: "加载原文",
+    reloadWarning: "再次加载会替换草稿。版本冲突时，请先复制修改内容再重新加载。",
+    loaded: "话题 #{topic} · 帖子 #{post} · 版本 {revision}",
+    title: "标题",
+    categories: "分类（选择 1–3 个）",
+    content: "Markdown 正文",
+    save: "保存修正",
+    saved: "修正已保存。",
+    pending: "修正已提交审核。",
+    failed: "无法修正此内容。",
+    wrongBot: "此内容属于另一个 Bot。",
+    categoriesInvalid: "请选择 1–3 个分类。",
+    categoryFallback: "分类 #{id}",
+  },
   decoration: {
     grantsAdmin: {
       description: "按账号查看装饰库存、授予与撤销，并核查操作记录。",
@@ -3824,6 +3850,9 @@ export default {
     rejectSticker: '拒绝后该表情将保持不可用。',
   },
   serverMessages: {
+    "admin.agent.contentUnavailable": "此 Bot 内容不可用，或你无权编辑。",
+    "admin.agent.contentConflict": "内容已发生变化。草稿已保留，请先复制草稿再重新加载原文。",
+    "admin.opt.agent.contentEdited": "修正 Bot #{agentId} 内容：话题 #{topicId}，帖子 #{postId}，版本 {revisionNo}。",
     "anonymous.nameLocked": "花名确认后一年内不能更改。",
     "anonymous.dailyLimit": "今天的 10 次已用完，仍可从已生成的花名中选择。",
     "anonymous.candidateExpired": "这批花名已失效，请重新加载后再选。",

@@ -2514,6 +2514,7 @@ mixin _$UserProfileProps {
   List<UserConnectionPayload> get followers =>
       throw _privateConstructorUsedError;
   bool get isOwnProfile => throw _privateConstructorUsedError;
+  bool get canManageAgent => throw _privateConstructorUsedError;
   bool get canMessage => throw _privateConstructorUsedError;
   bool get canFollow => throw _privateConstructorUsedError;
   String get messageUrl => throw _privateConstructorUsedError;
@@ -2551,6 +2552,7 @@ abstract class $UserProfilePropsCopyWith<$Res> {
     List<UserConnectionPayload> following,
     List<UserConnectionPayload> followers,
     bool isOwnProfile,
+    bool canManageAgent,
     bool canMessage,
     bool canFollow,
     String messageUrl,
@@ -2590,6 +2592,7 @@ class _$UserProfilePropsCopyWithImpl<$Res, $Val extends UserProfileProps>
     Object? following = null,
     Object? followers = null,
     Object? isOwnProfile = null,
+    Object? canManageAgent = null,
     Object? canMessage = null,
     Object? canFollow = null,
     Object? messageUrl = null,
@@ -2652,6 +2655,10 @@ class _$UserProfilePropsCopyWithImpl<$Res, $Val extends UserProfileProps>
             isOwnProfile: null == isOwnProfile
                 ? _value.isOwnProfile
                 : isOwnProfile // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            canManageAgent: null == canManageAgent
+                ? _value.canManageAgent
+                : canManageAgent // ignore: cast_nullable_to_non_nullable
                       as bool,
             canMessage: null == canMessage
                 ? _value.canMessage
@@ -2719,6 +2726,7 @@ abstract class _$$UserProfilePropsImplCopyWith<$Res>
     List<UserConnectionPayload> following,
     List<UserConnectionPayload> followers,
     bool isOwnProfile,
+    bool canManageAgent,
     bool canMessage,
     bool canFollow,
     String messageUrl,
@@ -2759,6 +2767,7 @@ class __$$UserProfilePropsImplCopyWithImpl<$Res>
     Object? following = null,
     Object? followers = null,
     Object? isOwnProfile = null,
+    Object? canManageAgent = null,
     Object? canMessage = null,
     Object? canFollow = null,
     Object? messageUrl = null,
@@ -2822,6 +2831,10 @@ class __$$UserProfilePropsImplCopyWithImpl<$Res>
             ? _value.isOwnProfile
             : isOwnProfile // ignore: cast_nullable_to_non_nullable
                   as bool,
+        canManageAgent: null == canManageAgent
+            ? _value.canManageAgent
+            : canManageAgent // ignore: cast_nullable_to_non_nullable
+                  as bool,
         canMessage: null == canMessage
             ? _value.canMessage
             : canMessage // ignore: cast_nullable_to_non_nullable
@@ -2861,6 +2874,7 @@ class _$UserProfilePropsImpl implements _UserProfileProps {
     required final List<UserConnectionPayload> following,
     required final List<UserConnectionPayload> followers,
     required this.isOwnProfile,
+    this.canManageAgent = false,
     required this.canMessage,
     required this.canFollow,
     required this.messageUrl,
@@ -2969,6 +2983,9 @@ class _$UserProfilePropsImpl implements _UserProfileProps {
   @override
   final bool isOwnProfile;
   @override
+  @JsonKey()
+  final bool canManageAgent;
+  @override
   final bool canMessage;
   @override
   final bool canFollow;
@@ -2979,7 +2996,7 @@ class _$UserProfilePropsImpl implements _UserProfileProps {
 
   @override
   String toString() {
-    return 'UserProfileProps(user: $user, section: $section, activityTab: $activityTab, tabs: $tabs, activityTabs: $activityTabs, pagination: $pagination, badges: $badges, topics: $topics, activities: $activities, likes: $likes, bookmarks: $bookmarks, following: $following, followers: $followers, isOwnProfile: $isOwnProfile, canMessage: $canMessage, canFollow: $canFollow, messageUrl: $messageUrl, settingsUrl: $settingsUrl)';
+    return 'UserProfileProps(user: $user, section: $section, activityTab: $activityTab, tabs: $tabs, activityTabs: $activityTabs, pagination: $pagination, badges: $badges, topics: $topics, activities: $activities, likes: $likes, bookmarks: $bookmarks, following: $following, followers: $followers, isOwnProfile: $isOwnProfile, canManageAgent: $canManageAgent, canMessage: $canMessage, canFollow: $canFollow, messageUrl: $messageUrl, settingsUrl: $settingsUrl)';
   }
 
   @override
@@ -3019,6 +3036,8 @@ class _$UserProfilePropsImpl implements _UserProfileProps {
             ) &&
             (identical(other.isOwnProfile, isOwnProfile) ||
                 other.isOwnProfile == isOwnProfile) &&
+            (identical(other.canManageAgent, canManageAgent) ||
+                other.canManageAgent == canManageAgent) &&
             (identical(other.canMessage, canMessage) ||
                 other.canMessage == canMessage) &&
             (identical(other.canFollow, canFollow) ||
@@ -3031,7 +3050,7 @@ class _$UserProfilePropsImpl implements _UserProfileProps {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     runtimeType,
     user,
     section,
@@ -3047,11 +3066,12 @@ class _$UserProfilePropsImpl implements _UserProfileProps {
     const DeepCollectionEquality().hash(_following),
     const DeepCollectionEquality().hash(_followers),
     isOwnProfile,
+    canManageAgent,
     canMessage,
     canFollow,
     messageUrl,
     settingsUrl,
-  );
+  ]);
 
   /// Create a copy of UserProfileProps
   /// with the given fields replaced by the non-null parameter values.
@@ -3086,6 +3106,7 @@ abstract class _UserProfileProps implements UserProfileProps {
     required final List<UserConnectionPayload> following,
     required final List<UserConnectionPayload> followers,
     required final bool isOwnProfile,
+    final bool canManageAgent,
     required final bool canMessage,
     required final bool canFollow,
     required final String messageUrl,
@@ -3127,6 +3148,8 @@ abstract class _UserProfileProps implements UserProfileProps {
   List<UserConnectionPayload> get followers;
   @override
   bool get isOwnProfile;
+  @override
+  bool get canManageAgent;
   @override
   bool get canMessage;
   @override

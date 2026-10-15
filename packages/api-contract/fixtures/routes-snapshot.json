@@ -717,6 +717,18 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/agents/content-source"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agents/edit-post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agents/edit-topic"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/ai-moderation/decisions"
   },
   {

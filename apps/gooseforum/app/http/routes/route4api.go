@@ -120,8 +120,8 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/moderation/action", middleware.CheckLogin, forum.ModerationAction)
 	viewRouteApp.GET("/moderation/courses", middleware.CheckLogin, forum.CourseManagement)
 	viewRouteApp.GET("/schedule", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.Schedule)
-	viewRouteApp.GET("/admin", middleware.CheckLogin, middleware.CheckAnyPermissionOrNotFound, forum.Manage)
-	viewRouteApp.GET("/admin/*path", middleware.CheckLogin, middleware.CheckAnyPermissionOrNotFound, forum.Manage)
+	viewRouteApp.GET("/admin", middleware.CheckLogin, middleware.CheckManagementEntryOrNotFound, forum.Manage)
+	viewRouteApp.GET("/admin/*path", middleware.CheckLogin, middleware.CheckManagementEntryOrNotFound, forum.Manage)
 	viewRouteApp.GET("/login", forum.Login)
 	viewRouteApp.GET("/register/tongji", forum.TongjiRegistration)
 	viewRouteApp.GET("/reset-password", forum.ResetPassword)
@@ -523,8 +523,14 @@ func apiRoute(ginApp *gin.Engine) {
 
 	adminApi.Group("", middleware.CheckPermission(permission.Admin)).
 		POST("opt-record-page", UpButterReq(api.OptRecordPage)).
-		POST("agent-list", UpButterReq(api.AgentList)).
 		POST("agent-create", UpButterReq(api.AgentCreate)).
+		GET("agent-comment-policy", UpButterReq(api.GetAgentCommentPolicy)).
+		POST("save-agent-comment-policy", UpButterReq(api.SaveAgentCommentPolicy)).
+		POST("set-agent-comment-topic-policy", UpButterReq(api.SetAgentCommentTopicPolicy))
+
+	// Agent handlers validate creator ownership or station administrator status.
+	adminApi.Group("").
+		POST("agent-list", UpButterReq(api.AgentList)).
 		POST("agent-update", UpButterReq(api.AgentUpdate)).
 		POST("agent-rotate-token", UpButterReq(api.AgentRotateToken)).
 		POST("agent-disable", UpButterReq(api.AgentDisable)).
@@ -535,9 +541,9 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("agent-webhook-redeliver", middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AgentWebhookRedeliver)).
 		POST("agent-interaction-intents", UpButterReq(api.AgentInteractionIntents)).
 		POST("agent-interaction-replay", middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AgentInteractionReplay)).
-		GET("agent-comment-policy", UpButterReq(api.GetAgentCommentPolicy)).
-		POST("save-agent-comment-policy", UpButterReq(api.SaveAgentCommentPolicy)).
-		POST("set-agent-comment-topic-policy", UpButterReq(api.SetAgentCommentTopicPolicy))
+		POST("agents/content-source", UpButterReq(api.AgentContentSource)).
+		POST("agents/edit-topic", middleware.RateLimit(middleware.RateLimitTopicWrite), UpLimitedButterReq(maxContentWriteBodyBytes, api.AgentEditTopic)).
+		POST("agents/edit-post", middleware.RateLimit(middleware.RateLimitPostUpdate), UpLimitedButterReq(maxContentWriteBodyBytes, api.AgentEditPost))
 
 	adminApi.Group("", middleware.CheckPermission(permission.PageManager)).
 		GET("friend-links", UpButterReq(api.GetFriendLinks)).
