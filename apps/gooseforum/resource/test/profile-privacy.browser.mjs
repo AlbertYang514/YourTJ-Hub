@@ -18,6 +18,18 @@ after(async () => { await browser?.close(); await server?.close() })
 const fixture = query => `${origin}/assets/test/fixtures/browser/profile-privacy.html?${query}`
 const fits = page => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
 
+test('privacy fixture renders dynamically compiled Emoji and text through the shared app plugin', async () => {
+  const { page } = await open(320, 'viewer=owner&twemoji=1', {})
+  try {
+    const heading = page.locator('h1')
+    await heading.getByText('同济用户').waitFor()
+    assert.equal(await heading.evaluate(element => element.textContent), '同济用户')
+    await heading.locator('img.twemoji[alt="🐦‍🔥"]').waitFor()
+  } finally {
+    await page.close()
+  }
+})
+
 async function open(width, query, privacy) {
   const page = await browser.newPage({ viewport: { width, height: 900 } })
   const patches = []
