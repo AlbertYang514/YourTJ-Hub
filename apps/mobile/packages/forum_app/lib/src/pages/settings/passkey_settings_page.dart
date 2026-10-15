@@ -82,7 +82,7 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
       return await showDialog<({String password, String totpCode, String name})>(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text(title),
+          title: GfText(title),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -117,7 +117,7 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text(l10n.commonCancel),
+              child: GfText(l10n.commonCancel),
             ),
             FilledButton(
               onPressed: () {
@@ -135,7 +135,7 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
                   ),
                 );
               },
-              child: Text(l10n.settingsTotpNext),
+              child: GfText(l10n.settingsTotpNext),
             ),
           ],
         ),
@@ -321,25 +321,25 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.settingsPasskeyTitle)),
+      appBar: AppBar(title: GfText(l10n.settingsPasskeyTitle)),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : !_enabled
-              ? Center(child: Text(l10n.settingsPasskeyUnavailable))
+              ? Center(child: GfText(l10n.settingsPasskeyUnavailable))
               : RefreshIndicator(
                   onRefresh: _load,
                   child: ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
-                      Text(l10n.settingsPasskeyDescription),
+                      GfText(l10n.settingsPasskeyDescription),
                       const SizedBox(height: 4),
-                      Text(
+                      GfText(
                         l10n.settingsPasskeyRevokedHint,
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                       if (_totpEnabled) ...[
                         const SizedBox(height: 8),
-                        Text(l10n.settingsPasskeyReauthHint),
+                        GfText(l10n.settingsPasskeyReauthHint),
                       ],
                       if (_error != null) ...[
                         const SizedBox(height: 12),
@@ -355,8 +355,8 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
                         Card(
                           child: ListTile(
                             leading: const GfSymbol('key-round', size: 20),
-                            title: Text(credential.name),
-                            subtitle: Text(
+                            title: GfText(credential.name),
+                            subtitle: GfText(
                               '${l10n.settingsPasskeyAddedAt}: ${MaterialLocalizations.of(context).formatMediumDate(credential.createdAt.toLocal())}'
                               '\n${l10n.settingsPasskeyLastUsed}: ${credential.lastUsedAt == null ? l10n.settingsPasskeyNeverUsed : MaterialLocalizations.of(context).formatMediumDate(credential.lastUsedAt!.toLocal())}'
                               '\n${credential.backupEligible ? l10n.settingsPasskeySyncCapable : l10n.settingsPasskeyDeviceBound}'
@@ -370,11 +370,11 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
                               itemBuilder: (_) => [
                                 PopupMenuItem(
                                   value: 'rename',
-                                  child: Text(l10n.settingsPasskeyRename),
+                                  child: GfText(l10n.settingsPasskeyRename),
                                 ),
                                 PopupMenuItem(
                                   value: 'revoke',
-                                  child: Text(l10n.settingsPasskeyRevoke),
+                                  child: GfText(l10n.settingsPasskeyRevoke),
                                 ),
                               ],
                             ),
@@ -389,7 +389,7 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.add),
-                        label: Text(l10n.settingsPasskeyAdd),
+                        label: GfText(l10n.settingsPasskeyAdd),
                       ),
                     ],
                   ),

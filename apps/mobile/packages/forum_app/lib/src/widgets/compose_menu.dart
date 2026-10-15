@@ -64,7 +64,7 @@ Future<void> showComposeMenu(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Flexible(
-                                  child: Text(
+                                  child: GfText(
                                     option.label(l10n),
                                     style: GfTheme.typographyOf(
                                       context,

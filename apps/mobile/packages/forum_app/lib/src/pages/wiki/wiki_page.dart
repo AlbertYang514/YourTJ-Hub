@@ -116,7 +116,7 @@ class _WikiPageState extends ConsumerState<WikiPage> {
           children: <Widget>[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(
+              child: GfText(
                 l10n.wikiToc,
                 style: GfTheme.typographyOf(
                   sheetContext,
@@ -133,7 +133,7 @@ class _WikiPageState extends ConsumerState<WikiPage> {
                     16,
                     10,
                   ),
-                  child: Text(
+                  child: GfText(
                     item.text,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -262,7 +262,7 @@ class _WikiPageState extends ConsumerState<WikiPage> {
     final WikiPageDetail? page = _detail.valueOrNull;
     final scaffold = Scaffold(
       appBar: GfAppBar(
-        title: Text(
+        title: GfText(
           page?.title ?? l10n.wikiTitle,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -292,14 +292,14 @@ class _WikiPageState extends ConsumerState<WikiPage> {
                       Expanded(
                         child: TextButton.icon(
                           icon: const GfSymbol('list', size: 18),
-                          label: Text(l10n.wikiToc),
+                          label: GfText(l10n.wikiToc),
                           onPressed: () => _openToc(page.toc),
                         ),
                       ),
                     Expanded(
                       child: TextButton.icon(
                         icon: const GfSymbol('search', size: 18),
-                        label: Text(l10n.commonSearch),
+                        label: GfText(l10n.commonSearch),
                         onPressed: () => context.push('/wiki/search'),
                       ),
                     ),
@@ -369,7 +369,7 @@ class _WikiProse extends StatelessWidget {
       body = Padding(
         padding: const EdgeInsets.symmetric(vertical: 32),
         child: Center(
-          child: Text(
+          child: GfText(
             l10n.commonEmpty,
             style: typography.small.copyWith(
               color: colors.baseContent.withValues(alpha: 0.55),
@@ -467,7 +467,6 @@ class _WikiProse extends StatelessWidget {
       ],
     );
   }
-
 }
 
 class _MetaItem extends StatelessWidget {
@@ -488,7 +487,7 @@ class _MetaItem extends StatelessWidget {
       children: <Widget>[
         GfSymbol(symbol, size: 13, color: faint),
         const SizedBox(width: 4),
-        Text(
+        GfText(
           text,
           style: GfTheme.typographyOf(context).caption.copyWith(color: faint),
         ),

@@ -167,7 +167,7 @@ class CourseReviewShareCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text(
+        GfText(
           course.name,
           key: const ValueKey<String>('share-course-name'),
           style: type.title1.copyWith(
@@ -179,7 +179,7 @@ class CourseReviewShareCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 6),
-        Text(
+        GfText(
           meta,
           key: const ValueKey<String>('share-course-identity'),
           style: type.caption.copyWith(fontSize: 13, height: 1.4, color: muted),
@@ -232,7 +232,7 @@ class CourseReviewShareCard extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Text(value, key: key, style: number),
+              GfText(value, key: key, style: number),
               if (trailing != null) ...<Widget>[
                 const SizedBox(width: 6),
                 trailing,
@@ -241,7 +241,7 @@ class CourseReviewShareCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        Text(caption, style: label),
+        GfText(caption, style: label),
       ],
     );
 
@@ -413,7 +413,7 @@ class CourseReviewShareCard extends StatelessWidget {
                 ),
               ),
               if (meta.isNotEmpty)
-                Text(
+                GfText(
                   meta,
                   key: const ValueKey<String>('share-author-meta'),
                   style: type.meta.copyWith(

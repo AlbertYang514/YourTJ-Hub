@@ -525,7 +525,7 @@ class _ProfileTabsState extends State<ProfileTabs>
                                                     0,
                                                   ),
                                                   child: ExcludeSemantics(
-                                                    child: Text(
+                                                    child: GfText(
                                                       widget.tabs[i].label ??
                                                           widget.tabs[i].key,
                                                       maxLines: 1,

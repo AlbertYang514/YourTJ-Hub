@@ -225,7 +225,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text(
+              child: GfText(
                 l10n.settingsBadgePick,
                 style: GfTheme.typographyOf(
                   context,
@@ -240,7 +240,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   size: 40,
                 ),
                 title: b.name,
-                subtitleWidget: Text(
+                subtitleWidget: GfText(
                   b.description,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -497,12 +497,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         children: [
           ListTile(
             leading: const GfSymbol('image'),
-            title: Text(l10n.settingsAvatarUpload),
+            title: GfText(l10n.settingsAvatarUpload),
             onTap: () => Navigator.pop(context, false),
           ),
           ListTile(
             leading: const GfSymbol('user-round'),
-            title: Text(l10n.settingsPresetAvatar),
+            title: GfText(l10n.settingsPresetAvatar),
             onTap: () => Navigator.pop(context, true),
           ),
         ],
@@ -528,7 +528,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
+                GfText(
                   l10n.settingsPresetAvatar,
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
@@ -730,7 +730,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           title: l10n.settingsTotpScanSecret,
           submitLabel: l10n.settingsTotpEnable,
           isCurrent: isCurrent,
-          introduction: SelectableText(setup.secret),
+          introduction: GfSelectableText(setup.secret),
           fields: [codeField],
           onSubmit: (values) =>
               repository.enableTotp(code: values.single.trim()),
@@ -743,15 +743,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         builder: (ctx) => _SettingsAccountDialog(
           epoch: epoch,
           child: GfAlertDialog(
-            title: Text(l10n.settingsTotpEnabled),
+            title: GfText(l10n.settingsTotpEnabled),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(l10n.settingsTotpRecoveryCodes),
+                GfText(l10n.settingsTotpRecoveryCodes),
                 const SizedBox(height: 8),
                 for (final code in enabled.recoveryCodes)
-                  SelectableText(
+                  GfSelectableText(
                     code,
                     style: const TextStyle(fontFamily: 'monospace'),
                   ),
@@ -934,16 +934,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       context: context,
       animationStyle: GfMotion.dialogStyle(context),
       builder: (context) => AlertDialog(
-        title: Text(l10n.settingsCoverRemove),
-        content: Text(l10n.settingsCoverRemoveConfirm),
+        title: GfText(l10n.settingsCoverRemove),
+        content: GfText(l10n.settingsCoverRemoveConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n.commonCancel),
+            child: GfText(l10n.commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(l10n.commonConfirm),
+            child: GfText(l10n.commonConfirm),
           ),
         ],
       ),
@@ -994,7 +994,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         );
       }
       return Scaffold(
-        appBar: GfAppBar(title: Text(l10n.settingsEditProfile)),
+        appBar: GfAppBar(title: GfText(l10n.settingsEditProfile)),
         body: _user.hasError
             ? GfErrorRetry(
                 message: resolveErrorMessage(l10n, _user.error!),
@@ -1013,7 +1013,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           tooltip: l10n.commonBack,
           onPressed: _leaveSettings,
         ),
-        title: Text(title),
+        title: GfText(title),
       ),
       body: SafeArea(
         top: false,
@@ -1252,7 +1252,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 for (final choice in ThemeMode.values)
                   RadioListTile<ThemeMode>(
                     key: ValueKey('settings-theme-${choice.name}'),
-                    title: Text(switch (choice) {
+                    title: GfText(switch (choice) {
                       ThemeMode.system => l10n.settingsLanguageSystem,
                       ThemeMode.light => l10n.settingsThemeLight,
                       ThemeMode.dark => l10n.settingsThemeDark,
@@ -1293,8 +1293,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             context,
             title: l10n.settingsFollowSiteTheme,
             child: SwitchListTile(
-              title: Text(l10n.settingsFollowSiteTheme),
-              subtitle: Text(l10n.settingsFollowSiteThemeDesc),
+              title: GfText(l10n.settingsFollowSiteTheme),
+              subtitle: GfText(l10n.settingsFollowSiteThemeDesc),
               value: siteTheme.following,
               onChanged: (value) =>
                   ref.read(siteThemeProvider.notifier).setFollowing(value),
@@ -1449,7 +1449,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 // 两阶段换绑（issue #678）：暂存期内展示待确认的新邮箱与当前邮箱，
                 // 否则展示常规的「修改绑定邮箱」入口描述。
                 subtitleWidget: _user.when(
-                  data: (u) => Text(
+                  data: (u) => GfText(
                     u.pendingEmail.isNotEmpty
                         ? '${u.email}\n${l10n.settingsEmailPending(u.pendingEmail)}'
                         : u.email.isNotEmpty
@@ -1458,8 +1458,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  loading: () => Text(l10n.commonLoading),
-                  error: (_, _) => Text(l10n.settingsEmailEdit),
+                  loading: () => GfText(l10n.commonLoading),
+                  error: (_, _) => GfText(l10n.settingsEmailEdit),
                 ),
                 trailing: const GfSymbol('chevron-right', size: 18),
                 onTap: _changeEmail,
@@ -1491,7 +1491,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         const SizedBox(height: 24),
         TextButton(
           onPressed: _accountClosing ? null : _closeAccount,
-          child: Text(l10n.settingsCloseAccount),
+          child: GfText(l10n.settingsCloseAccount),
         ),
       ],
     );
@@ -1672,12 +1672,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         l10n,
                         isCurrent: s.isCurrent,
                       ),
-                      subtitleWidget: Text(
+                      subtitleWidget: GfText(
                         '${s.ipMasked} · ${_formatTs(s.createdAt)}',
                         style: GfTheme.typographyOf(context).caption,
                       ),
                       trailing: s.isCurrent
-                          ? Text(
+                          ? GfText(
                               l10n.commonCurrent,
                               style: GfTheme.typographyOf(context).caption
                                   .copyWith(
@@ -1768,7 +1768,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final bool? ok = await showGfAlertDialog<bool>(
       context,
       builder: (ctx) => GfAlertDialog(
-        title: Text(l10n.settingsLogoutConfirm),
+        title: GfText(l10n.settingsLogoutConfirm),
         actions: [
           GfButton(
             label: l10n.commonCancel,
@@ -1899,7 +1899,7 @@ Widget _settingsSection(
       if (title != null)
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
+          child: GfText(
             title,
             style: GfTheme.typographyOf(context).small.copyWith(
               color: colors.iconMuted,
@@ -2042,7 +2042,7 @@ class _SettingsCredentialDialogState<T>
     return PopScope(
       canPop: !_saving,
       child: GfAlertDialog(
-        title: Text(widget.title),
+        title: GfText(widget.title),
         content: AutofillGroup(
           onDisposeAction: AutofillContextAction.cancel,
           child: Column(

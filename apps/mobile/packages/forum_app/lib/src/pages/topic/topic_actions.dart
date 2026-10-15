@@ -72,14 +72,14 @@ class _TopicActionsState extends ConsumerState<TopicActions> {
       context: context,
       animationStyle: GfMotion.dialogStyle(context),
       builder: (context) => AlertDialog(
-        title: Text(
+        title: GfText(
           action == 'delete'
               ? l10n.contentDelete
               : action == 'ban'
               ? l10n.topicModerateBan
               : l10n.topicModerateUnban,
         ),
-        content: Text(
+        content: GfText(
           action == 'delete'
               ? l10n.topicDeleteConfirm
               : l10n.topicModerateConfirm,
@@ -87,11 +87,11 @@ class _TopicActionsState extends ConsumerState<TopicActions> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n.commonCancel),
+            child: GfText(l10n.commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(l10n.commonConfirm),
+            child: GfText(l10n.commonConfirm),
           ),
         ],
       ),
@@ -138,18 +138,18 @@ class _TopicActionsState extends ConsumerState<TopicActions> {
       onSelected: _action,
       itemBuilder: (_) => [
         if (props.permissions.isOwnTopic && available)
-          PopupMenuItem(value: 'edit', child: Text(l10n.commonEdit)),
+          PopupMenuItem(value: 'edit', child: GfText(l10n.commonEdit)),
         if (props.permissions.isOwnTopic && available)
-          PopupMenuItem(value: 'delete', child: Text(l10n.contentDelete)),
+          PopupMenuItem(value: 'delete', child: GfText(l10n.contentDelete)),
         if (widget.firstPostId != null)
-          PopupMenuItem(value: 'history', child: Text(l10n.topicHistory)),
-        PopupMenuItem(value: 'share', child: Text(l10n.topicShare)),
+          PopupMenuItem(value: 'history', child: GfText(l10n.topicHistory)),
+        PopupMenuItem(value: 'share', child: GfText(l10n.topicShare)),
         if (props.permissions.canModerateTopic &&
             props.topic.processStatus == 0)
-          PopupMenuItem(value: 'ban', child: Text(l10n.topicModerateBan)),
+          PopupMenuItem(value: 'ban', child: GfText(l10n.topicModerateBan)),
         if (props.permissions.canModerateTopic &&
             props.topic.processStatus == 1)
-          PopupMenuItem(value: 'unban', child: Text(l10n.topicModerateUnban)),
+          PopupMenuItem(value: 'unban', child: GfText(l10n.topicModerateUnban)),
       ],
     );
   }

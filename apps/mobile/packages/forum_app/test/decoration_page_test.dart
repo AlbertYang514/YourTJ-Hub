@@ -170,6 +170,46 @@ void main() {
       expect(find.text('Frame'), findsNothing);
     },
   );
+  testWidgets('server decoration labels use shared Twemoji rendering', (
+    tester,
+  ) async {
+    final repo = Decorations();
+    repo.state = DecorationState(
+      catalog: const [
+        DecorationStyle(
+          code: 'name',
+          name: 'Colorful 🐦‍🔥',
+          kind: 'nicknameStyle',
+          lightColors: ['#123456', '#654321'],
+          darkColors: ['#abcdef', '#fedcba'],
+        ),
+      ],
+      ownedCodes: const [],
+      avatarFrame: '',
+      nicknameStyle: '',
+    );
+    final container = ProviderContainer(
+      overrides: [userRepositoryProvider.overrideWithValue(repo)],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const DecorationPage(name: 'Alice'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsLabel('🐦‍🔥'), findsOneWidget);
+    expect(find.byType(GfText), findsWidgets);
+  });
+
   testWidgets(
     'nickname color selection handles theme and insufficient contrast',
     (tester) async {

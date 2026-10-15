@@ -134,12 +134,12 @@ class _DecorationPageState extends ConsumerState<DecorationPage> {
     final l = AppLocalizations.of(context);
     final state = _state;
     return Scaffold(
-      appBar: GfAppBar(title: Text(s.title)),
+      appBar: GfAppBar(title: GfText(s.title)),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text(s.grant),
+            GfText(s.grant),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -169,7 +169,7 @@ class _DecorationPageState extends ConsumerState<DecorationPage> {
               ],
             ),
             if (_error != null) ...[
-              Text(
+              GfText(
                 _error!,
                 style: TextStyle(color: GfTheme.colorsOf(context).error),
               ),
@@ -181,23 +181,23 @@ class _DecorationPageState extends ConsumerState<DecorationPage> {
             if (state != null)
               for (final kind in ['avatarFrame', 'nicknameStyle']) ...[
                 const SizedBox(height: 24),
-                Text(
+                GfText(
                   kind == 'avatarFrame' ? s.frame : s.nickname,
                   style: GfTheme.typographyOf(context).title3,
                 ),
                 ListTile(
-                  title: Text(s.none),
+                  title: GfText(s.none),
                   trailing: TextButton(
                     onPressed: _saving ? null : () => _equip(kind, ''),
-                    child: Text(s.equip),
+                    child: GfText(s.equip),
                   ),
                 ),
                 for (final style in state.catalog.where(
                   (style) => style.kind == kind && style.isEnabled,
                 ))
                   ListTile(
-                    title: Text(style.name),
-                    subtitle: Text(
+                    title: GfText(style.name),
+                    subtitle: GfText(
                       !state.ownedCodes.contains(style.code)
                           ? s.locked
                           : (kind == 'avatarFrame'
@@ -217,14 +217,14 @@ class _DecorationPageState extends ConsumerState<DecorationPage> {
                               _nickname = style.code;
                             }
                           }),
-                          child: Text(s.preview),
+                          child: GfText(s.preview),
                         ),
                         TextButton(
                           onPressed:
                               _saving || !state.ownedCodes.contains(style.code)
                               ? null
                               : () => _equip(kind, style.code),
-                          child: Text(s.equip),
+                          child: GfText(s.equip),
                         ),
                       ],
                     ),

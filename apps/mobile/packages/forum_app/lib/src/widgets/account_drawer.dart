@@ -379,7 +379,7 @@ class AccountDrawer extends ConsumerWidget {
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
       onPressed: () => open('/profile?stream=$stream'),
-      child: Text.rich(
+      child: GfText.rich(
         TextSpan(
           children: [
             TextSpan(
@@ -407,7 +407,7 @@ class AccountDrawer extends ConsumerWidget {
       minLeadingWidth: 24,
       horizontalTitleGap: 16,
       leading: GfSymbol(icon, size: 24, color: colors.baseContent),
-      title: Text(
+      title: GfText(
         title,
         style: type.bodyStrong.copyWith(fontSize: 18, height: 1.3),
       ),
@@ -466,7 +466,7 @@ class AccountDrawer extends ConsumerWidget {
                     style: type.title2.copyWith(fontSize: 20),
                   ),
                   if (signedIn)
-                    Text(
+                    GfText(
                       '@${viewer!.username}',
                       style: type.small.copyWith(color: colors.iconMuted),
                     ),
@@ -576,7 +576,7 @@ Future<void> _showThemeModeSheet(BuildContext context) =>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(l10n.settingsAppearance, style: type.title2),
+                  GfText(l10n.settingsAppearance, style: type.title2),
                   const SizedBox(height: 12),
                   RadioGroup<ThemeMode>(
                     groupValue: mode,
@@ -593,7 +593,7 @@ Future<void> _showThemeModeSheet(BuildContext context) =>
                             value: choice,
                             controlAffinity: ListTileControlAffinity.trailing,
                             contentPadding: EdgeInsets.zero,
-                            title: Text(switch (choice) {
+                            title: GfText(switch (choice) {
                               ThemeMode.system => l10n.settingsLanguageSystem,
                               ThemeMode.light => l10n.settingsThemeLight,
                               ThemeMode.dark => l10n.settingsThemeDark,

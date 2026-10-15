@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../twemoji/twemoji_text.dart';
+
 /// A text gradient preserves the Text widget's selection and accessibility semantics.
 class GfDecoratedName extends StatelessWidget {
   const GfDecoratedName(
@@ -17,13 +19,14 @@ class GfDecoratedName extends StatelessWidget {
   final TextOverflow? overflow;
   @override
   Widget build(BuildContext context) {
-    final text = Text(
+    final text = GfText(
       data,
       style: style,
       maxLines: maxLines,
       overflow: overflow,
     );
-    if (colors.length < 2) return text;
+    final hasTwemoji = parseTwemojiText(data).any((segment) => segment.isEmoji);
+    if (colors.length < 2 || hasTwemoji) return text;
     return ShaderMask(
       blendMode: BlendMode.srcIn,
       shaderCallback: (bounds) =>

@@ -473,9 +473,9 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
           Row(
             children: [
               Expanded(
-                child: Text(resolveErrorMessage(l10n, _conversations.error!)),
+                child: GfText(resolveErrorMessage(l10n, _conversations.error!)),
               ),
-              TextButton(onPressed: _load, child: Text(l10n.commonRetry)),
+              TextButton(onPressed: _load, child: GfText(l10n.commonRetry)),
             ],
           ),
         Expanded(child: body),
@@ -1536,7 +1536,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
         children: [
           ListTile(
             leading: const GfSymbol('image'),
-            title: Text(l10n.publishToolImage),
+            title: GfText(l10n.publishToolImage),
             enabled:
                 _historyReady &&
                 !ref.read(chatOutboxProvider(widget.conv.peerId)).sending,
@@ -1544,7 +1544,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
           ),
           ListTile(
             leading: const GfSymbol('smile'),
-            title: Text(StickerStrings(context).add),
+            title: GfText(StickerStrings(context).add),
             onTap: () => Navigator.pop(context, 'stickers'),
           ),
         ],
@@ -1711,20 +1711,20 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
       ),
       items: [
         if (_historyReady)
-          PopupMenuItem(value: 'reply', child: Text(l10n.messageReply)),
+          PopupMenuItem(value: 'reply', child: GfText(l10n.messageReply)),
         if (!isForwardedHistory)
-          PopupMenuItem(value: 'copy', child: Text(l10n.messagesCopyAll)),
+          PopupMenuItem(value: 'copy', child: GfText(l10n.messagesCopyAll)),
         if (_historyReady)
-          PopupMenuItem(value: 'forward', child: Text(l10n.messageForward)),
+          PopupMenuItem(value: 'forward', child: GfText(l10n.messageForward)),
         if (_historyReady)
-          PopupMenuItem(value: 'select', child: Text(l10n.messageSelect)),
+          PopupMenuItem(value: 'select', child: GfText(l10n.messageSelect)),
         if (_historyReady && !isForwardedHistory && canCollect)
           PopupMenuItem(
             value: 'collect',
-            child: Text(StickerStrings(context).collect),
+            child: GfText(StickerStrings(context).collect),
           ),
         if (_historyReady && !message.isSelf)
-          PopupMenuItem(value: 'report', child: Text(l10n.messageReport)),
+          PopupMenuItem(value: 'report', child: GfText(l10n.messageReport)),
       ],
     );
     if (!mounted || !_sessionCurrent || action == null) return;
@@ -1994,7 +1994,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
               ? []
               : [UserBlockButton(userId: widget.conv.peerId, moreMenu: true)],
           title: _selecting
-              ? Text(l10n.messagesSelected(_selectedMessages.length))
+              ? GfText(l10n.messagesSelected(_selectedMessages.length))
               : Row(
                   children: <Widget>[
                     _PeerAvatarButton(
@@ -2037,7 +2037,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                               fontWeight: FontWeight.w700,
                             ),
                           ),
-                          Text(
+                          GfText(
                             l10n.messagesConversation,
                             style: TextStyle(
                               color: colors.baseContent.withValues(alpha: 0.5),
@@ -2165,7 +2165,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                                               padding: const EdgeInsets.only(
                                                 top: 4,
                                               ),
-                                              child: Text(
+                                              child: GfText(
                                                 failureLabel,
                                                 style: TextStyle(
                                                   color: colors.error,
@@ -2182,14 +2182,14 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                                                 'circle-alert',
                                                 size: 18,
                                               ),
-                                              label: Text(l10n.messagesRetry),
+                                              label: GfText(l10n.messagesRetry),
                                             ),
                                           ] else
                                             Padding(
                                               padding: const EdgeInsets.only(
                                                 top: 4,
                                               ),
-                                              child: Text(
+                                              child: GfText(
                                                 pending.state ==
                                                         DeliveryState.sending
                                                     ? l10n.messagesSending
@@ -2378,7 +2378,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                               ),
                             ),
                             icon: const GfSymbol('arrow-down', size: 18),
-                            label: Text(l10n.messagesReturnToReplySource),
+                            label: GfText(l10n.messagesReturnToReplySource),
                           ),
                         ),
                       ),
@@ -2410,7 +2410,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                           ? null
                           : () => _forward(_selectedMessages.toList()),
                       icon: const Icon(Icons.forward),
-                      label: Text(l10n.messageForward),
+                      label: GfText(l10n.messageForward),
                     ),
                   ),
                 ),
@@ -2427,7 +2427,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                         child: Row(
                           children: [
                             Expanded(
-                              child: Text(
+                              child: GfText(
                                 _readSyncUnsupported
                                     ? l10n.messagesReadUnavailable
                                     : l10n.messagesReadSyncFailed,
@@ -2438,7 +2438,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                                 onPressed: _canObserve
                                     ? _visibleReads.retry
                                     : null,
-                                child: Text(l10n.commonRetry),
+                                child: GfText(l10n.commonRetry),
                               ),
                           ],
                         ),
@@ -2451,11 +2451,11 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         child: Row(
                           children: [
-                            Expanded(child: Text(l10n.commonLoadFailed)),
+                            Expanded(child: GfText(l10n.commonLoadFailed)),
                             TextButton.icon(
                               onPressed: _load,
                               icon: const GfSymbol('refresh-cw', size: 18),
-                              label: Text(l10n.commonRetry),
+                              label: GfText(l10n.commonRetry),
                             ),
                           ],
                         ),
@@ -2463,11 +2463,11 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                     if (forwarding.unfinished)
                       ListTile(
                         dense: true,
-                        title: Text(l10n.messageForwardPending),
+                        title: GfText(l10n.messageForwardPending),
                         trailing: TextButton(
                           onPressed: () =>
                               _forward(forwarding.batch!.messageIds),
-                          child: Text(l10n.messageForwardResume),
+                          child: GfText(l10n.messageForwardResume),
                         ),
                       ),
                     _ChatDraftStatus(
@@ -2476,10 +2476,10 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                     ),
                     if (outbox.imageRecoveryError != null)
                       ListTile(
-                        title: Text(l10n.commonLoadFailed),
+                        title: GfText(l10n.commonLoadFailed),
                         trailing: TextButton(
                           onPressed: outbox.restoreImages,
-                          child: Text(l10n.commonRetry),
+                          child: GfText(l10n.commonRetry),
                         ),
                       ),
                     if (_replyTarget != null)
@@ -2641,8 +2641,11 @@ class _ChatDraftStatus extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
           children: [
-            Expanded(child: Text(l10n.messagesDraftStorageFailed)),
-            TextButton(onPressed: drafts.flush, child: Text(l10n.commonRetry)),
+            Expanded(child: GfText(l10n.messagesDraftStorageFailed)),
+            TextButton(
+              onPressed: drafts.flush,
+              child: GfText(l10n.commonRetry),
+            ),
           ],
         ),
       );
@@ -2652,7 +2655,7 @@ class _ChatDraftStatus extends StatelessWidget {
     }
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-      child: Text(
+      child: GfText(
         drafts.isDirty(peerId!) ? l10n.draftLocalSaving : l10n.draftLocalSaved,
       ),
     );
@@ -2700,7 +2703,7 @@ class _ReplyPreview extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   if (target.sender.isNotEmpty)
-                    Text(
+                    GfText(
                       target.sender,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -2710,7 +2713,7 @@ class _ReplyPreview extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                  Text(
+                  GfText(
                     localizedChatReplyExcerpt(
                       target.excerpt,
                       imageLabel: AppLocalizations.of(context).messagesImage,
@@ -2786,7 +2789,7 @@ class _NewChatSheetState extends State<_NewChatSheet> {
               child: Row(
                 children: <Widget>[
                   Expanded(
-                    child: Text(
+                    child: GfText(
                       widget.title,
                       style: TextStyle(
                         color: colors.baseContent,
@@ -2888,7 +2891,7 @@ class _NewChatEmptyState extends StatelessWidget {
               color: colors.baseContent.withValues(alpha: 0.30),
             ),
             const SizedBox(height: 10),
-            Text(
+            GfText(
               message,
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -2962,7 +2965,7 @@ class _NewChatUserRow extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(
+                    GfText(
                       '@${user.username}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -3003,7 +3006,7 @@ class _ChatEmptyState extends StatelessWidget {
               color: colors.baseContent.withValues(alpha: 0.32),
             ),
             const SizedBox(height: 12),
-            Text(
+            GfText(
               title,
               style: TextStyle(
                 color: colors.baseContent,
@@ -3012,7 +3015,7 @@ class _ChatEmptyState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            Text(
+            GfText(
               description,
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -3047,7 +3050,7 @@ class _DatePill extends StatelessWidget {
             color: colors.base300,
             borderRadius: BorderRadius.circular(999),
           ),
-          child: Text(
+          child: GfText(
             label,
             style: TextStyle(
               color: colors.baseContent.withValues(alpha: 0.55),

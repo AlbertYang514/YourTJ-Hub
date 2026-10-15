@@ -8,16 +8,16 @@ Future<bool> confirmDiscardEdit(BuildContext context) async {
         context: context,
         animationStyle: GfMotion.dialogStyle(context),
         builder: (context) => AlertDialog(
-          title: Text(l.settingsUnsavedTitle),
-          content: Text(l.settingsUnsavedBody),
+          title: GfText(l.settingsUnsavedTitle),
+          content: GfText(l.settingsUnsavedBody),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: Text(l.settingsKeepEditing),
+              child: GfText(l.settingsKeepEditing),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: Text(l.settingsDiscardChanges),
+              child: GfText(l.settingsDiscardChanges),
             ),
           ],
         ),

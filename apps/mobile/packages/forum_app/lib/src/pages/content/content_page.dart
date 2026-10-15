@@ -92,16 +92,16 @@ class _ContentPageState extends ConsumerState<ContentPage> {
         context: context,
         animationStyle: GfMotion.dialogStyle(context),
         builder: (context) => AlertDialog(
-          title: Text(title),
-          content: Text(message),
+          title: GfText(title),
+          content: GfText(message),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: Text(AppLocalizations.of(context).commonCancel),
+              child: GfText(AppLocalizations.of(context).commonCancel),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: Text(title),
+              child: GfText(title),
             ),
           ],
         ),
@@ -174,7 +174,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(item.title),
+        title: GfText(item.title),
         content: SizedBox(
           width: 600,
           child: SingleChildScrollView(
@@ -184,7 +184,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(AppLocalizations.of(context).commonCancel),
+            child: GfText(AppLocalizations.of(context).commonCancel),
           ),
         ],
       ),
@@ -260,7 +260,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
     });
     return Scaffold(
       appBar: GfAppBar(
-        title: Text(widget.deleted ? l10n.profileTrash : l10n.profileContent),
+        title: GfText(widget.deleted ? l10n.profileTrash : l10n.profileContent),
       ),
       body: Column(
         children: [
@@ -288,7 +288,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
           if (widget.deleted)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
+              child: GfText(
                 l10n.contentTrashHint,
                 style: GfTheme.typographyOf(context).caption,
               ),
@@ -310,7 +310,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                         }),
                 ),
                 Expanded(
-                  child: Text(
+                  child: GfText(
                     '${l10n.contentSelected} ${_selected.length} / 50',
                   ),
                 ),
@@ -318,7 +318,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                   onPressed: _busy || _selected.isEmpty
                       ? null
                       : _deleteSelected,
-                  child: Text(l10n.contentDelete),
+                  child: GfText(l10n.contentDelete),
                 ),
               ],
             ),
@@ -373,13 +373,13 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                           }
                                         }),
                                 ),
-                          title: Text(
+                          title: GfText(
                             primaryText,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
                           subtitle: !widget.deleted && item.processStatus != 0
-                              ? Text(
+                              ? GfText(
                                   [
                                     item.processStatus == 2
                                         ? l10n.contentReviewPending
@@ -392,7 +392,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                 )
                               : secondaryText.isEmpty
                               ? null
-                              : Text(
+                              : GfText(
                                   secondaryText,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
@@ -425,22 +425,22 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                     if (!widget.deleted) ...[
                                       PopupMenuItem(
                                         value: 'view',
-                                        child: Text(l10n.contentReviewView),
+                                        child: GfText(l10n.contentReviewView),
                                       ),
                                       PopupMenuItem(
                                         value: 'edit',
-                                        child: Text(l10n.contentReviewRetry),
+                                        child: GfText(l10n.contentReviewRetry),
                                       ),
                                     ],
                                     if (item.canRestore)
                                       PopupMenuItem(
                                         value: 'restore',
-                                        child: Text(l10n.contentRestore),
+                                        child: GfText(l10n.contentRestore),
                                       ),
                                     if (item.canPermanent)
                                       PopupMenuItem(
                                         value: 'purge',
-                                        child: Text(l10n.contentPurge),
+                                        child: GfText(l10n.contentPurge),
                                       ),
                                   ],
                                 ),

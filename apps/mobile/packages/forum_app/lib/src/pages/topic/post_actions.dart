@@ -174,7 +174,7 @@ class _PostActionsState extends ConsumerState<PostActions> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                GfText(
                   widget.topicTitle,
                   style: TextStyle(
                     color: colors.baseContent,
@@ -219,7 +219,7 @@ class _PostActionsState extends ConsumerState<PostActions> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          GfText(
                             author,
                             style: TextStyle(
                               color: colors.baseContent,
@@ -227,7 +227,7 @@ class _PostActionsState extends ConsumerState<PostActions> {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          Text(
+                          GfText(
                             '#${post.postNo} · ${timeAgo(post.createdAt, l10n: l10n)}',
                             style: TextStyle(
                               color: colors.iconMuted,
@@ -247,7 +247,7 @@ class _PostActionsState extends ConsumerState<PostActions> {
                   colors: colors,
                 ),
                 const SizedBox(height: 12),
-                Text(
+                GfText(
                   postUrl,
                   style: TextStyle(color: colors.primary, fontSize: 11),
                 ),
@@ -262,14 +262,14 @@ class _PostActionsState extends ConsumerState<PostActions> {
       context: context,
       animationStyle: GfMotion.dialogStyle(context),
       builder: (context) => AlertDialog(
-        title: Text(
+        title: GfText(
           action == 'delete'
               ? l10n.contentDelete
               : action == 'ban'
               ? l10n.topicModerateBan
               : l10n.topicModerateUnban,
         ),
-        content: Text(
+        content: GfText(
           action == 'delete'
               ? l10n.topicDeleteConfirm
               : l10n.topicModerateConfirm,
@@ -277,11 +277,11 @@ class _PostActionsState extends ConsumerState<PostActions> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n.commonCancel),
+            child: GfText(l10n.commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(l10n.commonConfirm),
+            child: GfText(l10n.commonConfirm),
           ),
         ],
       ),
@@ -345,7 +345,7 @@ class _PostActionsState extends ConsumerState<PostActions> {
                       color: likeColor,
                     ),
                     const SizedBox(width: 4),
-                    Text(
+                    GfText(
                       formatNumber(post.likeCount),
                       style: GfTheme.typographyOf(context).caption.copyWith(
                         fontSize: 14,
@@ -404,21 +404,24 @@ class _PostActionsState extends ConsumerState<PostActions> {
               widget.topicAvailable &&
               !_removed &&
               (!post.isHidden || post.processStatus == 2))
-            PopupMenuItem(value: 'edit', child: Text(l10n.commonEdit)),
+            PopupMenuItem(value: 'edit', child: GfText(l10n.commonEdit)),
           if (post.isOwnPost && available)
-            PopupMenuItem(value: 'delete', child: Text(l10n.contentDelete)),
-          PopupMenuItem(value: 'history', child: Text(l10n.topicHistory)),
+            PopupMenuItem(value: 'delete', child: GfText(l10n.contentDelete)),
+          PopupMenuItem(value: 'history', child: GfText(l10n.topicHistory)),
           if (available) ...[
-            PopupMenuItem(value: 'share', child: Text(l10n.topicShare)),
+            PopupMenuItem(value: 'share', child: GfText(l10n.topicShare)),
             PopupMenuItem(
               value: 'shareImage',
-              child: Text(l10n.topicShareImage),
+              child: GfText(l10n.topicShareImage),
             ),
           ],
           if (post.canModerate && post.processStatus == 0)
-            PopupMenuItem(value: 'ban', child: Text(l10n.topicModerateBan)),
+            PopupMenuItem(value: 'ban', child: GfText(l10n.topicModerateBan)),
           if (post.canModerate && post.processStatus == 1)
-            PopupMenuItem(value: 'unban', child: Text(l10n.topicModerateUnban)),
+            PopupMenuItem(
+              value: 'unban',
+              child: GfText(l10n.topicModerateUnban),
+            ),
         ],
       ),
       if (!post.isOwnPost && available)

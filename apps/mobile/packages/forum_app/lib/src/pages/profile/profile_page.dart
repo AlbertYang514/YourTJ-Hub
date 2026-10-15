@@ -655,7 +655,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   Widget _profileTitle(BuildContext context, AppLocalizations l10n) =>
       _page.valueOrNull == null
-      ? Text(l10n.profileTitle)
+      ? GfText(l10n.profileTitle)
       : Builder(
           builder: (context) {
             final user = (_headerProps ?? _page.valueOrNull!).user;
@@ -678,7 +678,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 if (MediaQuery.textScalerOf(context).scale(13) <= 18)
-                  Text(
+                  GfText(
                     widget.connectionsOnly
                         ? '@${user.username}'
                         : '${formatNumber(user.topicCount)} ${l10n.profileTopics}',
@@ -763,7 +763,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ? [
               PopupMenuItem(
                 value: _profileBlockAction,
-                child: Text(
+                child: GfText(
                   blocks?.hasError == true
                       ? l10n.commonRetry
                       : isBlocked
@@ -775,46 +775,49 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           : [
               PopupMenuItem(
                 value: persona?.profileUrl ?? '/settings/anonymous-identity',
-                child: Text(l10n.anonymousIdentity),
+                child: GfText(l10n.anonymousIdentity),
               ),
-              PopupMenuItem(value: '/drafts', child: Text(l10n.draftsTitle)),
+              PopupMenuItem(value: '/drafts', child: GfText(l10n.draftsTitle)),
               PopupMenuItem(
                 value: '/my-course-reviews',
-                child: Text(l10n.myCourseReviewsTitle),
+                child: GfText(l10n.myCourseReviewsTitle),
               ),
               PopupMenuItem(
                 value: '/my-content',
-                child: Text(l10n.profileContent),
+                child: GfText(l10n.profileContent),
               ),
               PopupMenuItem(
                 value: '/recycle-bin',
-                child: Text(l10n.profileTrash),
+                child: GfText(l10n.profileTrash),
               ),
               if (_canModerate)
                 PopupMenuItem(
                   value: '/moderation',
-                  child: Text(l10n.profileModeration),
+                  child: GfText(l10n.profileModeration),
                 ),
               if (_canAccessAdmin)
-                PopupMenuItem(value: '/admin', child: Text(l10n.profileAdmin)),
+                PopupMenuItem(
+                  value: '/admin',
+                  child: GfText(l10n.profileAdmin),
+                ),
               if (_canManageCourses) ...[
                 PopupMenuItem(
                   value: '/moderation/courses',
-                  child: Text(l10n.coursesManagement),
+                  child: GfText(l10n.coursesManagement),
                 ),
                 PopupMenuItem(
                   value: '/moderation/course-reviews',
-                  child: Text(l10n.coursesReviewModeration),
+                  child: GfText(l10n.coursesReviewModeration),
                 ),
               ],
               const PopupMenuDivider(),
               PopupMenuItem(
                 value: '/settings/account',
-                child: Text(l10n.profileSecurity),
+                child: GfText(l10n.profileSecurity),
               ),
               PopupMenuItem(
                 value: '/settings',
-                child: Text(l10n.settingsTitle),
+                child: GfText(l10n.settingsTitle),
               ),
             ],
     );
@@ -1370,7 +1373,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             children: [
               GfSymbol(icon, size: 14, color: iconColor),
               const SizedBox(width: 4),
-              Text(full, maxLines: 1, softWrap: false, style: textStyle),
+              GfText(full, maxLines: 1, softWrap: false, style: textStyle),
             ],
           ),
         ),
@@ -1781,7 +1784,7 @@ class _ProfileBody extends StatelessWidget {
                               ? GfTheme.colorsOf(context).error
                               : GfTheme.colorsOf(context).iconMuted,
                         ),
-                        label: Text(
+                        label: GfText(
                           formatNumber(activity.likeCount ?? 0),
                           semanticsLabel: '${activity.likeCount ?? 0}',
                         ),

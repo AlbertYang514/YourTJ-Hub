@@ -65,13 +65,13 @@ class _StickerImageState extends State<StickerImage> {
           if (widget.collectible)
             ListTile(
               leading: const GfSymbol('bookmark', size: 22),
-              title: Text(strings.collect),
+              title: GfText(strings.collect),
               onTap: () => Navigator.pop(context, 'save'),
             ),
           if (_failed)
             ListTile(
               leading: const GfSymbol('refresh-cw', size: 22),
-              title: Text(strings.retry),
+              title: GfText(strings.retry),
               onTap: () => Navigator.pop(context, 'retry'),
             ),
         ],
@@ -97,13 +97,13 @@ class _StickerImageState extends State<StickerImage> {
         if (mounted && collection.active) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text(strings.saved)));
+          ).showSnackBar(SnackBar(content: GfText(strings.saved)));
         }
       } catch (error) {
         if (mounted && collection.active) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text(strings.failure(error))));
+          ).showSnackBar(SnackBar(content: GfText(strings.failure(error))));
         }
       }
     }

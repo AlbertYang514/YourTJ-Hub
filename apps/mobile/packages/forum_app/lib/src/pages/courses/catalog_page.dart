@@ -422,7 +422,7 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final scaffold = Scaffold(
       appBar: GfAppBar(
-        title: Text(
+        title: GfText(
           l10n.coursesTitle,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -437,11 +437,11 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
               itemBuilder: (_) => [
                 PopupMenuItem(
                   value: '/moderation/courses',
-                  child: Text(l10n.coursesManagement),
+                  child: GfText(l10n.coursesManagement),
                 ),
                 PopupMenuItem(
                   value: '/moderation/course-reviews',
-                  child: Text(l10n.coursesReviewModeration),
+                  child: GfText(l10n.coursesReviewModeration),
                 ),
               ],
             ),
@@ -704,7 +704,7 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
                           GfSymbol(symbol, size: 14, color: colors.primary),
                           const SizedBox(width: 4),
                         ],
-                        Text(
+                        GfText(
                           label,
                           style: TextStyle(
                             fontSize: 13,
@@ -723,7 +723,7 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
                               color: colors.primary,
                               borderRadius: BorderRadius.circular(999),
                             ),
-                            child: Text(
+                            child: GfText(
                               '$count',
                               style: TextStyle(
                                 fontSize: 11,
@@ -758,10 +758,10 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
     padding: const EdgeInsets.symmetric(horizontal: 16),
     child: Row(
       children: [
-        Expanded(child: Text(message)),
+        Expanded(child: GfText(message)),
         TextButton(
           onPressed: retry,
-          child: Text(AppLocalizations.of(context).commonRetry),
+          child: GfText(AppLocalizations.of(context).commonRetry),
         ),
       ],
     ),
@@ -915,9 +915,9 @@ class _CourseRow extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text(course.name, style: type.heading, textHeightBehavior: tight),
+            GfText(course.name, style: type.heading, textHeightBehavior: tight),
             const SizedBox(height: titleGap),
-            Text(
+            GfText(
               '$teacher · ${course.department}',
               textHeightBehavior: tight,
               style: type.small.copyWith(
@@ -944,7 +944,7 @@ class _CourseRow extends StatelessWidget {
                             color: colors.warning,
                           ),
                           const SizedBox(width: 2),
-                          Text(
+                          GfText(
                             formatRating(ratingAvg),
                             style: type.meta.copyWith(
                               fontWeight: FontWeight.w600,
@@ -953,7 +953,7 @@ class _CourseRow extends StatelessWidget {
                           ),
                           if (reviewCount > 0) ...<Widget>[
                             const SizedBox(width: 2),
-                            Text(
+                            GfText(
                               '($reviewCount)',
                               style: type.meta.copyWith(
                                 color: colors.baseContent.withValues(
@@ -965,13 +965,13 @@ class _CourseRow extends StatelessWidget {
                         ],
                       ),
                     ] else if (reviewCount > 0) ...<Widget>[
-                      Text(
+                      GfText(
                         l10n.coursesNoRating,
                         style: type.meta.copyWith(
                           color: colors.baseContent.withValues(alpha: 0.5),
                         ),
                       ),
-                      Text(
+                      GfText(
                         '($reviewCount)',
                         style: type.meta.copyWith(
                           color: colors.baseContent.withValues(alpha: 0.5),
@@ -979,7 +979,7 @@ class _CourseRow extends StatelessWidget {
                       ),
                     ],
                     if (credit.isNotEmpty) ...<Widget>[
-                      Text(
+                      GfText(
                         '$credit ${copy.creditUnit}',
                         style: type.meta.copyWith(
                           color: colors.baseContent.withValues(alpha: 0.7),
@@ -1035,7 +1035,7 @@ class _CourseRow extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Text(
+          GfText(
             label,
             style:
                 labelStyle ??
@@ -1087,7 +1087,7 @@ class _CourseRow extends StatelessWidget {
       expanded: termsExpanded,
       trailing: <Widget>[
         const SizedBox(width: 4),
-        Text(
+        GfText(
           termsExpanded
               ? l10n.courseCopySummaryCollapse
               : '+${terms.length - 1}',
@@ -1167,14 +1167,14 @@ class _InstructorPickerSheetState extends State<_InstructorPickerSheet> {
             child: Row(
               children: <Widget>[
                 Expanded(
-                  child: Text(
+                  child: GfText(
                     widget.title,
                     style: type.heading.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ),
                 TextButton(
                   onPressed: () => Navigator.pop(context, _draft),
-                  child: Text(copy.done),
+                  child: GfText(copy.done),
                 ),
               ],
             ),
@@ -1198,7 +1198,7 @@ class _InstructorPickerSheetState extends State<_InstructorPickerSheet> {
           Expanded(
             child: _draft.isEmpty
                 ? Center(
-                    child: Text(
+                    child: GfText(
                       copy.instructorEmptyHint,
                       style: type.small.copyWith(
                         color: colors.baseContent.withValues(alpha: 0.5),
@@ -1224,7 +1224,7 @@ class _InstructorPickerSheetState extends State<_InstructorPickerSheet> {
                               mainAxisSize: MainAxisSize.min,
                               children: <Widget>[
                                 Flexible(
-                                  child: Text(
+                                  child: GfText(
                                     name,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -1325,14 +1325,14 @@ class _CourseOptionsSheetState extends State<_CourseOptionsSheet> {
             child: Row(
               children: [
                 Expanded(
-                  child: Text(
+                  child: GfText(
                     widget.title,
                     style: GfTheme.typographyOf(context).title2,
                   ),
                 ),
                 TextButton(
                   onPressed: () => Navigator.pop(context, _selected),
-                  child: Text(l10n.courseCopyDone),
+                  child: GfText(l10n.courseCopyDone),
                 ),
               ],
             ),
@@ -1362,12 +1362,12 @@ class _CourseOptionsSheetState extends State<_CourseOptionsSheet> {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       spacing: 8,
                       children: [
-                        Text(l10n.courseCopySelectedCount(_selected.length)),
+                        GfText(l10n.courseCopySelectedCount(_selected.length)),
                         TextButton(
                           onPressed: _selected.isEmpty
                               ? null
                               : () => setState(_selected.clear),
-                          child: Text(l10n.coursesClearSelection),
+                          child: GfText(l10n.coursesClearSelection),
                         ),
                       ],
                     ),
@@ -1379,7 +1379,7 @@ class _CourseOptionsSheetState extends State<_CourseOptionsSheet> {
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Center(
-                        child: Text(
+                        child: GfText(
                           query.isEmpty
                               ? l10n.courseCopyNoOptions
                               : l10n.coursesFilterNoMatches,
@@ -1394,7 +1394,7 @@ class _CourseOptionsSheetState extends State<_CourseOptionsSheet> {
                       final value = options[index];
                       return CheckboxListTile(
                         value: _selected.contains(value),
-                        title: Text(widget.labels[value] ?? value),
+                        title: GfText(widget.labels[value] ?? value),
                         onChanged: (selected) => setState(() {
                           if (selected == true) {
                             _selected.add(value);

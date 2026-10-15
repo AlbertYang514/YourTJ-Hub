@@ -1156,10 +1156,10 @@ class _LoginPageState extends ConsumerState<LoginPage>
             ),
             const SizedBox(height: 16),
           ],
-          Text(_title(l10n), style: GfTheme.typographyOf(context).display),
+          GfText(_title(l10n), style: GfTheme.typographyOf(context).display),
           if (!compactHeader) ...[
             SizedBox(height: registrationHeader ? 8 : 6),
-            Text(
+            GfText(
               _mode == _AuthMode.login && _returnTo != null && _returnTo != '/'
                   ? l10n.authContinueAfterLogin
                   : _subtitle(l10n),
@@ -1253,7 +1253,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                     .map(
                       (domain) => DropdownMenuItem(
                         value: domain,
-                        child: Text('@$domain'),
+                        child: GfText('@$domain'),
                       ),
                     )
                     .toList(),
@@ -1347,7 +1347,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
               if (_registration == null)
                 TextButton(
                   onPressed: _loadRegistration,
-                  child: Text(l10n.commonRetry),
+                  child: GfText(l10n.commonRetry),
                 ),
             ],
             if (_registration?.termsOfServiceEnabled == true ||
@@ -1359,7 +1359,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                   controlAffinity: ListTileControlAffinity.leading,
                   value: _agreed,
                   onChanged: (value) => setState(() => _agreed = value == true),
-                  title: Text(l10n.authAgreePolicies),
+                  title: GfText(l10n.authAgreePolicies),
                 ),
               ),
               Wrap(
@@ -1367,12 +1367,12 @@ class _LoginPageState extends ConsumerState<LoginPage>
                   if (_registration!.termsOfServiceEnabled)
                     TextButton(
                       onPressed: () => context.push('/terms'),
-                      child: Text(l10n.siteInfoTerms),
+                      child: GfText(l10n.siteInfoTerms),
                     ),
                   if (_registration!.privacyPolicyEnabled)
                     TextButton(
                       onPressed: () => context.push('/privacy'),
-                      child: Text(l10n.siteInfoPrivacy),
+                      child: GfText(l10n.siteInfoPrivacy),
                     ),
                 ],
               ),
@@ -1477,7 +1477,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const GfSymbol('key-round', size: 20),
-              label: Text(l10n.authPasskey),
+              label: GfText(l10n.authPasskey),
               onPressed: _passkeyBusy || _authController.busy || _finishingAuthentication
                   ? null
                   : _loginWithPasskey,
@@ -1487,7 +1487,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
           if (_mode == _AuthMode.login && _registrationError != null)
             TextButton(
               onPressed: _loadRegistration,
-              child: Text(l10n.commonRetry),
+              child: GfText(l10n.commonRetry),
             ),
           if (_mode == _AuthMode.forgotPassword) ...<Widget>[
             const SizedBox(height: 8),
@@ -1521,7 +1521,10 @@ class _LoginPageState extends ConsumerState<LoginPage>
           key: const Key('login-more-methods'),
           focusNode: _moreMethodsFocusNode,
           icon: const GfSymbol('chevron-down', size: 22),
-          label: Text(l10n.authMoreSignInMethods, textAlign: TextAlign.center),
+          label: GfText(
+            l10n.authMoreSignInMethods,
+            textAlign: TextAlign.center,
+          ),
           onPressed:
               _authController.busy || _oidcBusy || _finishingAuthentication
               ? null

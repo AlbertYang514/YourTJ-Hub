@@ -95,7 +95,7 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
   Widget build(BuildContext context) {
     final scaffold = Scaffold(
       appBar: GfAppBar(
-        title: Text(
+        title: GfText(
           _page.valueOrNull?.category.name ??
               AppLocalizations.of(context).categoryTitle,
         ),
@@ -113,7 +113,7 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
               if (props.category.description.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                  child: Text(
+                  child: GfText(
                     props.category.description,
                     style: GfTheme.typographyOf(context).small.copyWith(
                       color: GfTheme.colorsOf(context).iconMuted,
