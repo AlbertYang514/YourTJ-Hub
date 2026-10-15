@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:html/parser.dart' show parseFragment;
 import 'package:markdown_widget/markdown_widget.dart';
 import 'package:ui_kit/ui_kit.dart';
 
@@ -340,21 +341,31 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
 
     Widget buildMarkdown(String source) => MarkdownWidget(
       data: source,
-      // Rich text leaves own selection so the copy action can map image
-      // placeholders back to the original Unicode sequence.
+      // The shared selection area below owns selection across every Markdown
+      // block; GfText joins its registrar and Twemoji restoration scope.
       selectable: false,
       shrinkWrap: true,
       markdownGenerator: MarkdownGenerator(
         linesMargin: EdgeInsets.symmetric(vertical: profile.paragraphSpacing),
-        richTextBuilder: (span) => widget.selectable && !widget.screenshot
-            ? GfSelectableText.rich(span)
-            : GfText.rich(span),
+        richTextBuilder: (span) => GfText.rich(span),
       ),
       // Embedded in the page scroll view: never repeat its safe-area insets.
       padding: EdgeInsets.zero,
       physics: const NeverScrollableScrollPhysics(),
       config: config,
     );
+
+    Widget withMarkdownSelection(Widget child) {
+      if (!widget.selectable || widget.screenshot) return child;
+
+      // Include decoded numeric entities so every code unit a rendered leaf
+      // can expose is reserved before Twemoji placeholder allocation. Avoid
+      // parsing Markdown without entity syntax on the common path.
+      final String entityText = data.contains('&#')
+          ? parseFragment(data).text ?? ''
+          : '';
+      return GfSelectionArea(selectionSource: '$data$entityText', child: child);
+    }
 
     final List<LinkPreviewMarkdownBlock> blocks = splitLinkPreviewMarkdown(
       data,
@@ -363,26 +374,30 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         .where((LinkPreviewMarkdownBlock block) => block.isPreview)
         .map((LinkPreviewMarkdownBlock block) => block.url!)
         .toList(growable: false);
-    if (previewUrls.isEmpty || widget.screenshot) return buildMarkdown(data);
+    if (previewUrls.isEmpty || widget.screenshot) {
+      return withMarkdownSelection(buildMarkdown(data));
+    }
 
     Future<List<LinkPreviewPayload>> loadPreviews() => _linkPreviews ??= ref
         .read(linkPreviewRepositoryProvider)
         .resolve(previewUrls);
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        for (final LinkPreviewMarkdownBlock block in blocks)
-          if (block.isPreview)
-            _DeferredLinkPreview(
-              url: block.url!,
-              fallback: buildMarkdown(block.markdown),
-              load: loadPreviews,
-            )
-          else
-            buildMarkdown(block.markdown),
-      ],
+    return withMarkdownSelection(
+      Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          for (final LinkPreviewMarkdownBlock block in blocks)
+            if (block.isPreview)
+              _DeferredLinkPreview(
+                url: block.url!,
+                fallback: buildMarkdown(block.markdown),
+                load: loadPreviews,
+              )
+            else
+              buildMarkdown(block.markdown),
+        ],
+      ),
     );
   }
 
