@@ -860,6 +860,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/passkey/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Return whether passkey sign-in is enabled on this deployment */
+        get: operations["getPasskeyStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/apple-app-site-association": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Return the configured Apple webcredentials app association */
+        get: operations["getAppleWebCredentialsAssociation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/assetlinks.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Return the configured Android Digital Asset Links association */
+        get: operations["getAndroidDigitalAssetLinks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/passkey/login/begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Begin discoverable passkey sign-in */
+        post: operations["beginPasskeyLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/passkey/login/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify a passkey assertion and issue a standard forum session */
+        post: operations["finishPasskeyLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/logout": {
         parameters: {
             query?: never;
@@ -1162,6 +1247,108 @@ export interface paths {
          *     verification enabled) with `permission.emailRequired`.
          */
         post: operations["disableTotp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/passkeys/reauth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reauthenticate with password and enabled TOTP before passkey management */
+        post: operations["reauthenticatePasskeyManagement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/passkeys/registration/begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Begin a discoverable passkey registration for the current account */
+        post: operations["beginPasskeyRegistration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/passkeys/registration/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify and store a passkey credential */
+        post: operations["finishPasskeyRegistration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/passkeys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List active passkeys for the current account */
+        get: operations["listPasskeyCredentials"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/passkeys/rename": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rename a passkey using a fresh strong-authentication proof */
+        post: operations["renamePasskeyCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/passkeys/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke a passkey using a fresh strong-authentication proof */
+        post: operations["revokePasskeyCredential"];
         delete?: never;
         options?: never;
         head?: never;
@@ -14389,6 +14576,48 @@ export interface components {
         revealAnonymousIdentityResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["AnonymousRevealedOwner"];
         }) | components["schemas"]["ApiFailure"];
+        PasskeyStatusResult: {
+            enabled: boolean;
+        };
+        PasskeyStatusResponse: (components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["PasskeyStatusResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AppleAssociationResponse: {
+            webcredentials: {
+                apps: string[];
+            };
+        };
+        AndroidAssociationResponse: {
+            relation: string[];
+            target: {
+                /** @constant */
+                namespace: "android_app";
+                package_name: string;
+                sha256_cert_fingerprints: string[];
+            };
+        }[];
+        /** @description WebAuthn options serialized by the relying-party implementation. */
+        PasskeyWebAuthnOptions: {
+            [key: string]: unknown;
+        };
+        PasskeyLoginBeginResult: {
+            ceremonyId: string;
+            publicKey: components["schemas"]["PasskeyWebAuthnOptions"];
+        };
+        PasskeyLoginBeginResponse: (components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["PasskeyLoginBeginResult"];
+        }) | components["schemas"]["ApiFailure"];
+        /** @description WebAuthn public-key credential response; base64url encoded binary members. */
+        PasskeyCredentialResponseObject: {
+            [key: string]: unknown;
+        };
+        PasskeyLoginFinishRequest: {
+            ceremonyId: string;
+            credential: components["schemas"]["PasskeyCredentialResponseObject"];
+        };
+        PasskeyEmptyResponse: (components["schemas"]["ApiSuccess"] & {
+            result?: Record<string, never>;
+        }) | components["schemas"]["ApiFailure"];
         TongjiRegistrationStatus: {
             csrfToken: string;
             email: string;
@@ -14413,6 +14642,60 @@ export interface components {
         };
         TongjiRegistrationResultResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["TongjiRegistrationResult"];
+        };
+        PasskeyReauthRequest: {
+            /** @description RSA-OAEP-256 encrypted password payload, matching POST /api/login. */
+            encryptedPassword: string;
+            /** @description Required only when TOTP is enabled. */
+            totpCode?: string;
+        };
+        PasskeyReauthResult: {
+            proof: string;
+            /** @constant */
+            expiresInSeconds: 120;
+        };
+        PasskeyReauthResponse: (components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["PasskeyReauthResult"];
+        }) | components["schemas"]["ApiFailure"];
+        PasskeyRegistrationBeginRequest: {
+            /** @description One-use proof from POST /api/user/passkeys/reauth. */
+            proof: string;
+        };
+        PasskeyRegistrationBeginResponse: (components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["PasskeyLoginBeginResult"];
+        }) | components["schemas"]["ApiFailure"];
+        PasskeyRegistrationFinishRequest: {
+            ceremonyId: string;
+            /** @description Optional user-facing label; defaults to Passkey. */
+            name?: string;
+            credential: components["schemas"]["PasskeyCredentialResponseObject"];
+        };
+        PasskeyCredentialSummary: {
+            /** @description Base64url credential identifier, never a private key. */
+            id: string;
+            name: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            lastUsedAt?: string;
+            backupEligible: boolean;
+            backupState: boolean;
+            transports: string[];
+        };
+        PasskeyCredentialResponse: (components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["PasskeyCredentialSummary"];
+        }) | components["schemas"]["ApiFailure"];
+        PasskeyCredentialListResponse: (components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["PasskeyCredentialSummary"][];
+        }) | components["schemas"]["ApiFailure"];
+        PasskeyCredentialRenameRequest: {
+            proof: string;
+            credentialId: string;
+            name: string;
+        };
+        PasskeyCredentialRevokeRequest: {
+            proof: string;
+            credentialId: string;
         };
         UpdateTopicAgentRepliesRequest: {
             /** Format: uint64 */
@@ -17187,6 +17470,134 @@ export interface operations {
             };
         };
     };
+    getPasskeyStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Public passkey availability flag. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyStatusResponse"];
+                };
+            };
+        };
+    };
+    getAppleWebCredentialsAssociation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description AASA association for the configured Apple Team ID and bundle ID. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppleAssociationResponse"];
+                };
+            };
+            /** @description No Apple Team ID is configured; the response contains an empty app list. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppleAssociationResponse"];
+                };
+            };
+        };
+    };
+    getAndroidDigitalAssetLinks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Credential-sharing association for the configured Android package and signing fingerprints, or an empty list. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AndroidAssociationResponse"];
+                };
+            };
+        };
+    };
+    beginPasskeyLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Discoverable WebAuthn request options and opaque ceremony ID. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyLoginBeginResponse"];
+                };
+            };
+        };
+    };
+    finishPasskeyLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyLoginFinishRequest"];
+            };
+        };
+        responses: {
+            /** @description Success sets the standard New-Token and session cookie; invalid credentials return the normal business failure envelope. */
+            200: {
+                headers: {
+                    "New-Token"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyEmptyResponse"];
+                };
+            };
+            /** @description Login rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
     logout: {
         parameters: {
             query?: never;
@@ -17676,6 +18087,191 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    reauthenticatePasskeyManagement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyReauthRequest"];
+            };
+        };
+        responses: {
+            /** @description Short-lived, one-use proof bound to the current user and session. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyReauthResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description CSRF or writable-account check rejected the request. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    beginPasskeyRegistration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyRegistrationBeginRequest"];
+            };
+        };
+        responses: {
+            /** @description WebAuthn credential creation options. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyRegistrationBeginResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    finishPasskeyRegistration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyRegistrationFinishRequest"];
+            };
+        };
+        responses: {
+            /** @description Created credential summary. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyCredentialResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listPasskeyCredentials: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Credential metadata; raw credential data and public keys are never returned. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyCredentialListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    renamePasskeyCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyCredentialRenameRequest"];
+            };
+        };
+        responses: {
+            /** @description Renamed credential. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyEmptyResponse"];
+                };
+            };
+        };
+    };
+    revokePasskeyCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyCredentialRevokeRequest"];
+            };
+        };
+        responses: {
+            /** @description Revoked credential. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyEmptyResponse"];
                 };
             };
         };
