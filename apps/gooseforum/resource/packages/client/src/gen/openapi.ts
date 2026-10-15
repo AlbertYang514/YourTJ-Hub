@@ -21538,7 +21538,7 @@ export interface operations {
                     "application/json": components["schemas"]["response"];
                 };
             };
-            /** @description Malformed JSON or invalid group value types. */
+            /** @description Malformed JSON, a wrong field value type, an unknown (additional) field, a non-object/null body, or a request body over the 4KiB limit. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -21554,6 +21554,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved; when email verification is enabled a pending-activation account is also rejected. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected` (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Push-preference update rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };

@@ -4,11 +4,22 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { i18n, setLocale } from '../src/runtime/i18n'
 import { notificationText } from '../src/runtime/notification-text'
 import type { NotificationPayload } from '@gooseforum/client'
-const { fetchNotifications } = vi.hoisted(() => ({fetchNotifications:vi.fn()}))
-vi.mock('../src/runtime/api',()=>({fetchNotifications,markAllNotificationsRead:vi.fn(),markNotificationRead:vi.fn()}))
-vi.mock('../src/runtime/unread-status',()=>({useUnreadStatus:()=>({clearNotifications:vi.fn(),setNotifications:vi.fn()})}))
+const { fetchNotifications, markNotificationRead, markAllNotificationsRead } = vi.hoisted(() => ({
+  fetchNotifications: vi.fn(),
+  markNotificationRead: vi.fn(),
+  markAllNotificationsRead: vi.fn(),
+}))
+vi.mock('../src/runtime/api', () => ({ fetchNotifications, markAllNotificationsRead, markNotificationRead }))
+const { unreadSetNotifications, unreadRefresh, unreadClearNotifications } = vi.hoisted(() => ({
+  unreadSetNotifications: vi.fn(),
+  unreadRefresh: vi.fn(),
+  unreadClearNotifications: vi.fn(),
+}))
+vi.mock('../src/runtime/unread-status', () => ({
+  useUnreadStatus: () => ({ clearNotifications: unreadClearNotifications, setNotifications: unreadSetNotifications, refresh: unreadRefresh }),
+}))
 import NotificationsPage from '../src/site/pages/NotificationsPage.vue'
-import { markAllNotificationsRead } from '../src/runtime/api'
+import { markAllNotificationsRead, markNotificationRead } from '../src/runtime/api'
 afterEach(()=>vi.clearAllMocks())
 function item(eventType='post_reply'): NotificationPayload {
  return {id:1,eventType,isRead:false,createdAt:'',title:'',content:'',actor:{id:1,username:'Alice'},topic:{id:42,title:'Campus',url:'/p/post/42/2'},payload:{actorId:1,topicTitle:'Campus'}}
@@ -70,5 +81,28 @@ test('global mark-all applies to a category loaded while the request is pending'
  expect(wrapper.findAll('article button')).toHaveLength(1)
  finish(); await flushPromises()
  expect(wrapper.findAll('article button')).toHaveLength(0)
+ wrapper.unmount()
+})
+
+test('stale single-item mark-read failure never rolls back a newer category unread count', async () => {
+ await setLocale('en')
+ let rejectMark!: (reason: unknown) => void
+ const staleMark = new Promise<boolean>((_, reject) => { rejectMark = reject })
+ vi.mocked(markNotificationRead).mockReturnValueOnce(staleMark)
+ unreadRefresh.mockResolvedValue(undefined)
+ const wrapper = mount(NotificationsPage, { props: { layout: {} as any, props: { notifications: [item()], total: 1, unreadCount: 3, pagination: { page: 1, nextPage: 0, hasNext: false, nextUrl: '' } } }, global: { plugins: [i18n] } })
+ expect(wrapper.text()).toContain('3 unread')
+ await wrapper.findAll('article').find(article => article.text().includes('Campus'))!.find('a').trigger('click')
+ // Switch to Mentions, which loads a fresh category with a smaller unread count.
+ fetchNotifications.mockResolvedValueOnce({ items: [item('mention')], nextCursor: 0, hasNext: false, unreadCount: 1 })
+ await wrapper.findAll('button').find(button => button.text() === 'Mentions')!.trigger('click')
+ await flushPromises()
+ expect(wrapper.text()).toContain('1 unread')
+ // Now the category A request fails; the stale rollback must not resurrect A's count.
+ rejectMark(new Error('rejected'))
+ await flushPromises()
+ expect(wrapper.text()).toContain('1 unread')
+ expect(wrapper.text()).not.toContain('3 unread')
+ expect(unreadRefresh).toHaveBeenCalledWith(true)
  wrapper.unmount()
 })

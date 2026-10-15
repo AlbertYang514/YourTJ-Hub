@@ -337,8 +337,9 @@ function markItemRead(item: NotificationPayload) {
     if (generation === categoryGeneration) {
       lists.all.items = previousAll
       lists.unread.items = previousUnread
+      unreadCount.value = previousUnreadCount
+      unreadStatus.setNotifications(previousUnreadCount > 0)
     }
-    unreadCount.value = previousUnreadCount
     void unreadStatus.refresh(true).catch(() => undefined)
   })
 }

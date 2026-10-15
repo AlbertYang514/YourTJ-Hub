@@ -377,7 +377,7 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("notification/mark-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkAsRead))
 	forumLoginApi.POST("notification/mark-all-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkAllAsRead))
 	forumLoginApi.GET("push/preferences", middleware.NoUpdateUserActivity, UpButterReq(api.GetPushPreferences))
-	forumLoginApi.PUT("push/preferences", middleware.CheckWritableAccount, UpButterReq(api.UpdatePushPreferences))
+	forumLoginApi.PUT("push/preferences", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedStrictJsonReq(4<<10, api.UpdatePushPreferences))
 	forumLoginApi.GET("push/config", middleware.NoUpdateUserActivity, UpButterReq(api.GetPushConfig))
 	forumLoginApi.POST("push/subscribe", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.SubscribePush))
 	forumLoginApi.POST("push/unsubscribe", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.UnsubscribePush))
