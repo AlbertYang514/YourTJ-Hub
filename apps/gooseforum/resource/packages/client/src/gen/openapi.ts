@@ -13372,6 +13372,8 @@ export interface components {
             endpointGeneration: number;
             secretConfigured: boolean;
             secretVersion: number;
+            /** @description Whether a static Authorization header is stored for webhook deliveries. The value is never returned. */
+            webhookAuthorizationConfigured: boolean;
             /** Format: date-time */
             latestAcceptedAt: string | null;
             pendingCount: number;
@@ -14399,6 +14401,8 @@ export interface components {
             eventTypes?: ("agent.mentioned" | "agent.post_replied" | "agent.topic_commented" | "forum.topic_created" | "forum.post_created")[];
             webhookEnabled?: boolean;
             webhookEndpoint?: string;
+            /** @description Optional static `Authorization` header value sent with every delivery (for receivers that only accept a static token, e.g. `Bearer …`). Omit to keep the stored value; send an empty string to clear it. Stored encrypted and never returned; Standard Webhooks signing headers are unchanged and cannot be overridden. Visible ASCII only (no CR/LF). */
+            webhookAuthorization?: string;
         };
         AgentWebhookConfigSuccess: components["schemas"]["ApiSuccess"] & {
             result?: components["schemas"]["AdminAgentItem"];

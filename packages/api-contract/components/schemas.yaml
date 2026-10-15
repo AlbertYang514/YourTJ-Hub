@@ -6494,7 +6494,7 @@ AdminOperationResponse:
 
 AdminAgentItem:
   type: object
-  required: [agentId, username, nickname, avatarUrl, profileCoverUrl, bio, signature, website, websiteName, email, tokenPrefix, webhookEndpoint, enabled, createdBy, lastUsedAt, createdAt, updatedAt, configVersion, eventsEnabled, eventTypes, subscriptionGeneration, webhookEnabled, endpointGeneration, secretConfigured, secretVersion, latestAcceptedAt, pendingCount, pauseReason, summaryUnavailable]
+  required: [agentId, username, nickname, avatarUrl, profileCoverUrl, bio, signature, website, websiteName, email, tokenPrefix, webhookEndpoint, enabled, createdBy, lastUsedAt, createdAt, updatedAt, configVersion, eventsEnabled, eventTypes, subscriptionGeneration, webhookEnabled, endpointGeneration, secretConfigured, secretVersion, webhookAuthorizationConfigured, latestAcceptedAt, pendingCount, pauseReason, summaryUnavailable]
   properties:
     profileCoverUrl:
       type: string
@@ -6534,6 +6534,9 @@ AdminAgentItem:
     secretVersion:
       type: integer
       minimum: 0
+    webhookAuthorizationConfigured:
+      type: boolean
+      description: Whether a static Authorization header is stored for webhook deliveries. The value is never returned.
     latestAcceptedAt:
       type:
       - string
