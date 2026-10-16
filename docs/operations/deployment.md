@@ -1073,6 +1073,13 @@ or domain association is unknown; invalid enabled configuration fails closed and
 entry. A `disabled` status alone cannot distinguish "not enabled" from "configured but invalid", so
 read the server log before concluding that passkeys are not deployed.
 
+Enable, disable and roll back through the same reviewed path: change `enabled` in
+`deploy/instances/<env>.json`, merge, then let the next instance deploy apply it, or run the
+`Apply / instance config` workflow for a config-only change. A config apply that fails its health
+check restores the previous config transaction. Disabling stops every passkey ceremony while leaving
+registered credentials in place, so re-enabling needs no re-enrollment unless `app.signingKey` was
+rotated.
+
 ## Runbooks to write
 
 - Meilisearch index rebuild, backup
