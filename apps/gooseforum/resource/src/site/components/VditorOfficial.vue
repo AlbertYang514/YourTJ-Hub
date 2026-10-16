@@ -1883,7 +1883,7 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
  * 编辑区图片等比缩放：原图超宽/超高时收拢到适中尺寸（宽 80% / 高 ≤480px），
  * 小图不受影响；emoji 保持官方 20px 特例。
  */
-.vditor-official .vditor-reset img:not(.emoji) {
+.vditor-official .vditor-reset img:not(.emoji):not(.twemoji) {
   max-width: 80%;
   max-height: 480px;
 }
