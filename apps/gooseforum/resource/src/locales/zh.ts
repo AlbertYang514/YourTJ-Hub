@@ -1260,6 +1260,13 @@ export default {
     editorHintSeparator: '、',
     campusFallbackTitle: '校园网',
     campusFallbackDescription: '需校园网络访问',
+    platformBilibili: '哔哩哔哩',
+    platformAppleMusic: 'Apple Music',
+    resourceTypeVideo: '视频',
+    resourceTypeSong: '歌曲',
+    resourceTypeAlbum: '专辑',
+    authorUploader: 'UP主：{author}',
+    authorArtist: '艺术家：{author}',
     guard: {
       title: '即将离开 YourTJ',
       normal_external: '你将前往第三方网站。请确认网址，并谨慎输入账号、验证码或支付信息。',

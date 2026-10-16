@@ -15196,6 +15196,18 @@ export interface components {
             fetchedAt?: string;
             /** @description Set when the card was rendered from the deployment's local campus configuration without any outbound request. `title` and `description` may be absent in that case; clients supply their own localized fallback copy instead of relying on server-side text. */
             campus?: boolean;
+            /**
+             * @description Set when the URL was strictly recognized as a supported external platform resource. A platform identifier, not a display name: clients render the localized platform label themselves, while `siteName` stays the page's own label. Absent for generic cards.
+             * @enum {string}
+             */
+            platform?: "bilibili" | "apple_music";
+            /**
+             * @description Resource kind inside the recognized platform. Only present together with `platform`.
+             * @enum {string}
+             */
+            resourceType?: "video" | "song" | "album";
+            /** @description Uploader or artist published by the platform source. Optional; absent when the platform did not publish one, and never synthesized by the server. */
+            author?: string;
         };
         LinkPreviewResolveSuccess: components["schemas"]["ApiSuccess"] & {
             result?: components["schemas"]["LinkPreview"][];

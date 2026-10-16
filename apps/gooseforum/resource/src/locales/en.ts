@@ -1260,6 +1260,13 @@ export default {
     editorHintSeparator: ', ',
     campusFallbackTitle: 'Campus network',
     campusFallbackDescription: 'Requires campus network access',
+    platformBilibili: 'Bilibili',
+    platformAppleMusic: 'Apple Music',
+    resourceTypeVideo: 'Video',
+    resourceTypeSong: 'Song',
+    resourceTypeAlbum: 'Album',
+    authorUploader: 'Uploader: {author}',
+    authorArtist: 'Artist: {author}',
     guard: {
       title: 'Leaving YourTJ',
       normal_external: 'You are going to a third-party website. Check the address before entering account, verification, or payment details.',

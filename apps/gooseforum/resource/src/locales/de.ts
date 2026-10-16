@@ -1259,6 +1259,13 @@ export default {
     editorHintSeparator: ', ',
     campusFallbackTitle: 'Campusnetz',
     campusFallbackDescription: 'Zugriff nur aus dem Campusnetz',
+    platformBilibili: 'Bilibili',
+    platformAppleMusic: 'Apple Music',
+    resourceTypeVideo: 'Video',
+    resourceTypeSong: 'Song',
+    resourceTypeAlbum: 'Album',
+    authorUploader: 'Uploader: {author}',
+    authorArtist: 'Künstler: {author}',
     guard: {
       title: 'YourTJ verlassen',
       normal_external: 'Du wechselst zu einer externen Website. Prüfe die Adresse, bevor du Konto-, Bestätigungs- oder Zahlungsdaten eingibst.',

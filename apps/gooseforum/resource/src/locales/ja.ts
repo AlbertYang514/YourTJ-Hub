@@ -1259,6 +1259,13 @@ export default {
     editorHintSeparator: '、',
     campusFallbackTitle: '学内ネットワーク',
     campusFallbackDescription: '学内ネットワークからのみアクセスできます',
+    platformBilibili: 'ビリビリ',
+    platformAppleMusic: 'Apple Music',
+    resourceTypeVideo: '動画',
+    resourceTypeSong: '楽曲',
+    resourceTypeAlbum: 'アルバム',
+    authorUploader: 'UP主：{author}',
+    authorArtist: 'アーティスト：{author}',
     guard: {
       title: 'YourTJ を離れます',
       normal_external: '外部サイトに移動します。アカウント情報、認証コード、支払い情報を入力する前に URL を確認してください。',
