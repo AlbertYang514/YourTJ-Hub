@@ -24,6 +24,7 @@ class ResetJournal {
     // type/exists convert lookup failures into "not found". Listing preserves
     // those errors, so unreadable intent cannot reopen business routes.
     return directory.list(followLinks: false).any((entry) {
+      // URI segments avoid comparing Windows paths with mixed separators.
       final name = entry.uri.pathSegments.lastWhere(
         (segment) => segment.isNotEmpty,
         orElse: () => '',
