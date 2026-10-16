@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-13
+> Last verified: 2026-10-16
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
@@ -274,7 +274,9 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   Refreshable pages accept a short pull from the top on release, including empty lists; the gesture
   uses finger travel so tall screens and iOS rubber-band damping do not demand a longer pull.
   Home, Campus and Notifications show the refresh indicator below their overlaid navigation.
-  Small or retracted pulls do not refresh, and an ongoing refresh cannot be started twice.
+  The shared indicator uses the theme-aware `GfLogo`; it rotates only while refreshing when motion is
+  enabled. Reduced motion keeps the logo still and shows the localized loading label. Small or retracted
+  pulls do not refresh, and an ongoing refresh cannot be started twice.
 - `Current`: the floor slider loads the selected server window on release. Earliest/latest
   shortcuts, reply links, and earlier/later pagination navigate the actual reply stream. Returning
   to the first post from a middle window reloads that window before offering refresh; stale

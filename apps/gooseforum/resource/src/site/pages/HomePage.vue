@@ -15,6 +15,7 @@ import { countNewTopics, firstPageUrl, prependTopics } from '@/site/utils/home-f
 import EmptyState from '@/site/components/EmptyState.vue'
 import TopicListFooter from '@/site/components/TopicListFooter.vue'
 import TopicList from '@/site/components/TopicList.vue'
+import brandLogoUrl from '@/site/assets/logo.svg?url'
 import type { HomeProps, LayoutPayload, PagePayload, SeenProof, TopicPayload } from '@gooseforum/client'
 
 const page = defineProps<{
@@ -645,8 +646,10 @@ onBeforeUnmount(() => {
         }"
       >
         <div class="gf-pull-refresh-indicator inline-flex items-center gap-2 rounded-full bg-base-100/95 px-3 py-2 text-xs font-semibold text-base-content shadow-sm ring-1 ring-line/70 backdrop-blur-sm">
-          <RefreshCw
-            class="h-3.5 w-3.5 text-primary"
+          <img
+            :src="brandLogoUrl"
+            alt=""
+            class="gf-pull-refresh-logo h-7 w-7 shrink-0"
             :class="refreshing && !reducedMotion ? 'animate-spin' : ''"
           />
           <span>{{ pullLabel }}</span>
@@ -990,6 +993,16 @@ onBeforeUnmount(() => {
 
 .gf-pull-refresh-indicator {
   transition: opacity 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.gf-pull-refresh-logo {
+  flex: none;
+  object-fit: contain;
+  filter: brightness(0);
+}
+
+:global([data-theme='gf-dark'] .gf-pull-refresh-logo) {
+  filter: brightness(0) invert(1);
 }
 
 :global(html.gf-pwa-pull-refresh) {
