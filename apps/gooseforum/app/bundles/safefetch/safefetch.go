@@ -335,6 +335,22 @@ func ValidateWebhookURL(raw string) error {
 	return nil
 }
 
+// forwardedHeaderNames is the exact set of caller-supplied headers PostJSON is
+// allowed to put on the wire. The request is built from scratch, proxies are
+// disabled and redirects are refused, so no ambient credential can reach a
+// receiver; a header still has to be named here to be forwarded. Authorization
+// carries the optional per-Agent static credential (stored values are validated
+// as visible ASCII before being encrypted, so they cannot inject header lines);
+// the Webhook-* names carry the Standard Webhooks signature.
+var forwardedHeaderNames = []string{
+	"Webhook-Id",
+	"Webhook-Timestamp",
+	"Webhook-Signature",
+	"Webhook-Attempt-Id",
+	"Webhook-Delivery-Id",
+	"Authorization",
+}
+
 // PostJSON only sends bounded JSON to public HTTPS/443; no redirect, proxy,
 // ambient credentials or pooled connection can bypass a fresh DNS check.
 func (c *Client) PostJSON(ctx context.Context, rawURL string, body []byte, headers http.Header) (Result, error) {
@@ -354,7 +370,7 @@ func (c *Client) PostJSON(ctx context.Context, rawURL string, body []byte, heade
 	if err != nil {
 		return Result{}, &FetchError{Class: ErrorInvalid, Err: err}
 	}
-	for _, name := range []string{"Webhook-Id", "Webhook-Timestamp", "Webhook-Signature", "Webhook-Attempt-Id", "Webhook-Delivery-Id"} {
+	for _, name := range forwardedHeaderNames {
 		if v := headers.Get(name); v != "" {
 			req.Header.Set(name, v)
 		}

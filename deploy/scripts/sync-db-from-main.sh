@@ -83,7 +83,7 @@ sync_one() {
   if [ "$label" = "sqlite" ]; then
     if [ "$(sqlite3 "$TMP" "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='agents';")" = "1" ]; then
       sqlite3 "$TMP" "UPDATE agents SET enabled=0, token_hash='';"
-      for column in secret_ciphertext previous_secret_ciphertext webhook_paused_reason; do
+      for column in secret_ciphertext previous_secret_ciphertext webhook_authorization_ciphertext webhook_paused_reason; do
         if sqlite3 "$TMP" "PRAGMA table_info(agents);" | cut -d '|' -f2 | grep -qx "$column"; then
           sqlite3 "$TMP" "UPDATE agents SET $column='';"
         fi
@@ -163,7 +163,7 @@ DECLARE target_column text; target_table text;
 BEGIN
   IF to_regclass('public.agents') IS NOT NULL THEN
     UPDATE agents SET enabled=0, token_hash='';
-    FOREACH target_column IN ARRAY ARRAY['secret_ciphertext','previous_secret_ciphertext','webhook_paused_reason'] LOOP
+    FOREACH target_column IN ARRAY ARRAY['secret_ciphertext','previous_secret_ciphertext','webhook_authorization_ciphertext','webhook_paused_reason'] LOOP
       IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='agents' AND column_name=target_column) THEN
         EXECUTE format('UPDATE agents SET %I = %L', target_column, '');
       END IF;

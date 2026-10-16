@@ -129,7 +129,8 @@ optional per-Agent value in the Webhook panel (`webhookAuthorization` on
 
 - Omitted field keeps the stored value; an empty string clears it; any other value replaces it.
 - Visible ASCII only (spaces/tabs allowed, no CR/LF or control bytes), at most 1024 characters,
-  surrounding whitespace trimmed. Invalid values are rejected with `invalidTarget` and nothing is saved.
+  surrounding whitespace trimmed. Values longer than the limit fail request validation; other invalid
+  values are rejected with `invalidTarget`. Nothing is saved either way.
 - Stored encrypted with securestore purpose `yourtj-agent-webhook-authorization` (separate from the
   HMAC secret purpose). It is never logged or returned; Agent views only expose
   `webhookAuthorizationConfigured`.
@@ -138,7 +139,7 @@ optional per-Agent value in the Webhook panel (`webhookAuthorization` on
 - If the stored ciphertext cannot be decrypted (for example after an `app.signingKey` change), the
   delivery is not sent and the Agent pauses with `authorization_invalid`; re-enter or clear the value
   and save the configuration to resume.
-- Disabling all Agents wipes the stored value together with the signing secrets.
+- Isolating a copied database (`--isolate`) clears the stored value together with the signing secrets.
 
 Prefer signature verification where the receiver supports it; the static header is a bearer
 credential, so rotate it at the receiver and re-enter it here if it leaks.

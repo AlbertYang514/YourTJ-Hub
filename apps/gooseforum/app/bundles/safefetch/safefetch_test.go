@@ -265,7 +265,7 @@ func TestWebhookJSONTLSRedirectIsNotFollowedAndDNSRevalidated(t *testing.T) {
 	var received atomic.Int32
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		received.Add(1)
-		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" || r.Header.Get("Authorization") != "" || r.Header.Get("Webhook-Delivery-Id") != "19" {
+		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" || r.Header.Get("X-Ambient-Credential") != "" || r.Header.Get("Webhook-Delivery-Id") != "19" {
 			t.Error("invalid JSON POST or leaked ambient credential")
 		}
 		w.Header().Set("Location", "https://127.0.0.1/private")
@@ -282,7 +282,7 @@ func TestWebhookJSONTLSRedirectIsNotFollowedAndDNSRevalidated(t *testing.T) {
 	resolver := fakeResolver{host: {publicAddr()}}
 	client := New(Config{Resolver: resolver, DialContext: mappedDialer(server.Listener.Addr().String(), &calls)})
 	client.httpClient.Transport.(*http.Transport).TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
-	headers := http.Header{"Authorization": []string{"never-forward-this"}, "Webhook-Id": []string{"evt_test"}, "Webhook-Delivery-Id": []string{"19"}}
+	headers := http.Header{"X-Ambient-Credential": []string{"never-forward-this"}, "Webhook-Id": []string{"evt_test"}, "Webhook-Delivery-Id": []string{"19"}}
 	result, err := client.PostJSON(t.Context(), "https://"+host+"/hook", []byte(`{"id":"evt_test"}`), headers)
 	if err != nil {
 		t.Fatal(err)
@@ -296,6 +296,45 @@ func TestWebhookJSONTLSRedirectIsNotFollowedAndDNSRevalidated(t *testing.T) {
 	}
 	if calls.Load() != 1 {
 		t.Fatal("rebound host was dialed")
+	}
+}
+
+// The static Authorization header is the only caller credential PostJSON puts on
+// the wire: any other caller header stays local, and no Authorization is sent
+// unless the caller set it explicitly.
+func TestPostJSONForwardsOnlyExplicitAuthorization(t *testing.T) {
+	type seenHeaders struct{ authorization, ambient string }
+	var seen seenHeaders
+	var received atomic.Int32
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received.Add(1)
+		seen = seenHeaders{authorization: r.Header.Get("Authorization"), ambient: r.Header.Get("X-Ambient-Credential")}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+	certificate := server.Certificate()
+	host := strings.Replace(certificate.DNSNames[0], "*.", "hook.", 1)
+	pool := x509.NewCertPool()
+	pool.AddCert(certificate)
+	var calls atomic.Int32
+	client := New(Config{Resolver: fakeResolver{host: {publicAddr()}}, DialContext: mappedDialer(server.Listener.Addr().String(), &calls)})
+	client.httpClient.Transport.(*http.Transport).TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+	headers := http.Header{"Authorization": []string{"Bearer agt_static_token"}, "X-Ambient-Credential": []string{"never-forward-this"}, "Webhook-Id": []string{"evt_test"}}
+	result, err := client.PostJSON(t.Context(), "https://"+host+"/hook", []byte(`{"id":"evt_test"}`), headers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.StatusCode != http.StatusNoContent || seen.authorization != "Bearer agt_static_token" || seen.ambient != "" {
+		t.Fatalf("result=%#v headers=%#v", result, seen)
+	}
+	if _, err := client.PostJSON(t.Context(), "https://"+host+"/hook", []byte(`{"id":"evt_none"}`), nil); err != nil {
+		t.Fatal(err)
+	}
+	if seen.authorization != "" {
+		t.Fatalf("Authorization = %q without an explicit header", seen.authorization)
+	}
+	if received.Load() != 2 {
+		t.Fatalf("requests=%d", received.Load())
 	}
 }
 
