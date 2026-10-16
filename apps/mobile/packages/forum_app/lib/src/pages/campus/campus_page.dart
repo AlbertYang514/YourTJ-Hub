@@ -22,6 +22,7 @@ import '../../widgets/campus_shortcuts.dart';
 import 'campus_connection.dart';
 import 'campus_data_views.dart';
 import 'campus_helpers.dart';
+import 'campus_lifecycle.dart';
 import 'campus_message_page.dart';
 import 'campus_state.dart';
 
@@ -179,7 +180,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
   void initState() {
     super.initState();
     final lifecycle = WidgetsBinding.instance.lifecycleState;
-    _foreground = lifecycle == null || lifecycle == AppLifecycleState.resumed;
+    _foreground = isCampusForeground(lifecycle);
     WidgetsBinding.instance.addObserver(this);
     _searchFor(_tab);
     // A notice may have kept the controller alive while this page was hidden.
@@ -201,11 +202,14 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed && _visible == true) {
+    // 仅 paused/hidden/detached 视为被覆盖（suspend + 丢弃隐私子树）；
+    // inactive（通知栏/弹窗瞬时遮挡）保持现状，不再整页重载。
+    final foreground = isCampusForeground(state);
+    if (!foreground && _visible == true) {
       _restoreScroll = true;
       ref.read(campusControllerProvider.notifier).suspend();
     }
-    _foreground = state == AppLifecycleState.resumed;
+    _foreground = foreground;
     _syncVisibility();
     if (mounted) setState(() {});
   }
