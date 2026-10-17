@@ -565,11 +565,22 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   }
 
   /// 正文链接：复用仓库共享的 LinkNavigation（站内路由/外链确认）。
-  Future<bool> _openReviewLink(String url) async {
+  ///
+  /// 「标签与目标不符」的链接按 suspicious 处理（对齐 Web linkRisk）：白名单与
+  /// 会话信任都不豁免，始终弹确认层（issue #1200 review）。
+  Future<bool> _openReviewLink(String url, ReviewPayload review) async {
+    final String base = ref.read(apiClientProvider).baseUrl;
+    final Set<String> mislabeled = mislabeledLinkTargetsInHtml(
+      review.contentHtml,
+      base: Uri.parse(base),
+    );
     await LinkNavigation.open(
       context,
       url,
-      baseUrl: ref.read(apiClientProvider).baseUrl,
+      baseUrl: base,
+      risk: mislabeled.contains(url)
+          ? LinkRisk.suspicious
+          : LinkRisk.normalExternal,
     );
     return true;
   }
@@ -853,7 +864,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
               offeringMeta: offeringMeta.cardMeta,
               baseUrl: Uri.parse(ref.read(apiClientProvider).baseUrl),
               onImageTap: _openReviewImage,
-              onLinkTap: _openReviewLink,
+              onLinkTap: (String url) => _openReviewLink(url, review),
               reportBusy: _reviewReportBusy.contains(review.id),
               onHelpful: () =>
                   _toggleReviewReaction(review, CourseReviewReaction.helpful),

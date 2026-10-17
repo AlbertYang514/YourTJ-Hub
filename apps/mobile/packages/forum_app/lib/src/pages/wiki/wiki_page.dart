@@ -247,10 +247,20 @@ class _WikiPageState extends ConsumerState<WikiPage> {
           if (mounted) context.push('$path$query$anchor');
         }
       } else {
+        // 正文里「标签与目标不符」的链接按 suspicious（对齐 Web linkRisk）：
+        // 白名单与会话信任都不豁免，始终弹确认层（issue #1200 review）。
+        final Set<String> mislabeled = mislabeledLinkTargetsInHtml(
+          _detail.valueOrNull?.content ?? '',
+          base: base,
+        );
+        final String target = uri.toString();
         await LinkNavigation.open(
           context,
-          uri.toString(),
+          target,
           baseUrl: base.toString(),
+          risk: mislabeled.contains(target)
+              ? LinkRisk.suspicious
+              : LinkRisk.normalExternal,
         );
       }
     } catch (_) {

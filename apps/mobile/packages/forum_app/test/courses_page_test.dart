@@ -4,6 +4,7 @@ import 'dart:ui' show Tristate;
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +15,7 @@ import 'package:visibility_detector/visibility_detector.dart';
 import 'package:core/core.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/asset_url.dart';
+import 'package:forum_app/src/link_navigation.dart';
 import 'package:forum_app/src/pages/courses/catalog_page.dart';
 import 'package:forum_app/src/pages/courses/detail_page.dart';
 import 'package:forum_app/src/pages/courses/review_form_sheet.dart';
@@ -1334,6 +1336,70 @@ void main() {
       );
       await tester.pumpAndSettle();
     }
+
+    testWidgets('whitelisted review link still asks when its label differs', (
+      tester,
+    ) async {
+      // 课评正文是服务端 HTML(GfHtmlContent):目标命中白名单、标签却是另一个
+      // 站外 URL 时,与 Web 全局守卫的 linkRisk 一致按 suspicious 确认
+      // (issue #1200 review)。
+      LinkNavigation.applyTrustedDomains(<String>['github.com']);
+      addTearDown(() => LinkNavigation.applyTrustedDomains(const <String>[]));
+      final opened = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/url_launcher'),
+        (call) async {
+          if (call.method == 'launch') {
+            opened.add((call.arguments as Map)['url'] as String);
+          }
+          return true;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/url_launcher'),
+          null,
+        ),
+      );
+      final course = FakeCourseRepository(
+        _client(),
+        reviewPayloads: <ReviewPayload>[
+          const ReviewPayload(
+            id: 9,
+            offeringId: 901,
+            rating: 5,
+            content: '资料在 https://github.com/x',
+            contentHtml:
+                '<p><a href="https://github.com/x">https://bank.example/account</a></p>',
+            author: ReviewAuthorPayload(kind: 'member', label: 'bob'),
+            viewer: ReviewViewerPayload(
+              canEdit: false,
+              canDelete: false,
+              isHelpful: false,
+            ),
+            helpfulCount: 0,
+            createdAt: '2026-09-01T08:00:00+08:00',
+            updatedAt: '2026-09-01T08:00:00+08:00',
+          ),
+        ],
+      );
+
+      await pumpDetail(tester, course);
+      final Rect rect = tester.getRect(
+        find.textContaining('bank.example', findRichText: true),
+      );
+      await tester.tapAt(Offset(rect.left + 12, rect.center.dy));
+      await tester.pumpAndSettle();
+
+      expect(find.text('即将离开 YourTJ'), findsOneWidget);
+      // suspicious 没有「本次不再询问」的复选框(只有 normalExternal 才可记住)。
+      expect(find.text('本次浏览期间不再询问此域名'), findsNothing);
+      expect(opened, isEmpty);
+
+      await tester.tap(find.text('继续访问'));
+      await tester.pumpAndSettle();
+      expect(opened, <String>['https://github.com/x']);
+    });
 
     testWidgets(
       'review action bar stays on one row with 44 pixel targets at 200% text',

@@ -914,4 +914,58 @@ void main() {
     // 页内锚点交还 fwfh 内部滚动,不产生新的页面请求。
     expect(pages.fetchedPaths, <String>['/wiki/guide/getting-started']);
   });
+
+  testWidgets('whitelisted target still asks when the label points elsewhere', (
+    tester,
+  ) async {
+    // 目标命中白名单,但可见文本是另一个站外 URL:与 Web 全局守卫的 linkRisk
+    // 一致,按 suspicious 弹确认层且不被白名单豁免(issue #1200 review)。
+    LinkNavigation.applyTrustedDomains(<String>['github.com']);
+    addTearDown(
+      () => LinkNavigation.applyTrustedDomains(const <String>[]),
+    );
+    final pages = _FakePageRepository(
+      _client(),
+      payloads: {
+        '/wiki/guide/start': _detailPayload(
+          path: 'guide/start',
+          title: '开始',
+          content:
+              '<p><a href="https://github.com/x">https://bank.example/account</a></p>',
+        ),
+      },
+    );
+    final opened = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('plugins.flutter.io/url_launcher'),
+      (call) async {
+        if (call.method == 'launch') {
+          opened.add((call.arguments as Map)['url'] as String);
+        }
+        return true;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/url_launcher'),
+        null,
+      ),
+    );
+
+    await _pumpApp(tester, pages: pages, initialLocation: '/wiki/guide/start');
+    await _tapLinkText(
+      tester,
+      find.textContaining('bank.example', findRichText: true),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('即将离开 YourTJ'), findsOneWidget);
+    // suspicious 没有「本次不再询问」的复选框(只有 normalExternal 才可记住)。
+    expect(find.text('本次浏览期间不再询问此域名'), findsNothing);
+    expect(opened, isEmpty);
+
+    await tester.tap(find.text('继续访问'));
+    await tester.pumpAndSettle();
+    expect(opened, <String>['https://github.com/x']);
+  });
 }

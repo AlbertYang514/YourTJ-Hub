@@ -196,6 +196,9 @@ type SitePayload struct {
 	BrandType     string `json:"brandType"`
 	BrandText     string `json:"brandText"`
 	BrandImage    string `json:"brandImage"`
+	// TrustedExternalDomains 外链免确认白名单（issue #1200）：小写主机名清单，
+	// 条目覆盖其全部子域；客户端仅对 normal_external 风险豁免确认弹层。
+	TrustedExternalDomains []string `json:"trustedExternalDomains"`
 }
 
 type ViewerPayload struct {
@@ -814,6 +817,8 @@ func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
 			BrandType:     brandType,
 			BrandText:     brandText,
 			BrandImage:    brandImage,
+			// 读取路径已由 GetSiteSettingsConfig 归一化并保证非 nil（issue #1200）。
+			TrustedExternalDomains: siteConfig.TrustedExternalDomains,
 		},
 		Viewer:       viewer,
 		DailyRanking: feedconfig.RankReady(),
