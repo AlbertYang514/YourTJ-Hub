@@ -8,6 +8,7 @@ function images() {
   document.body.innerHTML = `
     <div class="gf-prose-post">
       <img id="first" src="/photo-one.png" alt="Photo one">
+      <img id="emoji" class="twemoji" data-twemoji="true" src="/twemoji.png" alt="🇺🇸">
       <img id="official" src="/official.png" alt="sticker:smile" data-gf-sticker="smile">
       <img id="personal" src="/personal.png" alt="sticker:u_abc" data-gf-sticker="u_abc">
       <a href="/photo-two.png"><img id="second" src="/photo-two.png" alt="Photo two"></a>
@@ -16,6 +17,14 @@ function images() {
 }
 
 describe('Markdown image preview boundaries', () => {
+  it('keeps inline Twemoji out of the lightbox and ordinary photo gallery', () => {
+    expect(getMarkdownImagePreview(images()('emoji'))).toBeNull()
+
+    const preview = getMarkdownImagePreview(images()('second'))!
+    expect(preview.images.map(({ alt }) => alt)).toEqual(['Photo one', 'Photo two'])
+    expect(preview.index).toBe(1)
+  })
+
   it('keeps ordinary sticker-prefixed alt images in the gallery even at a sticker URL', () => {
     document.body.innerHTML = `<div class="gf-prose-post">
       <img src="/same.png" alt="sticker:smile" data-gf-sticker="smile">
