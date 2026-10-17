@@ -75,7 +75,10 @@ func TestWebhookAuthorizationEncryptedAtRestKeepAndClear(t *testing.T) {
 	if _, err := securestore.DecryptPurpose(stored.WebhookAuthorizationCiphertext, securestore.AgentWebhookSecretPurpose); err == nil {
 		t.Fatal("authorization ciphertext must not decrypt under the HMAC secret purpose")
 	}
-	encoded, _ := json.Marshal(stored)
+	encoded, err := json.Marshal(stored)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if strings.Contains(string(encoded), "at-rest-secret-value") || strings.Contains(string(encoded), stored.WebhookAuthorizationCiphertext) {
 		t.Fatalf("entity JSON leaks authorization: %s", encoded)
 	}
