@@ -766,3 +766,18 @@ and admin aggregate routes are covered in OpenAPI, route snapshots, TS and Dart 
 carry optional signed source headers; absent context remains unclassified or separately inferred.
 [Feed product](../product/feed-ranking.md) and [operations](../operations/feed-ranking.md) own the
 behavior and lifecycle; schema definitions remain in models/migrations.
+
+## Moderation appeal audit
+
+`Current`: one `moderation_appeals` row binds an explanation and terminal review to one immutable
+post revision. The database unique revision key prevents duplicate submissions. Owner history and
+moderator queue/action routes are covered by OpenAPI, generated Web types and Dart mirrors; responses
+omit internal author identity and are private. Publication and appeal resolution share the existing
+revision transaction, including lifecycle/version/scope fences, attachment promotion, search and
+notification tasks. A stale appeal never restores deleted content or publishes a later submission.
+My-content items expose `canAppeal` and the owner's `appeal` summary for the latest revision; queue
+items include the `originalReviewReason`. Failures use specific `content.appeal.*` and
+`moderation.appeal.*` message codes. Appeal receipts and outcomes keep the review event types and
+set `notifications.templates.appeal{Submitted,Approved,Rejected,Stale}` template keys.
+Audit records follow [governance retention](../decisions/0021-deletion-final-state-data-retention.md);
+product limits and tradeoffs live in [0098](../decisions/0098-moderation-appeals.md).

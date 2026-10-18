@@ -1,9 +1,15 @@
 import 'package:core/core.dart';
 import '../../push/push_route.dart';
+import 'notification_text.dart';
 
 /// Reuse TopicPage's floor query; older payloads safely open the topic.
 String? notificationTarget(NotificationPayload item) {
-  if (item.eventType == 'review_rejected') return '/my-content';
+  // 与 Web NotificationsPage 的深链判定一致：审核拒绝、申诉驳回/失效与申诉受理回执
+  // 都落在“我的内容”；申诉通过（review_approved）按话题打开已公开的内容。
+  if (item.eventType == 'review_rejected' ||
+      notificationAppeal(item) == 'appealSubmitted') {
+    return '/my-content';
+  }
   if (item.eventType == 'wiki_updated') {
     final route = item.payload.metadata?.profileUrl ?? item.topic?.url;
     return route != null && route.startsWith('/wiki/')

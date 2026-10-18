@@ -194,6 +194,8 @@ func feishuCard(payload ApprovalPayload, test bool) map[string]any {
 	title, template, headerIcon, reasonColor := "待人工审核 · "+target, "orange", "approval_outlined", "orange"
 	if a.Kind == ApprovalKindReport {
 		title, template, headerIcon, reasonColor = "新举报 · "+target, "red", "report_outlined", "red"
+	} else if a.Kind == ApprovalKindAppeal {
+		title, template, headerIcon = "新申诉 · "+target, "blue", "feedback_outlined"
 	}
 	reason := approvalReasonLabels[a.Reason]
 	if reason == "" {
@@ -217,10 +219,7 @@ func feishuCard(payload ApprovalPayload, test bool) map[string]any {
 		addTag("匿名", "neutral")
 	}
 
-	subtitle := target + " #" + strconv.FormatUint(a.TargetID, 10)
-	if a.ReportID > 0 {
-		subtitle = "举报 #" + strconv.FormatUint(a.ReportID, 10) + " · " + subtitle
-	}
+	subtitle := approvalSubject(a, target)
 	header := map[string]any{
 		"template": template,
 		"title":    feishuPlain(title),
@@ -297,6 +296,9 @@ func feishuCard(payload ApprovalPayload, test bool) map[string]any {
 	if a.TargetType == "chat_message" {
 		elements = append(elements, feishuNote("lock_outlined", "私信内容不会发到外部群，请在版主工作台查看证据并处理。"))
 	}
+	if a.Kind == ApprovalKindAppeal {
+		elements = append(elements, feishuNote("lock_outlined", appealPrivacyNote))
+	}
 
 	base := strings.TrimRight(payload.BaseURI, "/")
 	if base == "" {
@@ -308,7 +310,7 @@ func feishuCard(payload ApprovalPayload, test bool) map[string]any {
 			if !ok || action.URL == "" {
 				continue
 			}
-			buttons = append(buttons, feishuButton(approvalActionLabels[action.Action], style.buttonType, style.icon, base+action.URL))
+			buttons = append(buttons, feishuButton(approvalActionLabel(a.Kind, action.Action), style.buttonType, style.icon, base+action.URL))
 		}
 		if a.ModerationURL != "" {
 			buttons = append(buttons, feishuButton("打开版主工作台", "default", "admin_outlined", base+a.ModerationURL))
