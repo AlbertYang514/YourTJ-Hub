@@ -103,10 +103,15 @@ Level is derived by `LevelForXP(currentXP, eligible)` and is not stored as autho
 - Lv6 黑茶: 30,000 XP.
 
 Eligibility reuses the forum account record and security configuration: the account must be human,
-not frozen or deleted, and verified when email verification is enabled. The implementation does not
-query a separate Tongji SSO binding; #1149 mentions SSO in its eligibility context, but no additional
-SSO-specific gate is represented in this service. Registration time is not an input. An XP decrease
-therefore lowers the computed level without a separate level-write operation.
+not frozen or deleted, and verified when email verification is enabled. #1149 also lists Tongji SSO
+in its eligibility context. The campus identity binding (MADR 0031/0032/0034) is an optional campus
+workbench connection, not a participation gate: the forum has no existing "SSO-verified" account
+state or site setting to reuse, and the registration-level controls (signup switch, allowed email
+domains, activation) already shape which accounts exist. Requiring a live campus binding for XP
+would be a new product rule, so this service adds no SSO-specific gate; whether XP should require
+one is a product-requirements question for #1149, to be answered before any XP consumer depends on
+this check. Registration time is not an input. An XP decrease therefore lowers the computed level
+without a separate level-write operation.
 
 App migration v33 creates the XP schema and seeds the initial rule. Existing accounts without an XP
 balance have zero XP. No history is backfilled, and neither legacy points nor `users.prestige` are
