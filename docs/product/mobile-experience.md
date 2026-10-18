@@ -45,8 +45,21 @@ route-aware fallback resumes when the launch surface leaves.
 
 `Current`: Home negotiates feed capability v2, keeps explicit Latest separate from the default root,
 restarts expired recommendation snapshots and reports foreground visible rows/detail dwell. Attribution
-traces stay in memory and are stripped from offline pages. Recommendation reasons use four localized
-labels. See [feed ranking and measurement](feed-ranking.md) for the shared behavior and retention.
+traces stay in memory and are stripped from offline pages. See [feed ranking and
+measurement](feed-ranking.md) for the shared behavior and retention.
+
+`Current`: a For You reason is part of the topic, not a caption above it. On cards the avatar column
+reads top to bottom as who wrote the topic and why it is shown: a hairline trail runs on the
+avatar's axis down to a ringed 28dp seal on the footer line. The seal fills otherwise empty space,
+so it adds no height, lands in the same place for every reason and stays clear of the trailing
+bookmark. Tapping it traces the trail from the avatar to the seal, then unrolls the reason beside
+the seal as a pill of the same fill, ring and height; both retract after two seconds, and reduced
+motion switches them instantly. List rows lead the title with the reason. Each reason uses one muted
+Outline glyph borrowed from where the app already means it: the following glyph for a followed
+author, the search categories glyph for a category the reader took part in, the reply glyph for new
+replies, whose seal, trace and reply count take the accent used for unseen content, and the time
+glyph for the `recent` fallback. Like Web, the app labels every reason the server sends, so no For
+You topic goes without one; feeds without a server reason stay unstamped.
 
 
 `Current`: root layout uses the available window width. Below 600 logical pixels it retains bottom
