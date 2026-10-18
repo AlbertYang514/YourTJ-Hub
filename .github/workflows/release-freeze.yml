@@ -1,0 +1,31 @@
+name: Release / Freeze gate
+on:
+  pull_request_target:
+    branches: [dev]
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled, ready_for_review]
+  merge_group:
+    types: [checks_requested]
+  push:
+    branches: [dev]
+permissions:
+  contents: read
+  actions: read
+  deployments: read
+  pull-requests: read
+  checks: write
+concurrency:
+  group: instance-mutate-dev
+  cancel-in-progress: false
+  queue: max
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      # Never checkout or execute the PR/merge-group code with this token.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          persist-credentials: false
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release/cycle_control.py checks

@@ -4080,4 +4080,19 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get settingsPasskeyUnavailable =>
       'Passkeys sind auf diesem Server nicht aktiviert.';
+
+  @override
+  String get previewUpdateInstructions =>
+      'Dies ist ein Testbuild. Updates gibt es über den Android-Link im Release-Issue oder die zugewiesene TestFlight-Gruppe.';
+
+  @override
+  String get previewStale =>
+      'Diese Vorschau ist nicht mehr der aktuelle Kandidat. Prüfe den Release-Status für die aktuelle Testversion oder die Rückkehr zur Produktivversion.';
+
+  @override
+  String get previewStatusUnknown =>
+      'Der Vorschau-Status kann nicht geprüft werden. Frage vor dem Testen die verantwortliche Person.';
+
+  @override
+  String get previewStatusLink => 'Vorschau-Status';
 }

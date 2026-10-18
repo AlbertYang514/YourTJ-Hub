@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../app_config.dart';
 
 /// Public destination; no native credential is passed to the browser.
-final fullSchedulerUri = Uri.https('f.yourtj.de', '/schedule');
+final fullSchedulerUri = Uri.parse(
+  AppConfig.apiBaseUrl.isEmpty ? 'https://f.yourtj.de' : AppConfig.apiBaseUrl,
+).resolve('/schedule');
 
 class SchedulerWebTip extends StatelessWidget {
   const SchedulerWebTip({super.key, this.onOpen});

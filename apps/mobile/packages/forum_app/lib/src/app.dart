@@ -19,6 +19,7 @@ import 'push/push_service.dart';
 import 'reading_preferences.dart';
 import 'startup_experience.dart';
 import 'updates/update_host.dart';
+import 'updates/preview_status.dart';
 import 'providers.dart';
 import 'apple/apple_sign_in.dart';
 import 'widgets/app_system_ui_overlay.dart';
@@ -90,7 +91,15 @@ class GfApp extends ConsumerWidget {
             child: StorageGate(
               child: _AppBusinessHosts(
                 locale: locale,
-                child: child ?? const SizedBox.shrink(),
+                child: AppConfig.preview
+                    ? Banner(
+                        message: AppConfig.previewLabel,
+                        location: BannerLocation.topEnd,
+                        child: PreviewStatusHost(
+                          child: child ?? const SizedBox.shrink(),
+                        ),
+                      )
+                    : child ?? const SizedBox.shrink(),
               ),
             ),
           ),

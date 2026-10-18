@@ -13,6 +13,10 @@ from controller import (plan, prepare, create_pr, authorize, reserve, emit_outpu
 from state import reservations, baselines, latest_receipt, record
 from notes import draft_notes, render, render_structured
 from catalog import publish_catalog
+from cycle_control import production_gate
+from cycle_store import load as load_cycle
+from cycle import current
+from build_identity import reserve_number
 
 
 def web_recovery_needs_build(github, manifest, details):
@@ -67,7 +71,9 @@ def main():
         apple = json.loads(args.apple_state.read_text(encoding='utf-8')) if args.apple_state else None
         existing_id = os.environ.get("EXISTING_RELEASE")
         if existing_id:
-            original, _ = authorize(existing_id, github, args.folder / "original")
+            original, original_binding = authorize(existing_id, github, args.folder / "original")
+            cycle = production_gate(github, original['sourceSha'], ['ios-app-store'], manifest=original,
+                                    binding=original_binding, promotion=True)
             receipt = latest_receipt(github, existing_id, "ios-testflight")
             require(receipt and receipt["status"] and receipt["status"]["state"] == "success", "Promotion requires successful original TestFlight receipt")
             build_id = receipt["deployment"]["payload"]["details"]["buildId"]
@@ -79,10 +85,20 @@ def main():
                          "channels": ["ios-app-store"], "notes": {"ios-app-store": FILES["ios-app-store"]},
                          "baselines": baselines(github, ["ios-app-store"], reservations(), apple), "requiredDisclosures": []}
         else:
-            manifest = plan(os.environ["SCOPE"], os.environ["BUMP"], os.environ.get("SOURCE", "main"),
+            source = os.environ.get('SOURCE', 'main')
+            if source in {'', 'main'}:
+                active = current(load_cycle(github))
+                require(active, 'Select an approved release cycle; main is not a moving release source')
+                source = active['source']
+            from model import channels_for
+            cycle = production_gate(github, source, channels_for(os.environ['SCOPE'], os.environ.get('IOS_DESTINATION', 'testflight')))
+            manifest = plan(os.environ["SCOPE"], os.environ["BUMP"], source,
                             os.environ.get("IOS_DESTINATION", "testflight"), github, apple)
+            if manifest['product'] == 'mobile':
+                reserve_number(github, source, manifest['version'], manifest['buildNumber'], 'production')
         request = prepare(manifest, github, args.folder / "candidate")
         write_json(args.folder / "oryn-input.json", request)
+        write_json(args.folder / 'cycle.json', {key: cycle[key] for key in ['id', 'issue', 'owner']} if cycle else None)
         with open(os.environ["GITHUB_OUTPUT"], "a") as out:
             out.write(f"candidate={manifest['candidateId']}\n")
         return
@@ -116,7 +132,8 @@ def main():
         status_path = args.folder / "notes-status.json"
         status = json.loads(status_path.read_text(encoding='utf-8')) if status_path.is_file() else None
         manifest = json.loads((folder / "manifest.json").read_text(encoding='utf-8'))
-        result = create_pr(manifest, folder, github, status)
+        cycle = json.loads((args.folder / 'cycle.json').read_text(encoding='utf-8'))
+        result = create_pr(manifest, folder, github, status, cycle=cycle)
         print(json.dumps(result))
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as out:
             out.write(f"Release request: {result.get('html_url', result.get('url'))}\n\n{notes_banner(manifest, status)}\n\n"
@@ -161,6 +178,10 @@ def main():
                    "status": "completed", "conclusion": conclusion, "output": {"title": "Release human review", "summary": summary}})
         return
     manifest, binding = authorize(args.candidate, github, args.folder)
+    # Receipts must still record failures after a cancellation/timeout. Every
+    # external publication path independently rechecks the cycle before acting.
+    if args.command != 'receipt':
+        production_gate(github, manifest['sourceSha'], manifest['channels'], manifest=manifest, binding=binding)
     if args.command == "authorize":
         if os.environ.get('INITIAL_PUBLICATION') == 'true':
             for channel in manifest['channels']:

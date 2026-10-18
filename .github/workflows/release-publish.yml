@@ -23,10 +23,13 @@ on:
 permissions:
   contents: read
   actions: read
+  deployments: read
   pull-requests: read
   checks: read
 concurrency:
-  group: release-execute-${{ inputs.candidate || github.sha }}
+  # Serialize whole publications across channels and candidates. A hotfix may
+  # pause an ordinary cycle, but cannot overlap its in-flight external writes.
+  group: release-production
   cancel-in-progress: false
   queue: max
 jobs:

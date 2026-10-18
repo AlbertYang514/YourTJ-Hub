@@ -16,6 +16,11 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class PublishDispatchTests(unittest.TestCase):
+    def setUp(self):
+        gate = patch('workflow.production_gate')
+        gate.start()
+        self.addCleanup(gate.stop)
+
     def test_trusted_manual_entry_rejects_any_started_channel_before_source_checks(self):
         manifest = candidate()
         with patch('sys.argv', ['workflow.py', 'authorize', '--candidate', manifest['candidateId']]), \

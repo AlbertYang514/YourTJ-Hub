@@ -57,6 +57,7 @@ class DistributionProfileTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as output, patch.dict(os.environ, {
             "IOS_TEAM_ID": "4HJTS3G3T2", "MOBILE_VERSION": "1.2.3",
             "MOBILE_BUILD_NUMBER": "12", "IOS_PROFILE_PATH": output + "/profile",
+            "SOURCE_SHA": "a" * 40,
             "IOS_WIDGET_PROFILE_PATH": output + "/widget-profile",
             "MOBILE_OUTPUT_DIR": output,
         }), patch.object(build_ios.os, "umask"), patch.object(

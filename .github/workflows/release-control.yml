@@ -1,0 +1,138 @@
+name: Release / Control
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Owner action; reassign requires repository admin
+        type: choice
+        options: [start, admit, advance, qa, production-qa, extend, offer, accept, reassign, unfreeze, close, cancel, abort, hotfix, backflow, refresh]
+        required: true
+      cycle: {description: 'Cycle ID; empty only for start/hotfix', type: string}
+      source: {description: 'Full source SHA for start/advance/hotfix/backflow', type: string}
+      issue: {description: 'Release tracking issue number for start/hotfix', type: string}
+      channels: {description: 'Comma-separated production targets', type: string, default: 'web,android,ios-testflight,ios-app-store'}
+      pr: {description: 'Dev blocker PR to admit at its current head', type: string}
+      note: {description: 'Reason, QA checklist result, handoff acceptance or production smoke summary', type: string, required: true}
+      until: {description: 'Freeze extension: UTC Unix timestamp (initial default 24 hours)', type: string}
+      assignee: {description: 'Human maintainer receiving a handoff or admin reassignment', type: string}
+      base: {description: 'Actual distributed full SHA for a hotfix', type: string}
+  # Renew the immutable state seal well before Actions retention expires.
+  schedule:
+    - cron: '17 3 * * *'
+permissions:
+  contents: write
+  actions: read
+  deployments: write
+  pull-requests: read
+  issues: read
+  checks: write
+concurrency:
+  group: instance-mutate-dev
+  cancel-in-progress: false
+  queue: max
+jobs:
+  control:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.action != 'refresh'
+    runs-on: ubuntu-latest
+    environment: mobile-release
+    # Abort waits for all formal publication side effects before reconciling.
+    # Formal publication never acquires instance-mutate-dev, so no lock cycle.
+    concurrency:
+      group: ${{ inputs.action == 'abort' && 'release-production' || format('release-control-{0}', github.run_id) }}
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - id: apple
+        if: contains(fromJSON('["hotfix","unfreeze","close","abort"]'), inputs.action)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CYCLE_ID: ${{ inputs.cycle }}
+          CHANNELS: ${{ inputs.channels }}
+        run: python3 scripts/release/cycle_control.py apple-needed
+      - uses: ./.github/actions/release-apple-auth
+        if: steps.apple.outputs.needed == 'true'
+        continue-on-error: ${{ inputs.action == 'abort' }}
+        with:
+          private-key: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+          key-id: ${{ secrets.ASC_KEY_ID }}
+          issuer-id: ${{ secrets.ASC_ISSUER_ID }}
+      - name: Read actual Apple availability
+        if: steps.apple.outputs.needed == 'true'
+        continue-on-error: ${{ inputs.action == 'abort' }}
+        run: python3 scripts/release/apple.py .apple-state.json --history
+      - name: Apply owner transition
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTION: ${{ inputs.action }}
+          CYCLE_ID: ${{ inputs.cycle }}
+          SOURCE_SHA: ${{ inputs.source }}
+          ISSUE: ${{ inputs.issue }}
+          CHANNELS: ${{ inputs.channels }}
+          PR: ${{ inputs.pr }}
+          NOTE: ${{ inputs.note }}
+          UNTIL: ${{ inputs.until }}
+          ASSIGNEE: ${{ inputs.assignee }}
+          BASE_SHA: ${{ inputs.base }}
+          ABORT_SERIALIZED: ${{ inputs.action == 'abort' && 'true' || 'false' }}
+        run: python3 scripts/release/cycle_control.py change
+      - name: Seal release state
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: release-state-${{ github.run_attempt }}
+          path: .release-state/state.json
+          include-hidden-files: true
+          retention-days: 90
+          if-no-files-found: error
+      - name: Re-evaluate every open dev PR, including previously green heads
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release/cycle_control.py checks
+      - name: Remove Apple authentication
+        if: always()
+        run: rm -rf .asc "$RUNNER_TEMP/release-asc"
+      - name: Refresh the public candidate notice
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: python3 scripts/release/preview_status.py
+  refresh:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.action == 'refresh'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Renew state seal
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release/cycle_control.py refresh
+      - name: Seal release state
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: release-state-${{ github.run_attempt }}
+          path: .release-state/state.json
+          include-hidden-files: true
+          retention-days: 90
+          if-no-files-found: error
+      - name: Re-evaluate every open dev PR, including previously green heads
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release/cycle_control.py checks
+      - name: Refresh the public candidate notice
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: python3 scripts/release/preview_status.py
+  schedule-refresh:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      # Schedules run on the default branch (dev). Dispatch the trusted main
+      # controller; the scheduled run itself never writes a release snapshot.
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run release-control.yml --repo YourTongji/YourTJ-Hub --ref main -f action=refresh -f note='Renew release state seal'

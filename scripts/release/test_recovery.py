@@ -11,6 +11,11 @@ from test_model import candidate
 
 
 class RecoveryTests(unittest.TestCase):
+    def setUp(self):
+        gate = patch('workflow.production_gate')
+        gate.start()
+        self.addCleanup(gate.stop)
+
     def invoke(self, live, prior, recover=True, channel='android', remote=None):
         manifest = candidate() | {'channels': [channel]}
         if channel == 'web':
@@ -22,6 +27,7 @@ class RecoveryTests(unittest.TestCase):
                  patch('workflow.GitHub', return_value=remote), \
                  patch('sys.argv', ['workflow.py', 'start', '--candidate', manifest['candidateId']]), \
                  patch('workflow.authorize', return_value=(manifest, binding)), \
+                 patch('workflow.production_gate'), \
                  patch('workflow.latest_receipt', return_value=prior), \
                  patch('workflow.reservations', return_value=[]), \
                  patch('workflow.baselines', return_value={channel: live}), \
