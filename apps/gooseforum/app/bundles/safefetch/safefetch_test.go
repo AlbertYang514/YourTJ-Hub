@@ -64,6 +64,95 @@ func TestFetchReturnsBoundedHTML(t *testing.T) {
 	}
 }
 
+func TestFetchJSONReturnsBoundedJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if accept := r.Header.Get("Accept"); accept != "application/json" {
+			t.Errorf("Accept header = %q, want application/json", accept)
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_, _ = io.WriteString(w, `{"resultCount":1,"results":[]}`)
+	}))
+	t.Cleanup(server.Close)
+
+	var calls atomic.Int32
+	client := New(Config{
+		Resolver:    fakeResolver{"api.example": {publicAddr()}},
+		DialContext: mappedDialer(server.Listener.Addr().String(), &calls),
+	})
+	result, err := client.FetchJSON(t.Context(), "http://api.example/lookup?id=1")
+	if err != nil {
+		t.Fatalf("FetchJSON() error = %v", err)
+	}
+	if result.StatusCode != http.StatusOK || string(result.Body) != `{"resultCount":1,"results":[]}` {
+		t.Fatalf("FetchJSON() result = %#v", result)
+	}
+	if result.ContentType != "application/json" {
+		t.Fatalf("FetchJSON() content type = %q", result.ContentType)
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("dial calls = %d, want 1", calls.Load())
+	}
+}
+
+// Apple 的固定 Lookup 端点用 text/javascript 返回 JSON（实测），这条回归钉住它：
+// 只允许 application/json 时，平台端点会被判为 content_type 失败，卡片静默退回
+// 通用形态，而任何 fixture 都看不出来。
+func TestFetchJSONAcceptsTheLegacyJavaScriptMediaType(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		_, _ = io.WriteString(w, `{"resultCount":1}`)
+	}))
+	t.Cleanup(server.Close)
+
+	client := New(Config{
+		Resolver:    fakeResolver{"itunes.example": {publicAddr()}},
+		DialContext: mappedDialer(server.Listener.Addr().String(), &atomic.Int32{}),
+	})
+	result, err := client.FetchJSON(t.Context(), "http://itunes.example/lookup?id=1")
+	if err != nil {
+		t.Fatalf("FetchJSON() error = %v", err)
+	}
+	if string(result.Body) != `{"resultCount":1}` {
+		t.Fatalf("FetchJSON() body = %q", result.Body)
+	}
+}
+
+// JSON 抓取只放宽媒体类型，不放宽其它策略：HTML 页面不能从这条路径溜进来，DNS 与
+// 拨号校验也必须和页面抓取完全一致。
+func TestFetchJSONKeepsDocumentPolicy(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = io.WriteString(w, "<title>Example</title>")
+	}))
+	t.Cleanup(server.Close)
+
+	client := New(Config{
+		Resolver:    fakeResolver{"api.example": {publicAddr()}},
+		DialContext: mappedDialer(server.Listener.Addr().String(), &atomic.Int32{}),
+	})
+	if _, err := client.FetchJSON(t.Context(), "http://api.example/page"); !IsClass(err, ErrorContentType) {
+		t.Fatalf("FetchJSON() on HTML error = %v, want content_type", err)
+	}
+	if _, err := client.Fetch(t.Context(), "http://api.example/page"); err != nil {
+		t.Fatalf("Fetch() on HTML error = %v, want accepted", err)
+	}
+
+	var dialCalls atomic.Int32
+	private := New(Config{
+		Resolver: fakeResolver{"private.example": {netip.MustParseAddr("127.0.0.1")}},
+		DialContext: func(context.Context, string, string) (net.Conn, error) {
+			dialCalls.Add(1)
+			return nil, errors.New("must not dial")
+		},
+	})
+	if _, err := private.FetchJSON(t.Context(), "http://private.example/lookup"); !IsClass(err, ErrorBlocked) {
+		t.Fatalf("FetchJSON() private DNS error = %v, want blocked", err)
+	}
+	if dialCalls.Load() != 0 {
+		t.Fatalf("dial calls = %d, want 0", dialCalls.Load())
+	}
+}
+
 func TestFetchRejectsPrivateDNSBeforeDial(t *testing.T) {
 	var calls atomic.Int32
 	client := New(Config{
@@ -265,7 +354,7 @@ func TestWebhookJSONTLSRedirectIsNotFollowedAndDNSRevalidated(t *testing.T) {
 	var received atomic.Int32
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		received.Add(1)
-		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" || r.Header.Get("Authorization") != "" || r.Header.Get("Webhook-Delivery-Id") != "19" {
+		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" || r.Header.Get("X-Ambient-Credential") != "" || r.Header.Get("Webhook-Delivery-Id") != "19" {
 			t.Error("invalid JSON POST or leaked ambient credential")
 		}
 		w.Header().Set("Location", "https://127.0.0.1/private")
@@ -282,7 +371,7 @@ func TestWebhookJSONTLSRedirectIsNotFollowedAndDNSRevalidated(t *testing.T) {
 	resolver := fakeResolver{host: {publicAddr()}}
 	client := New(Config{Resolver: resolver, DialContext: mappedDialer(server.Listener.Addr().String(), &calls)})
 	client.httpClient.Transport.(*http.Transport).TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
-	headers := http.Header{"Authorization": []string{"never-forward-this"}, "Webhook-Id": []string{"evt_test"}, "Webhook-Delivery-Id": []string{"19"}}
+	headers := http.Header{"X-Ambient-Credential": []string{"never-forward-this"}, "Webhook-Id": []string{"evt_test"}, "Webhook-Delivery-Id": []string{"19"}}
 	result, err := client.PostJSON(t.Context(), "https://"+host+"/hook", []byte(`{"id":"evt_test"}`), headers)
 	if err != nil {
 		t.Fatal(err)
@@ -296,6 +385,45 @@ func TestWebhookJSONTLSRedirectIsNotFollowedAndDNSRevalidated(t *testing.T) {
 	}
 	if calls.Load() != 1 {
 		t.Fatal("rebound host was dialed")
+	}
+}
+
+// The static Authorization header is the only caller credential PostJSON puts on
+// the wire: any other caller header stays local, and no Authorization is sent
+// unless the caller set it explicitly.
+func TestPostJSONForwardsOnlyExplicitAuthorization(t *testing.T) {
+	type seenHeaders struct{ authorization, ambient string }
+	var seen seenHeaders
+	var received atomic.Int32
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received.Add(1)
+		seen = seenHeaders{authorization: r.Header.Get("Authorization"), ambient: r.Header.Get("X-Ambient-Credential")}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+	certificate := server.Certificate()
+	host := strings.Replace(certificate.DNSNames[0], "*.", "hook.", 1)
+	pool := x509.NewCertPool()
+	pool.AddCert(certificate)
+	var calls atomic.Int32
+	client := New(Config{Resolver: fakeResolver{host: {publicAddr()}}, DialContext: mappedDialer(server.Listener.Addr().String(), &calls)})
+	client.httpClient.Transport.(*http.Transport).TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+	headers := http.Header{"Authorization": []string{"Bearer agt_static_token"}, "X-Ambient-Credential": []string{"never-forward-this"}, "Webhook-Id": []string{"evt_test"}}
+	result, err := client.PostJSON(t.Context(), "https://"+host+"/hook", []byte(`{"id":"evt_test"}`), headers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.StatusCode != http.StatusNoContent || seen.authorization != "Bearer agt_static_token" || seen.ambient != "" {
+		t.Fatalf("result=%#v headers=%#v", result, seen)
+	}
+	if _, err := client.PostJSON(t.Context(), "https://"+host+"/hook", []byte(`{"id":"evt_none"}`), nil); err != nil {
+		t.Fatal(err)
+	}
+	if seen.authorization != "" {
+		t.Fatalf("Authorization = %q without an explicit header", seen.authorization)
+	}
+	if received.Load() != 2 {
+		t.Fatalf("requests=%d", received.Load())
 	}
 }
 

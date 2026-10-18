@@ -3035,7 +3035,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
   margin-bottom: 1.5rem;
 }
 
-.gf-prose-article img {
+.gf-prose-article img:not(.twemoji) {
   display: block;
   max-width: 100%;
   height: auto;
@@ -3066,7 +3066,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
   margin-bottom: 1rem;
 }
 
-.gf-prose-thought img {
+.gf-prose-thought img:not(.twemoji) {
   display: block;
   max-width: 100%;
   height: auto;

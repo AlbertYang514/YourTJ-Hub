@@ -2514,10 +2514,16 @@ mixin _$UserProfileProps {
   List<UserConnectionPayload> get followers =>
       throw _privateConstructorUsedError;
   bool get isOwnProfile => throw _privateConstructorUsedError;
+  bool get canManageAgent => throw _privateConstructorUsedError;
   bool get canMessage => throw _privateConstructorUsedError;
   bool get canFollow => throw _privateConstructorUsedError;
   String get messageUrl => throw _privateConstructorUsedError;
   String get settingsUrl => throw _privateConstructorUsedError;
+
+  /// issue #1124: server-resolved section visibility. Servers without
+  /// profile privacy omit it, and every section is then public.
+  UserProfileVisibilityPayload get visibility =>
+      throw _privateConstructorUsedError;
 
   /// Serializes this UserProfileProps to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -2551,10 +2557,12 @@ abstract class $UserProfilePropsCopyWith<$Res> {
     List<UserConnectionPayload> following,
     List<UserConnectionPayload> followers,
     bool isOwnProfile,
+    bool canManageAgent,
     bool canMessage,
     bool canFollow,
     String messageUrl,
     String settingsUrl,
+    UserProfileVisibilityPayload visibility,
   });
 
   $UserCardPayloadCopyWith<$Res> get user;
@@ -2590,10 +2598,12 @@ class _$UserProfilePropsCopyWithImpl<$Res, $Val extends UserProfileProps>
     Object? following = null,
     Object? followers = null,
     Object? isOwnProfile = null,
+    Object? canManageAgent = null,
     Object? canMessage = null,
     Object? canFollow = null,
     Object? messageUrl = null,
     Object? settingsUrl = null,
+    Object? visibility = null,
   }) {
     return _then(
       _value.copyWith(
@@ -2653,6 +2663,10 @@ class _$UserProfilePropsCopyWithImpl<$Res, $Val extends UserProfileProps>
                 ? _value.isOwnProfile
                 : isOwnProfile // ignore: cast_nullable_to_non_nullable
                       as bool,
+            canManageAgent: null == canManageAgent
+                ? _value.canManageAgent
+                : canManageAgent // ignore: cast_nullable_to_non_nullable
+                      as bool,
             canMessage: null == canMessage
                 ? _value.canMessage
                 : canMessage // ignore: cast_nullable_to_non_nullable
@@ -2669,6 +2683,10 @@ class _$UserProfilePropsCopyWithImpl<$Res, $Val extends UserProfileProps>
                 ? _value.settingsUrl
                 : settingsUrl // ignore: cast_nullable_to_non_nullable
                       as String,
+            visibility: null == visibility
+                ? _value.visibility
+                : visibility // ignore: cast_nullable_to_non_nullable
+                      as UserProfileVisibilityPayload,
           )
           as $Val,
     );
@@ -2719,10 +2737,12 @@ abstract class _$$UserProfilePropsImplCopyWith<$Res>
     List<UserConnectionPayload> following,
     List<UserConnectionPayload> followers,
     bool isOwnProfile,
+    bool canManageAgent,
     bool canMessage,
     bool canFollow,
     String messageUrl,
     String settingsUrl,
+    UserProfileVisibilityPayload visibility,
   });
 
   @override
@@ -2759,10 +2779,12 @@ class __$$UserProfilePropsImplCopyWithImpl<$Res>
     Object? following = null,
     Object? followers = null,
     Object? isOwnProfile = null,
+    Object? canManageAgent = null,
     Object? canMessage = null,
     Object? canFollow = null,
     Object? messageUrl = null,
     Object? settingsUrl = null,
+    Object? visibility = null,
   }) {
     return _then(
       _$UserProfilePropsImpl(
@@ -2822,6 +2844,10 @@ class __$$UserProfilePropsImplCopyWithImpl<$Res>
             ? _value.isOwnProfile
             : isOwnProfile // ignore: cast_nullable_to_non_nullable
                   as bool,
+        canManageAgent: null == canManageAgent
+            ? _value.canManageAgent
+            : canManageAgent // ignore: cast_nullable_to_non_nullable
+                  as bool,
         canMessage: null == canMessage
             ? _value.canMessage
             : canMessage // ignore: cast_nullable_to_non_nullable
@@ -2838,6 +2864,10 @@ class __$$UserProfilePropsImplCopyWithImpl<$Res>
             ? _value.settingsUrl
             : settingsUrl // ignore: cast_nullable_to_non_nullable
                   as String,
+        visibility: null == visibility
+            ? _value.visibility
+            : visibility // ignore: cast_nullable_to_non_nullable
+                  as UserProfileVisibilityPayload,
       ),
     );
   }
@@ -2861,10 +2891,12 @@ class _$UserProfilePropsImpl implements _UserProfileProps {
     required final List<UserConnectionPayload> following,
     required final List<UserConnectionPayload> followers,
     required this.isOwnProfile,
+    this.canManageAgent = false,
     required this.canMessage,
     required this.canFollow,
     required this.messageUrl,
     required this.settingsUrl,
+    this.visibility = const UserProfileVisibilityPayload(),
   }) : _tabs = tabs,
        _activityTabs = activityTabs,
        _badges = badges,
@@ -2969,6 +3001,9 @@ class _$UserProfilePropsImpl implements _UserProfileProps {
   @override
   final bool isOwnProfile;
   @override
+  @JsonKey()
+  final bool canManageAgent;
+  @override
   final bool canMessage;
   @override
   final bool canFollow;
@@ -2977,9 +3012,15 @@ class _$UserProfilePropsImpl implements _UserProfileProps {
   @override
   final String settingsUrl;
 
+  /// issue #1124: server-resolved section visibility. Servers without
+  /// profile privacy omit it, and every section is then public.
+  @override
+  @JsonKey()
+  final UserProfileVisibilityPayload visibility;
+
   @override
   String toString() {
-    return 'UserProfileProps(user: $user, section: $section, activityTab: $activityTab, tabs: $tabs, activityTabs: $activityTabs, pagination: $pagination, badges: $badges, topics: $topics, activities: $activities, likes: $likes, bookmarks: $bookmarks, following: $following, followers: $followers, isOwnProfile: $isOwnProfile, canMessage: $canMessage, canFollow: $canFollow, messageUrl: $messageUrl, settingsUrl: $settingsUrl)';
+    return 'UserProfileProps(user: $user, section: $section, activityTab: $activityTab, tabs: $tabs, activityTabs: $activityTabs, pagination: $pagination, badges: $badges, topics: $topics, activities: $activities, likes: $likes, bookmarks: $bookmarks, following: $following, followers: $followers, isOwnProfile: $isOwnProfile, canManageAgent: $canManageAgent, canMessage: $canMessage, canFollow: $canFollow, messageUrl: $messageUrl, settingsUrl: $settingsUrl, visibility: $visibility)';
   }
 
   @override
@@ -3019,6 +3060,8 @@ class _$UserProfilePropsImpl implements _UserProfileProps {
             ) &&
             (identical(other.isOwnProfile, isOwnProfile) ||
                 other.isOwnProfile == isOwnProfile) &&
+            (identical(other.canManageAgent, canManageAgent) ||
+                other.canManageAgent == canManageAgent) &&
             (identical(other.canMessage, canMessage) ||
                 other.canMessage == canMessage) &&
             (identical(other.canFollow, canFollow) ||
@@ -3026,12 +3069,14 @@ class _$UserProfilePropsImpl implements _UserProfileProps {
             (identical(other.messageUrl, messageUrl) ||
                 other.messageUrl == messageUrl) &&
             (identical(other.settingsUrl, settingsUrl) ||
-                other.settingsUrl == settingsUrl));
+                other.settingsUrl == settingsUrl) &&
+            (identical(other.visibility, visibility) ||
+                other.visibility == visibility));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     runtimeType,
     user,
     section,
@@ -3047,11 +3092,13 @@ class _$UserProfilePropsImpl implements _UserProfileProps {
     const DeepCollectionEquality().hash(_following),
     const DeepCollectionEquality().hash(_followers),
     isOwnProfile,
+    canManageAgent,
     canMessage,
     canFollow,
     messageUrl,
     settingsUrl,
-  );
+    visibility,
+  ]);
 
   /// Create a copy of UserProfileProps
   /// with the given fields replaced by the non-null parameter values.
@@ -3086,10 +3133,12 @@ abstract class _UserProfileProps implements UserProfileProps {
     required final List<UserConnectionPayload> following,
     required final List<UserConnectionPayload> followers,
     required final bool isOwnProfile,
+    final bool canManageAgent,
     required final bool canMessage,
     required final bool canFollow,
     required final String messageUrl,
     required final String settingsUrl,
+    final UserProfileVisibilityPayload visibility,
   }) = _$UserProfilePropsImpl;
 
   factory _UserProfileProps.fromJson(Map<String, dynamic> json) =
@@ -3128,6 +3177,8 @@ abstract class _UserProfileProps implements UserProfileProps {
   @override
   bool get isOwnProfile;
   @override
+  bool get canManageAgent;
+  @override
   bool get canMessage;
   @override
   bool get canFollow;
@@ -3135,6 +3186,11 @@ abstract class _UserProfileProps implements UserProfileProps {
   String get messageUrl;
   @override
   String get settingsUrl;
+
+  /// issue #1124: server-resolved section visibility. Servers without
+  /// profile privacy omit it, and every section is then public.
+  @override
+  UserProfileVisibilityPayload get visibility;
 
   /// Create a copy of UserProfileProps
   /// with the given fields replaced by the non-null parameter values.

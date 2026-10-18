@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../../theme/gf_theme.dart';
 import '../atoms/gf_avatar.dart';
 import '../gf_symbol.dart';
@@ -103,7 +104,7 @@ class GfNotificationRow extends StatelessWidget {
                         ),
                       ),
                     if (avatarUrl != null) const SizedBox(height: 4),
-                    Text.rich(
+                    GfText.rich(
                       TextSpan(
                         children: [
                           if (actorStart < 0)
@@ -156,7 +157,7 @@ class GfNotificationRow extends StatelessWidget {
                     if (subtitle.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 5),
-                        child: Text(
+                        child: GfText(
                           subtitle,
                           maxLines: subtitleMaxLines,
                           overflow: subtitleMaxLines == null

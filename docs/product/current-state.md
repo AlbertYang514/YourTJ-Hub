@@ -6,20 +6,21 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-13
+> Last verified: 2026-10-16
 
 本页只汇总具体能力、缺口和维护文档。产品规则在对应规范中维护，接口字段以
-[契约覆盖矩阵](../../packages/api-contract/coverage-matrix.md)为准；历史交付过程由 Git 保存。
+[OpenAPI 契约](../../packages/api-contract/openapi.yaml)为准；路由覆盖见
+[覆盖报告入口](../../packages/api-contract/coverage-matrix.md)，历史交付过程由 Git 保存。
 状态词定义见[文档中心](../README.md#implementation-status-words)，代码存在不代表部署和真机验收完成。
 
 ## Supported capabilities
 
 | 能力 | 状态 | 当前边界与维护入口 |
 |---|---|---|
-| 主题、回复与互动 | `Current` | 提问／瞬间／文章、图集、草稿、楼层视图、点赞收藏、关注频道、通知与私信；首页最新排序提供置顶标题区，默认单行显示置顶标签、标题与总数，可展开其余标题；见[论坛体验](forum.md)。 |
+| 主题、回复与互动 | `Current` | 提问／瞬间／文章、图集、草稿（含 Web 草稿箱的确认删除与可恢复删除流程）、楼层视图、点赞收藏、关注频道、通知与私信；首页最新排序提供置顶标题区，默认单行显示置顶标签、标题与总数，可展开其余标题；见[论坛体验](forum.md)。 |
 | 管理后台外壳 | `Current` | 跟随系统并可手动切换的深色主题、按页面名称、路由词和分组检索后台页面并给出候选列表的命令搜索；表单选择统一使用后台组件库，不使用浏览器原生下拉、复选或单选控件。统计页提供内容贡献统计（板块汇总与按日趋势、用户排行与单用户明细），只读公开内容与点赞关系、仅管理员可见，与「推荐统计」互不相干，见[论坛体验](forum.md#content-contribution-statistics)。 |
 | Web 导航外壳 | `Current` | 桌面侧栏可折叠并记忆状态，窄屏使用抽屉；见[论坛阅读规范](forum.md#feed-and-reading)。 |
-| Markdown 与外链 | `Partial` | 阅读支持 Mermaid、数学与受控链接预览；Vditor 替代数学分隔符预览尚缺，见[论坛体验](forum.md#links-markdown-and-stickers)。 |
+| Markdown 与外链 | `Partial` | 阅读支持 Mermaid、数学与受控链接预览，外链免确认白名单由管理端配置并在 Web／Flutter 一致生效；Vditor 替代数学分隔符预览尚缺，见[论坛体验](forum.md#links-markdown-and-stickers)。 |
 | 表情库 | `Partial` | 官方目录、个人素材 API、Web token 渲染及 Flutter 管理／输入可用；Web 个人库管理未实现，见[表情规范](mobile-experience.md#sticker-library)。 |
 | 内容治理与账号生命周期 | `Current` | 审核、举报、敏感词、限流、可恢复删除及账号清除；见[论坛体验](forum.md#governance-and-public-exports)与[身份规范](identity-and-access.md)。 |
 | 课程目录、课评与排课 | `Current` | Web／Flutter 目录、评价、收藏、多方案排课和逐方案云同步；匿名边界、沿革及导入规则见[课程规范](courses-and-scheduling.md)。 |

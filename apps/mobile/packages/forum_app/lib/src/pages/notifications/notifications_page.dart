@@ -385,6 +385,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           const LogoMotionLoader(showMessage: true),
       title: l10n.notificationsTitle,
       showComposeAction: false,
+      statusBarScrollToTopController: _scroll,
       actions: <Widget>[
         if (_markingAll)
           SizedBox(
@@ -647,11 +648,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                             ),
                                             const SizedBox(width: 8),
                                             Expanded(
-                                              child: Text(l10n.commonLoading),
+                                              child: GfText(l10n.commonLoading),
                                             ),
                                           ] else ...[
                                             Expanded(
-                                              child: Text(
+                                              child: GfText(
                                                 _readErrors[n.id]!,
                                                 style: TextStyle(
                                                   color: GfTheme.colorsOf(
@@ -662,7 +663,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                             ),
                                             TextButton(
                                               onPressed: () => _markRead(n),
-                                              child: Text(l10n.commonRetry),
+                                              child: GfText(l10n.commonRetry),
                                             ),
                                           ],
                                         ],

@@ -32,6 +32,8 @@ const pageSize = ref(20)
 const query = ref('')
 const searchError = ref('')
 const target = ref<{ userId?: number, username?: string } | null>(null)
+// 最近一次「纯数字」搜索的原文：userId 查询未命中时按同名用户名重试一次。
+const pendingNumericSearch = ref('')
 // 请求序号守卫：快速切换筛选/排序/分页时，旧响应不得覆盖新结果（AC-8）。
 let rankSeq = 0
 
@@ -105,6 +107,7 @@ function changePageSize(value: number) {
 }
 
 function openDetail(userId: number) {
+  pendingNumericSearch.value = ''
   target.value = { userId }
 }
 
@@ -116,7 +119,19 @@ function submitSearch() {
   }
   searchError.value = ''
   // 契约要求 userId 与 username 恰给一个：纯数字按用户 ID，其余按用户名查询。
-  target.value = /^\d+$/.test(value) ? { userId: Number(value) } : { username: value }
+  // username 允许 6-32 位字母数字下划线，纯数字串两种解释都合法，因此记下原文，
+  // 供 ID 查询未命中时按用户名重试一次。
+  const numeric = /^\d+$/.test(value)
+  pendingNumericSearch.value = numeric ? value : ''
+  target.value = numeric ? { userId: Number(value) } : { username: value }
+}
+
+// 明细查询报 user.notFound 时调用：只有本次搜索是纯数字才回退，且只回退一次。
+function retrySearchAsUsername() {
+  const value = pendingNumericSearch.value
+  if (!value) return
+  pendingNumericSearch.value = ''
+  target.value = { username: value }
 }
 
 watch(
@@ -211,6 +226,7 @@ watch(
       :target="target"
       class="min-w-0"
       @close="target = null"
+      @not-found="retrySearchAsUsername"
     />
   </div>
 </template>

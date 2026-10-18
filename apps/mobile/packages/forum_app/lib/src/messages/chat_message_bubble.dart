@@ -88,6 +88,9 @@ class ChatMessageBubble extends ConsumerWidget {
                     mine: mine,
                     onOpenLink: (url) async {
                       try {
+                        // MessageContent 是纯文本渲染：可点 span 的可见文本就是 URL
+                        // 自身（message_content.dart），不存在「标签与目标不符」，
+                        // 因此这里无需 risk（issue #1200 review）。
                         await LinkNavigation.open(
                           context,
                           url,
@@ -220,7 +223,7 @@ class _ChatReplyQuoteBlock extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (quote.sender.isNotEmpty)
-                          Text(
+                          GfText(
                             quote.sender,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -231,7 +234,7 @@ class _ChatReplyQuoteBlock extends StatelessWidget {
                             ),
                           ),
                         if (quote.excerpt.isNotEmpty)
-                          Text(
+                          GfText(
                             excerpt,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,

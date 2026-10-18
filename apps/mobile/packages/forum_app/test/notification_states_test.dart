@@ -239,7 +239,10 @@ void main() {
             expect(row.onActorTap, hasActor ? isNotNull : isNull);
             final bold = <String>[];
             for (final text in tester.widgetList<Text>(
-              find.descendant(of: rows.at(index), matching: find.byType(Text)),
+              find.descendant(
+                of: rows.at(index),
+                matching: find.byWidgetPredicate((widget) => widget is Text),
+              ),
             )) {
               text.textSpan?.visitChildren((span) {
                 if (span is TextSpan &&

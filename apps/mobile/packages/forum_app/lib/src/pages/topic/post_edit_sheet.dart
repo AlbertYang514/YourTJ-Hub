@@ -46,20 +46,20 @@ class _PostEditSheetState extends ConsumerState<PostEditSheet> {
     if (_busy || _uploading) return;
     final l10n = AppLocalizations.of(context);
     if (_text.text != widget.content) {
-      final discard = await showDialog<bool>(
-        context: context,
-        animationStyle: GfMotion.dialogStyle(context),
-        builder: (context) => AlertDialog(
-          title: Text(l10n.publishLeaveTitle),
-          content: Text(l10n.publishLeaveBody),
+      final discard = await showGfAlertDialog<bool>(
+        context,
+        builder: (context) => GfAlertDialog(
+          title: GfText(l10n.publishLeaveTitle),
+          content: GfText(l10n.publishLeaveBody),
           actions: [
-            TextButton(
+            GfDialogAction(
               onPressed: () => Navigator.pop(context, false),
-              child: Text(l10n.commonCancel),
+              child: GfText(l10n.commonCancel),
             ),
-            TextButton(
+            GfDialogAction(
+              destructive: true,
               onPressed: () => Navigator.pop(context, true),
-              child: Text(l10n.publishDiscard),
+              child: GfText(l10n.publishDiscard),
             ),
           ],
         ),
@@ -169,7 +169,7 @@ class _PostEditSheetState extends ConsumerState<PostEditSheet> {
                         Row(
                           children: [
                             Expanded(
-                              child: Text(
+                              child: GfText(
                                 l10n.topicEditReply,
                                 style: GfTheme.typographyOf(context).title3,
                               ),
@@ -227,7 +227,7 @@ class _PostEditSheetState extends ConsumerState<PostEditSheet> {
                         if (_error != null)
                           Padding(
                             padding: const EdgeInsets.only(top: 8),
-                            child: Text(
+                            child: GfText(
                               _error!,
                               style: TextStyle(
                                 color: GfTheme.colorsOf(context).error,

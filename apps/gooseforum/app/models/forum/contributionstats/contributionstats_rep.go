@@ -40,27 +40,25 @@ const (
 	topicAuthorPredicate = "t.persona_uid = ''"
 	replyAuthorPredicate = "p.persona_uid = '' AND p.is_anonymous = false"
 
-	topicEffectiveExpr       = "COALESCE(t.first_public_at, t.created_at)"
-	replyEffectiveExpr       = "COALESCE(p.first_public_at, p.created_at)"
-	topicEstimatedExpr       = "(t.first_public_at IS NULL OR t.first_public_estimated)"
-	replyEstimatedExpr       = "(p.first_public_at IS NULL OR p.first_public_estimated)"
-	estimatedFlagExpr        = "MAX(CASE WHEN %s THEN 1 ELSE 0 END) AS estimated"
-	rankingOuterSelect       = "SELECT author_totals.user_id AS user_id, SUM(author_totals.topic_count) AS topic_count, SUM(author_totals.reply_count) AS reply_count, SUM(author_totals.like_count) AS like_count FROM (? UNION ALL ?) AS author_totals GROUP BY author_totals.user_id"
-	rankingTotalSelect       = "SELECT COUNT(DISTINCT authors.user_id) AS total FROM (? UNION ALL ?) AS authors"
-	userTotalSelect          = "SELECT COALESCE(SUM(author_totals.topic_count), 0) AS topic_count, COALESCE(SUM(author_totals.reply_count), 0) AS reply_count, COALESCE(SUM(author_totals.like_count), 0) AS like_count FROM (? UNION ALL ?) AS author_totals"
-	contributorCountSQL      = "SELECT COUNT(DISTINCT authors.user_id) AS total FROM (? UNION ALL ?) AS authors"
-	authorScopedEstimatedSQL = "SELECT MAX(scope_estimated.estimated) AS estimated FROM (? UNION ALL ?) AS scope_estimated"
-	contributorGroupSQL      = "SELECT authors.category_id AS category_id, COUNT(DISTINCT authors.user_id) AS count FROM (? UNION ALL ?) AS authors GROUP BY authors.category_id ORDER BY authors.category_id ASC"
-	categoryColumns          = "tci.category_id AS category_id, "
-	categoryIndexJoin        = "JOIN topic_category_index AS tci ON tci.topic_id = t.id AND tci.effective = 1"
-	replyLikeJoin            = "LEFT JOIN post_user_action AS pua ON pua.post_id = p.id AND pua.liked_at IS NOT NULL"
-	topicRankingSelect       = "t.user_id AS user_id, COUNT(*) AS topic_count, 0 AS reply_count, COALESCE(SUM(t.like_count), 0) AS like_count"
-	replyRankingSelect       = "p.user_id AS user_id, 0 AS topic_count, COUNT(DISTINCT p.id) AS reply_count, COUNT(pua.id) AS like_count"
-	topicRankingGroupBy      = "t.user_id"
-	replyRankingGroupBy      = "p.user_id"
-	rankingOrderTopics       = "topic_count DESC, author_totals.user_id ASC"
-	rankingOrderReplies      = "reply_count DESC, author_totals.user_id ASC"
-	rankingOrderLikes        = "like_count DESC, author_totals.user_id ASC"
+	topicEffectiveExpr  = "COALESCE(t.first_public_at, t.created_at)"
+	replyEffectiveExpr  = "COALESCE(p.first_public_at, p.created_at)"
+	topicEstimatedExpr  = "(t.first_public_at IS NULL OR t.first_public_estimated)"
+	replyEstimatedExpr  = "(p.first_public_at IS NULL OR p.first_public_estimated)"
+	rankingOuterSelect  = "SELECT author_totals.user_id AS user_id, SUM(author_totals.topic_count) AS topic_count, SUM(author_totals.reply_count) AS reply_count, SUM(author_totals.like_count) AS like_count FROM (? UNION ALL ?) AS author_totals GROUP BY author_totals.user_id"
+	rankingTotalSelect  = "SELECT COUNT(DISTINCT authors.user_id) AS total, COALESCE(MAX(authors.estimated), 0) AS estimated FROM (? UNION ALL ?) AS authors"
+	userTotalSelect     = "SELECT COALESCE(SUM(author_totals.topic_count), 0) AS topic_count, COALESCE(SUM(author_totals.reply_count), 0) AS reply_count, COALESCE(SUM(author_totals.like_count), 0) AS like_count FROM (? UNION ALL ?) AS author_totals"
+	contributorCountSQL = "SELECT COUNT(DISTINCT authors.user_id) AS total FROM (? UNION ALL ?) AS authors"
+	contributorGroupSQL = "SELECT authors.category_id AS category_id, COUNT(DISTINCT authors.user_id) AS count FROM (? UNION ALL ?) AS authors GROUP BY authors.category_id ORDER BY authors.category_id ASC"
+	categoryColumns     = "tci.category_id AS category_id, "
+	categoryIndexJoin   = "JOIN topic_category_index AS tci ON tci.topic_id = t.id AND tci.effective = 1"
+	replyLikeJoin       = "LEFT JOIN post_user_action AS pua ON pua.post_id = p.id AND pua.liked_at IS NOT NULL"
+	topicRankingSelect  = "t.user_id AS user_id, COUNT(*) AS topic_count, 0 AS reply_count, COALESCE(SUM(t.like_count), 0) AS like_count"
+	replyRankingSelect  = "p.user_id AS user_id, 0 AS topic_count, COUNT(DISTINCT p.id) AS reply_count, COUNT(pua.id) AS like_count"
+	topicRankingGroupBy = "t.user_id"
+	replyRankingGroupBy = "p.user_id"
+	rankingOrderTopics  = "topic_count DESC, author_totals.user_id ASC"
+	rankingOrderReplies = "reply_count DESC, author_totals.user_id ASC"
+	rankingOrderLikes   = "like_count DESC, author_totals.user_id ASC"
 )
 
 // CategoryCounts 返回区间内每个板块的内容量（口径 R3）：多板块主题在每个所属板块各计一次。
@@ -103,21 +101,15 @@ func UserRanking(ctx context.Context, scope Scope, actorType int8, sort SortKey,
 	return userRanking(db.ConnectContext(ctx), scope, actorType, sort, offset, limit)
 }
 
-// UserRankingTotal 返回同一筛选下的账号总数（分页依据）。
-func UserRankingTotal(ctx context.Context, scope Scope, actorType int8) (int64, error) {
+// UserRankingTotal 返回同一筛选下的账号总数（分页依据）与该范围内是否有估算时间归属。
+// 两者在同一条 UNION 扫描里产出，因此 estimated 与 total 描述的是同一批计入的行。
+func UserRankingTotal(ctx context.Context, scope Scope, actorType int8) (RankingTotal, error) {
 	return userRankingTotal(db.ConnectContext(ctx), scope, actorType)
 }
 
 // UserContentTotals 返回单个账号在区间内贡献的内容量与当前有效获赞（口径 R5）。
 func UserContentTotals(ctx context.Context, scope Scope, userID uint64) (UserContentTotal, error) {
 	return userContentTotals(db.ConnectContext(ctx), scope, userID)
-}
-
-// AuthorScopedEstimated 报告「本次按主体统计计入的行」中是否存在估算时间归属：
-// scope、actorType、匿名与注销排除口径与 UserRanking/UserRankingTotal 完全一致，
-// 因此真人排行不会因为只有 Agent 的行是估算来源而误报 estimated。
-func AuthorScopedEstimated(ctx context.Context, scope Scope, actorType int8) (bool, error) {
-	return authorScopedEstimated(db.ConnectContext(ctx), scope, actorType)
 }
 
 // 以下查询实现都接受显式连接：默认路径由上面的导出函数注入全局连接，
@@ -140,7 +132,7 @@ func categoryCounts(conn *gorm.DB, scope Scope, kind ContentKind) ([]CategoryCou
 func siteContentTotal(conn *gorm.DB, scope Scope, kind ContentKind) (ContentTotal, error) {
 	var row ContentTotal
 	err := contentQuery(conn, scope, kind).
-		Select("COUNT(*) AS count, " + fmt.Sprintf(estimatedFlagExpr, estimatedExpr(kind))).
+		Select("COUNT(*) AS count, " + estimatedFlagSelect(estimatedExpr(kind))).
 		Scan(&row).Error
 	return row, err
 }
@@ -158,10 +150,14 @@ func userDailyCounts(conn *gorm.DB, scope Scope, userID uint64, kind ContentKind
 
 func categoryContributorCounts(conn *gorm.DB, scope Scope, actorType int8) ([]CategoryCount, error) {
 	// 指定板块时两条作者子查询都必须按该板块收窄，否则会带出其他板块的分组行。
-	topicAuthors := authorQuery(conn, scope, &actorType, KindTopic).
+	// 收窄只走索引表 JOIN 的 tci.category_id 等值：这里清掉 scope 的板块谓词，
+	// 免得再叠一层等价的 `t.id IN (子查询)`（评审 nit：双重过滤冗余）。
+	joinedScope := scope
+	joinedScope.CategoryID = 0
+	topicAuthors := authorQuery(conn, joinedScope, &actorType, KindTopic).
 		Joins(categoryIndexJoin).
 		Select(categoryColumns + "t.user_id AS user_id")
-	replyAuthors := authorQuery(conn, scope, &actorType, KindReply).
+	replyAuthors := authorQuery(conn, joinedScope, &actorType, KindReply).
 		Joins(categoryIndexJoin).
 		Select(categoryColumns + "p.user_id AS user_id")
 	if scope.CategoryID > 0 {
@@ -171,20 +167,6 @@ func categoryContributorCounts(conn *gorm.DB, scope Scope, actorType int8) ([]Ca
 	var rows []CategoryCount
 	err := conn.Raw(contributorGroupSQL, topicAuthors, replyAuthors).Scan(&rows).Error
 	return rows, err
-}
-
-// authorScopedEstimated 用一条 UNION ALL 取主题侧与回复侧各自的 MAX(CASE WHEN …)，
-// 外层再取两者最大值——两侧口径与排行完全一致。
-func authorScopedEstimated(conn *gorm.DB, scope Scope, actorType int8) (bool, error) {
-	topicEstimated := authorQuery(conn, scope, &actorType, KindTopic).
-		Select("MAX(CASE WHEN " + topicEstimatedExpr + " THEN 1 ELSE 0 END) AS estimated")
-	replyEstimated := authorQuery(conn, scope, &actorType, KindReply).
-		Select("MAX(CASE WHEN " + replyEstimatedExpr + " THEN 1 ELSE 0 END) AS estimated")
-	var row struct {
-		Estimated bool `gorm:"column:estimated"`
-	}
-	err := conn.Raw(authorScopedEstimatedSQL, topicEstimated, replyEstimated).Scan(&row).Error
-	return row.Estimated, err
 }
 
 func siteContributorCount(conn *gorm.DB, scope Scope, actorType int8) (int64, error) {
@@ -208,16 +190,14 @@ func userRanking(conn *gorm.DB, scope Scope, actorType int8, sort SortKey, offse
 	return rows, err
 }
 
-func userRankingTotal(conn *gorm.DB, scope Scope, actorType int8) (int64, error) {
-	var row struct {
-		Total int64 `gorm:"column:total"`
-	}
+func userRankingTotal(conn *gorm.DB, scope Scope, actorType int8) (RankingTotal, error) {
+	var row RankingTotal
 	err := conn.
 		Raw(rankingTotalSelect,
 			topicRankingQuery(conn, scope, &actorType),
 			replyRankingQuery(conn, scope, &actorType)).
 		Scan(&row).Error
-	return row.Total, err
+	return row, err
 }
 
 func userContentTotals(conn *gorm.DB, scope Scope, userID uint64) (UserContentTotal, error) {
@@ -277,9 +257,10 @@ func authorQuery(conn *gorm.DB, scope Scope, actorType *int8, kind ContentKind) 
 }
 
 // topicRankingQuery 按作者聚合主题数与主题获赞（R5：获赞取 topics.like_count 之和）。
+// 每个作者顺带产出估算标记，供总数扫描在同一个 UNION 里取 MAX（口径 R8）。
 func topicRankingQuery(conn *gorm.DB, scope Scope, actorType *int8) *gorm.DB {
 	return authorQuery(conn, scope, actorType, KindTopic).
-		Select(topicRankingSelect).
+		Select(topicRankingSelect + ", " + estimatedFlagSelect(topicEstimatedExpr)).
 		Group(topicRankingGroupBy)
 }
 
@@ -288,7 +269,7 @@ func topicRankingQuery(conn *gorm.DB, scope Scope, actorType *int8) *gorm.DB {
 func replyRankingQuery(conn *gorm.DB, scope Scope, actorType *int8) *gorm.DB {
 	return authorQuery(conn, scope, actorType, KindReply).
 		Joins(replyLikeJoin).
-		Select(replyRankingSelect).
+		Select(replyRankingSelect + ", " + estimatedFlagSelect(replyEstimatedExpr)).
 		Group(replyRankingGroupBy)
 }
 
@@ -311,7 +292,7 @@ func scanDailyCounts(query *gorm.DB, kind ContentKind) ([]DailyCount, error) {
 	dayExpr := localDayExpr(query, effectiveExpr(kind))
 	var rows []DailyCount
 	err := query.
-		Select(dayExpr + " AS day, COUNT(*) AS count, " + fmt.Sprintf(estimatedFlagExpr, estimatedExpr(kind))).
+		Select(dayExpr + " AS day, COUNT(*) AS count, " + estimatedFlagSelect(estimatedExpr(kind))).
 		Group(dayExpr).
 		Order("day ASC").
 		Scan(&rows).Error
@@ -323,9 +304,10 @@ func scanDailyCounts(query *gorm.DB, kind ContentKind) ([]DailyCount, error) {
 //
 // 两种方言都按「绝对时刻 + 本地时区偏移后取 UTC 日历日」换算，语义与
 // time.Time.In(time.Local) 一致；偏移量取查询时刻的 time.Local 偏移，
-// 在无夏令时的服务器时区（部署为 Asia/Shanghai）与逐日换算完全一致。
-// SQLite 用 strftime 的秒偏移修饰符、PostgreSQL 用 make_interval，
-// 避免依赖数据库会话时区，也避免 BOOL_OR 这类方言专有聚合。
+// 只在无夏令时的服务器时区（部署约束，见 docs/operations/deployment.md 的
+// 「服务器时区：必须无夏令时」）与逐日换算完全一致，测试兜底见
+// TestDeploymentTimezoneHasNoDST。SQLite 用 strftime 的秒偏移修饰符、
+// PostgreSQL 用 make_interval，避免依赖数据库会话时区，也避免 BOOL_OR 这类方言专有聚合。
 func localDayExpr(conn *gorm.DB, effective string) string {
 	_, offset := time.Now().In(time.Local).Zone()
 	// gorm 内嵌 Dialector 接口，conn.Name() 即方言名（postgres / sqlite）。
@@ -333,6 +315,12 @@ func localDayExpr(conn *gorm.DB, effective string) string {
 		return fmt.Sprintf("to_char((%s + make_interval(secs => %d)) AT TIME ZONE 'UTC', 'YYYY-MM-DD')", effective, offset)
 	}
 	return fmt.Sprintf("strftime('%%Y-%%m-%%d', %s, '%+d seconds')", effective, offset)
+}
+
+// estimatedFlagSelect 返回「该范围是否含估算时间归属」的聚合片段（口径 R8）。
+// 站点汇总、逐日分桶与排行子查询共用同一段 SQL 文本，避免同一标记出现多种写法。
+func estimatedFlagSelect(estimatedExpr string) string {
+	return "MAX(CASE WHEN " + estimatedExpr + " THEN 1 ELSE 0 END) AS estimated"
 }
 
 func estimatedExpr(kind ContentKind) string {

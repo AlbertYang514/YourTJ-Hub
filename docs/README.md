@@ -59,6 +59,7 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 - [Courses, reviews & scheduling](product/courses-and-scheduling.md)
 - [Mobile experience](product/mobile-experience.md)
 - [Mobile interaction and layout standard](product/mobile-design-system.md)
+- [Emoji rendering](product/emoji-rendering.md)
 - [Wiki authoring](product/wiki-authoring.md)
 - [My campus & official identity](product/campus.md)
 - [Campus map](product/campus-map.md)

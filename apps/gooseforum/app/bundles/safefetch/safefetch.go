@@ -149,8 +149,45 @@ func New(config Config) *Client {
 	return client
 }
 
+// documentPolicy 描述一次抓取允许请求和接受哪种有界文档。
+type documentPolicy struct {
+	accept     string
+	mediaTypes []string
+}
+
+var (
+	htmlDocument = documentPolicy{accept: "text/html, application/xhtml+xml", mediaTypes: []string{"text/html", "application/xhtml+xml"}}
+	// text/javascript 不是笔误：Apple 的固定 Lookup 端点就是用这个旧媒体类型
+	// 返回 JSON 的（实测 content-type: text/javascript; charset=utf-8）。放行它
+	// 不会放宽任何边界——响应体仍必须通过调用方的 JSON 解析才能变成字段，畸形或
+	// HTML 内容在解析那一步就被丢弃。
+	jsonDocument = documentPolicy{accept: "application/json", mediaTypes: []string{"application/json", "text/javascript"}}
+)
+
+func (p documentPolicy) allows(mediaType string) bool {
+	for _, allowed := range p.mediaTypes {
+		if mediaType == allowed {
+			return true
+		}
+	}
+	return false
+}
+
 // Fetch retrieves one HTML response within the configured limits.
 func (c *Client) Fetch(ctx context.Context, rawURL string) (Result, error) {
+	return c.fetchDocument(ctx, rawURL, htmlDocument)
+}
+
+// FetchJSON retrieves one bounded JSON response. It exists for the fixed,
+// code-owned metadata endpoints of link-preview platform adapters: callers must
+// never pass a user- or page-supplied URL through it. Every other policy —
+// URL/DNS/redirect validation, timeouts, response size, concurrency — is
+// identical to Fetch, so a JSON endpoint cannot widen the fetch surface.
+func (c *Client) FetchJSON(ctx context.Context, rawURL string) (Result, error) {
+	return c.fetchDocument(ctx, rawURL, jsonDocument)
+}
+
+func (c *Client) fetchDocument(ctx context.Context, rawURL string, policy documentPolicy) (Result, error) {
 	classified := urlutil.ClassifyLink(rawURL)
 	if classified.Kind != urlutil.LinkExternalHTTP {
 		return Result{}, &FetchError{Class: ErrorInvalid, Err: errors.New("URL rejected")}
@@ -169,7 +206,7 @@ func (c *Client) Fetch(ctx context.Context, rawURL string) (Result, error) {
 	if err != nil {
 		return Result{}, &FetchError{Class: ErrorInvalid, Err: err}
 	}
-	request.Header.Set("Accept", "text/html, application/xhtml+xml")
+	request.Header.Set("Accept", policy.accept)
 	request.Header.Set("User-Agent", "YourTJ-LinkPreview/1.0")
 
 	started := time.Now()
@@ -183,8 +220,8 @@ func (c *Client) Fetch(ctx context.Context, rawURL string) (Result, error) {
 		return Result{}, &FetchError{Class: ErrorTooLarge, Err: errors.New("content length exceeds limit")}
 	}
 	mediaType, _, err := mime.ParseMediaType(response.Header.Get("Content-Type"))
-	if err != nil || (mediaType != "text/html" && mediaType != "application/xhtml+xml") {
-		return Result{}, &FetchError{Class: ErrorContentType, Err: errors.New("response is not HTML")}
+	if err != nil || !policy.allows(mediaType) {
+		return Result{}, &FetchError{Class: ErrorContentType, Err: errors.New("response type not allowed")}
 	}
 	body, err := io.ReadAll(io.LimitReader(response.Body, c.maxBodyBytes+1))
 	if err != nil {
@@ -335,6 +372,22 @@ func ValidateWebhookURL(raw string) error {
 	return nil
 }
 
+// forwardedHeaderNames is the exact set of caller-supplied headers PostJSON is
+// allowed to put on the wire. The request is built from scratch, proxies are
+// disabled and redirects are refused, so no ambient credential can reach a
+// receiver; a header still has to be named here to be forwarded. Authorization
+// carries the optional per-Agent static credential (stored values are validated
+// as visible ASCII before being encrypted, so they cannot inject header lines);
+// the Webhook-* names carry the Standard Webhooks signature.
+var forwardedHeaderNames = []string{
+	"Webhook-Id",
+	"Webhook-Timestamp",
+	"Webhook-Signature",
+	"Webhook-Attempt-Id",
+	"Webhook-Delivery-Id",
+	"Authorization",
+}
+
 // PostJSON only sends bounded JSON to public HTTPS/443; no redirect, proxy,
 // ambient credentials or pooled connection can bypass a fresh DNS check.
 func (c *Client) PostJSON(ctx context.Context, rawURL string, body []byte, headers http.Header) (Result, error) {
@@ -354,7 +407,7 @@ func (c *Client) PostJSON(ctx context.Context, rawURL string, body []byte, heade
 	if err != nil {
 		return Result{}, &FetchError{Class: ErrorInvalid, Err: err}
 	}
-	for _, name := range []string{"Webhook-Id", "Webhook-Timestamp", "Webhook-Signature", "Webhook-Attempt-Id", "Webhook-Delivery-Id"} {
+	for _, name := range forwardedHeaderNames {
 		if v := headers.Get(name); v != "" {
 			req.Header.Set(name, v)
 		}

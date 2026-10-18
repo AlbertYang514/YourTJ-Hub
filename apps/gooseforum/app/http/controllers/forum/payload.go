@@ -41,6 +41,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/appleauthservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/campusservice"
@@ -51,6 +52,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/profileprivacyservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/themeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicunseenservice"
@@ -194,6 +196,9 @@ type SitePayload struct {
 	BrandType     string `json:"brandType"`
 	BrandText     string `json:"brandText"`
 	BrandImage    string `json:"brandImage"`
+	// TrustedExternalDomains 外链免确认白名单（issue #1200）：小写主机名清单，
+	// 条目覆盖其全部子域；客户端仅对 normal_external 风险豁免确认弹层。
+	TrustedExternalDomains []string `json:"trustedExternalDomains"`
 }
 
 type ViewerPayload struct {
@@ -204,6 +209,7 @@ type ViewerPayload struct {
 	AvatarURL                 string                     `json:"avatarUrl"`
 	IsAuthenticated           bool                       `json:"isAuthenticated"`
 	CanAccessAdmin            bool                       `json:"canAccessAdmin"`
+	CanManageAgents           bool                       `json:"canManageAgents"`
 	IsModerator               bool                       `json:"isModerator"`
 	RequiresEmailVerification bool                       `json:"requiresEmailVerification"`
 	AdminPermissions          []uint64                   `json:"adminPermissions"`
@@ -446,24 +452,45 @@ type TopicPermissions struct {
 }
 
 type UserProfileProps struct {
-	User         *vo.UserCard             `json:"user"`
-	Section      string                   `json:"section"`
-	ActivityTab  string                   `json:"activityTab"`
-	Tabs         []TabPayload             `json:"tabs"`
-	ActivityTabs []TabPayload             `json:"activityTabs"`
-	Pagination   PaginationPayload        `json:"pagination"`
-	Badges       []badgeservice.UserBadge `json:"badges"`
-	Topics       []TopicPayload           `json:"topics"`
-	Activities   []UserActivityPayload    `json:"activities"`
-	Likes        []UserLikePayload        `json:"likes"`
-	Bookmarks    []UserBookmarkPayload    `json:"bookmarks"`
-	Following    []UserConnectionPayload  `json:"following"`
-	Followers    []UserConnectionPayload  `json:"followers"`
-	IsOwnProfile bool                     `json:"isOwnProfile"`
-	CanMessage   bool                     `json:"canMessage"`
-	CanFollow    bool                     `json:"canFollow"`
-	MessageURL   string                   `json:"messageUrl"`
-	SettingsURL  string                   `json:"settingsUrl"`
+	User           *vo.UserCard             `json:"user"`
+	Section        string                   `json:"section"`
+	ActivityTab    string                   `json:"activityTab"`
+	Tabs           []TabPayload             `json:"tabs"`
+	ActivityTabs   []TabPayload             `json:"activityTabs"`
+	Pagination     PaginationPayload        `json:"pagination"`
+	Badges         []badgeservice.UserBadge `json:"badges"`
+	Topics         []TopicPayload           `json:"topics"`
+	Activities     []UserActivityPayload    `json:"activities"`
+	Likes          []UserLikePayload        `json:"likes"`
+	Bookmarks      []UserBookmarkPayload    `json:"bookmarks"`
+	Following      []UserConnectionPayload  `json:"following"`
+	Followers      []UserConnectionPayload  `json:"followers"`
+	IsOwnProfile   bool                     `json:"isOwnProfile"`
+	CanManageAgent bool                     `json:"canManageAgent"`
+	CanMessage     bool                     `json:"canMessage"`
+	CanFollow      bool                     `json:"canFollow"`
+	MessageURL     string                   `json:"messageUrl"`
+	SettingsURL    string                   `json:"settingsUrl"`
+	// Visibility reports which profile sections this viewer may see.
+	Visibility UserProfileVisibilityPayload `json:"visibility"`
+}
+
+// UserProfileVisibilityPayload mirrors the owner's profile privacy settings
+// as resolved for the current viewer (issue #1124).
+type UserProfileVisibilityPayload struct {
+	ProfileTopics   ProfileSectionVisibilityPayload `json:"profileTopics"`
+	ProfileActivity ProfileSectionVisibilityPayload `json:"profileActivity"`
+	ProfileLikes    ProfileSectionVisibilityPayload `json:"profileLikes"`
+	FollowingList   ProfileSectionVisibilityPayload `json:"followingList"`
+	FollowersList   ProfileSectionVisibilityPayload `json:"followersList"`
+}
+
+type ProfileSectionVisibilityPayload struct {
+	Visible bool `json:"visible"`
+	// Reason is present only for hidden sections: signin | followers | mutual | private.
+	Reason string `json:"reason,omitempty"`
+	// Audience is present only on the owner's own profile.
+	Audience string `json:"audience,omitempty"`
 }
 
 type UserActivityPayload struct {
@@ -754,6 +781,7 @@ func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
 			Decoration:                currentUser.Decoration,
 			IsAuthenticated:           currentUser.UserId > 0,
 			CanAccessAdmin:            currentUser.CanAccessAdmin,
+			CanManageAgents:           agentservice.CanAccessManagement(currentUser.UserId),
 			IsModerator:               moderationservice.CanAccessModeration(currentUser.UserId),
 			RequiresEmailVerification: currentUser.UserId > 0 && securityConfig.EnableEmailVerification && currentUser.IsActivated == users.ActivationPending,
 			AdminPermissions:          buildAdminPermissions(currentUser.UserId),
@@ -789,6 +817,8 @@ func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
 			BrandType:     brandType,
 			BrandText:     brandText,
 			BrandImage:    brandImage,
+			// 读取路径已由 GetSiteSettingsConfig 归一化并保证非 nil（issue #1200）。
+			TrustedExternalDomains: siteConfig.TrustedExternalDomains,
 		},
 		Viewer:       viewer,
 		DailyRanking: feedconfig.RankReady(),
@@ -2058,6 +2088,9 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 	userCard.Badges = []badgeservice.UserBadge{}
 	userCard.IsFollowing = isFollowing
 	userCard.IsSelf = currentUserID == user.Id
+	// Resolve visibility before any section query so hidden sections never
+	// load rows, counts or cursors (issue #1124).
+	privacy := profileprivacyservice.Evaluate(user.Id, currentUserID)
 
 	badges := []badgeservice.UserBadge{}
 	topicPayloads := []TopicPayload{}
@@ -2079,6 +2112,9 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 	case userProfileSectionActivity:
 		switch activityTab {
 		case userProfileActivityTopics:
+			if !privacy.Visible(profileprivacyservice.SectionTopics) {
+				break
+			}
 			cursor := positiveUint(c.Query("cursor"))
 			topicPage, _ := topics.GetProfileTopicsBeforeID(user.Id, cursor, userProfileTopicPageSize+1, currentUserID == user.Id)
 			hasNext := len(topicPage) > userProfileTopicPageSize
@@ -2092,16 +2128,25 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 			topicPayloads = buildTrackedTopicPayloads(currentUserID, topicViews)
 			pagination = buildUserActivityTopicPagination(user.Id, topicPage, hasNext)
 		case userProfileActivityLikes:
+			if !privacy.Visible(profileprivacyservice.SectionLikes) {
+				break
+			}
 			refs, nextCursor := topicUserAction.ListLikedTopicRefsBefore(user.Id, c.Query("cursor"), userProfileTimelinePageSize)
 			likes = buildUserLikes(refs)
 			pagination = buildUserActivityLikePagination(user.Id, nextCursor)
 		case userProfileActivityFollowing:
+			if !privacy.Visible(profileprivacyservice.SectionFollowing) {
+				break
+			}
 			following = buildUserConnectionsForViewer(userFollow.GetFollowingList(user.Id, 1, userProfileConnectionLimit), currentUserID)
 		case userProfileActivityFollowers:
+			if !privacy.Visible(profileprivacyservice.SectionFollowers) {
+				break
+			}
 			followers = buildUserConnectionsForViewer(userFollow.GetFollowerList(user.Id, 1, userProfileConnectionLimit), currentUserID)
 		default:
 			cursor := positiveUint(c.Query("cursor"))
-			timeline, _ := userActivities.GetUserTimeline(user.Id, cursor, userProfileTimelinePageSize+1)
+			timeline, _ := userActivities.GetUserTimelineActions(user.Id, cursor, userProfileTimelinePageSize+1, privacy.TimelineActions())
 			hasNext := len(timeline) > userProfileTimelinePageSize
 			if hasNext {
 				timeline = timeline[:userProfileTimelinePageSize]
@@ -2110,6 +2155,13 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 			pagination = buildUserActivityTimelinePagination(user.Id, timeline, hasNext)
 		}
 	case userProfileSectionFollowing, userProfileSectionFollowers:
+		listSection := profileprivacyservice.SectionFollowing
+		if section == userProfileSectionFollowers {
+			listSection = profileprivacyservice.SectionFollowers
+		}
+		if !privacy.Visible(listSection) {
+			break
+		}
 		page := positivePage(c.Query("page"))
 		pageSize := userProfileConnectionLimit
 		var connections []*users.EntityComplete
@@ -2133,31 +2185,49 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 		badges = userBadges
 	default:
 		badges = userBadges
-		latestTopics, _ := topics.GetLatestPublishedByUserId(user.Id, 8)
-		topicPayloads = buildTrackedTopicPayloads(currentUserID, transform.Topics2Vo(latestTopics, hotdataserve.CategoryMap()))
-		timeline, _ := userActivities.GetUserTimeline(user.Id, 0, 5)
+		if privacy.Visible(profileprivacyservice.SectionTopics) {
+			latestTopics, _ := topics.GetLatestPublishedByUserId(user.Id, 8)
+			topicPayloads = buildTrackedTopicPayloads(currentUserID, transform.Topics2Vo(latestTopics, hotdataserve.CategoryMap()))
+		}
+		timeline, _ := userActivities.GetUserTimelineActions(user.Id, 0, 5, privacy.TimelineActions())
 		activities = buildUserActivities(timeline, currentUserID)
 	}
 
 	return UserProfileProps{
-		User:         userCard,
-		Section:      section,
-		ActivityTab:  activityTab,
-		Tabs:         buildUserProfileTabs(user.Id, section, currentUserID == user.Id),
-		ActivityTabs: buildUserProfileActivityTabs(user.Id, section, activityTab),
-		Pagination:   pagination,
-		Badges:       badges,
-		Topics:       topicPayloads,
-		Activities:   activities,
-		Likes:        likes,
-		Bookmarks:    bookmarks,
-		Following:    following,
-		Followers:    followers,
-		IsOwnProfile: currentUserID == user.Id,
-		CanMessage:   currentUserID > 0 && currentUserID != user.Id,
-		CanFollow:    currentUserID > 0 && currentUserID != user.Id,
-		MessageURL:   "/messages?userId=" + strconv.FormatUint(user.Id, 10) + "&username=" + url.QueryEscape(userCard.Nickname) + "&avatar=" + url.QueryEscape(userCard.AvatarUrl),
-		SettingsURL:  "/settings",
+		User:           userCard,
+		Section:        section,
+		ActivityTab:    activityTab,
+		Tabs:           buildUserProfileTabs(user.Id, section, currentUserID == user.Id),
+		ActivityTabs:   buildUserProfileActivityTabs(user.Id, section, activityTab),
+		Pagination:     pagination,
+		Badges:         badges,
+		Topics:         topicPayloads,
+		Activities:     activities,
+		Likes:          likes,
+		Bookmarks:      bookmarks,
+		Following:      following,
+		Followers:      followers,
+		IsOwnProfile:   currentUserID == user.Id,
+		CanManageAgent: user.IsBot() && agentservice.CanManage(currentUserID, user.Id),
+		CanMessage:     currentUserID > 0 && currentUserID != user.Id,
+		CanFollow:      currentUserID > 0 && currentUserID != user.Id,
+		MessageURL:     "/messages?userId=" + strconv.FormatUint(user.Id, 10) + "&username=" + url.QueryEscape(userCard.Nickname) + "&avatar=" + url.QueryEscape(userCard.AvatarUrl),
+		SettingsURL:    "/settings",
+		Visibility:     buildUserProfileVisibility(privacy),
+	}
+}
+
+func buildUserProfileVisibility(view profileprivacyservice.View) UserProfileVisibilityPayload {
+	section := func(key string) ProfileSectionVisibilityPayload {
+		decision := view.Section(key)
+		return ProfileSectionVisibilityPayload{Visible: decision.Visible, Reason: decision.Reason, Audience: decision.Audience}
+	}
+	return UserProfileVisibilityPayload{
+		ProfileTopics:   section(profileprivacyservice.SectionTopics),
+		ProfileActivity: section(profileprivacyservice.SectionActivity),
+		ProfileLikes:    section(profileprivacyservice.SectionLikes),
+		FollowingList:   section(profileprivacyservice.SectionFollowing),
+		FollowersList:   section(profileprivacyservice.SectionFollowers),
 	}
 }
 
@@ -3235,6 +3305,7 @@ func settingsTabs() []TabPayload {
 		{Key: "profile", URL: "/settings", Active: true},
 		{Key: "account", URL: "/settings?tab=account"},
 		{Key: "privacy", URL: "/settings?tab=privacy"},
+		{Key: "notifications", URL: "/settings?tab=notifications"},
 		{Key: "binding", URL: "/settings?tab=binding"},
 		{Key: "security", URL: "/settings?tab=security"},
 		{Key: "content", URL: "/settings?tab=content"},

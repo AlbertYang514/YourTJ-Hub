@@ -107,7 +107,9 @@ pumpChat(
   Brightness brightness = Brightness.light,
   Locale locale = const Locale('en'),
   int? targetUserId = 2,
+  String targetUsername = '',
   VisibleChatRepository Function(GfApiClient client)? repository,
+  CountingPageRepository Function(GfApiClient client)? pages,
 }) async {
   await tester.binding.setSurfaceSize(const Size(390, 700));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -133,7 +135,9 @@ pumpChat(
       currentUserProvider.overrideWith(
         (ref) async => const CurrentUser(id: 1, username: 'alice'),
       ),
-      pageRepositoryProvider.overrideWithValue(CountingPageRepository(client)),
+      pageRepositoryProvider.overrideWithValue(
+        pages?.call(client) ?? CountingPageRepository(client),
+      ),
       chatRepositoryProvider.overrideWithValue(repo),
       offlineTopicCacheProvider.overrideWithValue(NoopCache()),
       offlineChatCacheProvider.overrideWithValue(NoopCache()),
@@ -151,7 +155,10 @@ pumpChat(
     valueListenable: active,
     builder: (_, value, _) => TickerMode(
       enabled: value,
-      child: MessagesPage(targetUserId: targetUserId),
+      child: MessagesPage(
+        targetUserId: targetUserId,
+        targetUsername: targetUsername,
+      ),
     ),
   );
   await tester.pumpWidget(
@@ -433,6 +440,43 @@ void main() {
     );
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets('status bar scroll to top does not load older chat history', (
+    tester,
+  ) async {
+    const FakeViewPadding statusBar = FakeViewPadding(top: 59, bottom: 34);
+    addTearDown(tester.view.reset);
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.padding = statusBar;
+    tester.view.viewPadding = statusBar;
+    final h = await pumpChat(
+      tester,
+      messages: List.generate(40, (i) => makeChatMessage(i + 41)),
+      older: List.generate(40, (i) => makeChatMessage(i + 1)),
+    );
+    final ScrollController controller = scroll(tester);
+    controller.jumpTo(500);
+    await tester.pump();
+
+    final WidgetsBindingObserver statusBarObserver = tester.state(
+      find.byType(GfStatusBarScrollToTop),
+    ) as WidgetsBindingObserver;
+    statusBarObserver.handleStatusBarTap();
+    tester
+        .state<ScaffoldState>(find.byType(Scaffold).last)
+        .handleStatusBarTap();
+    await tester.pumpAndSettle();
+
+    expect(controller.offset, 0);
+    expect(h.repo.beforeCalls, 0);
+
+    controller.jumpTo(500);
+    await tester.pump();
+    await tester.drag(find.byType(ListView).last, const Offset(0, 700));
+    await tester.pumpAndSettle();
+    expect(h.repo.beforeCalls, greaterThan(0));
+    await tester.pumpWidget(const SizedBox.shrink());
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
   testWidgets('a bubble taller than the viewport can become read', (
     tester,

@@ -75,11 +75,11 @@ class _ScheduleWidgetTransparencyState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          GfText(
             l.scheduleWidgetTransparencyTitle,
             style: GfTheme.typographyOf(context).bodyStrong,
           ),
-          Slider(
+          Slider.adaptive(
             value: _value.toDouble(),
             min: ScheduleWidgetBridge.minTransparencyPercent.toDouble(),
             max: ScheduleWidgetBridge.maxTransparencyPercent.toDouble(),
@@ -97,7 +97,7 @@ class _ScheduleWidgetTransparencyState
                   }),
             onChangeEnd: !_loaded ? null : (value) => _save(value.round()),
           ),
-          Text(
+          GfText(
             '$_value% · ${l.scheduleWidgetTransparencyDescription}',
             style: GfTheme.typographyOf(
               context,

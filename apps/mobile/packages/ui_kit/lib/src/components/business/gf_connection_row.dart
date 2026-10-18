@@ -2,6 +2,7 @@ import '../atoms/gf_decorated_name.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../atoms/gf_avatar.dart';
 import '../atoms/gf_loading_indicator.dart';
 
@@ -44,7 +45,7 @@ class GfConnectionRow extends StatelessWidget {
             color: colors.baseContent,
           ),
         ),
-        Text(
+        GfText(
           '@$username',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -93,7 +94,7 @@ class GfConnectionRow extends StatelessWidget {
                           ),
                         if (bio.trim().isNotEmpty) ...[
                           const SizedBox(height: 4),
-                          Text(
+                          GfText(
                             bio.trim(),
                             maxLines: 3,
                             overflow: TextOverflow.ellipsis,
@@ -164,7 +165,7 @@ class GfFollowButton extends StatelessWidget {
             ),
             const SizedBox(width: 8),
           ],
-          Flexible(child: Text(label, textAlign: TextAlign.center)),
+          Flexible(child: GfText(label, textAlign: TextAlign.center)),
         ],
       ),
     );

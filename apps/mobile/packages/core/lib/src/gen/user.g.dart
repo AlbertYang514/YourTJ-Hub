@@ -259,10 +259,16 @@ _$UserProfilePropsImpl _$$UserProfilePropsImplFromJson(
       .map((e) => UserConnectionPayload.fromJson(e as Map<String, dynamic>))
       .toList(),
   isOwnProfile: json['isOwnProfile'] as bool,
+  canManageAgent: json['canManageAgent'] as bool? ?? false,
   canMessage: json['canMessage'] as bool,
   canFollow: json['canFollow'] as bool,
   messageUrl: json['messageUrl'] as String,
   settingsUrl: json['settingsUrl'] as String,
+  visibility: json['visibility'] == null
+      ? const UserProfileVisibilityPayload()
+      : UserProfileVisibilityPayload.fromJson(
+          json['visibility'] as Map<String, dynamic>,
+        ),
 );
 
 Map<String, dynamic> _$$UserProfilePropsImplToJson(
@@ -282,10 +288,12 @@ Map<String, dynamic> _$$UserProfilePropsImplToJson(
   'following': instance.following,
   'followers': instance.followers,
   'isOwnProfile': instance.isOwnProfile,
+  'canManageAgent': instance.canManageAgent,
   'canMessage': instance.canMessage,
   'canFollow': instance.canFollow,
   'messageUrl': instance.messageUrl,
   'settingsUrl': instance.settingsUrl,
+  'visibility': instance.visibility,
 };
 
 _$SettingsUserPayloadImpl _$$SettingsUserPayloadImplFromJson(

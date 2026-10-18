@@ -1,4 +1,5 @@
-import { createApp, h } from 'vue'
+import { h } from 'vue'
+import { createBrowserApp as createApp } from './create-app'
 import NotificationsPage from '../../../src/site/pages/NotificationsPage.vue'
 import { i18n, setLocale } from '../../../src/runtime/i18n'
 import '../../../src/styles/resource.css'

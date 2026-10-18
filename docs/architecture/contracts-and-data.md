@@ -13,7 +13,8 @@
 The contract capability is **Partial** (all JSON routes are described; generated Dart and a few
 protocol surfaces remain open). The controlled OpenAPI 3.1 entry point is
 `packages/api-contract/openapi.yaml`. Every `/api` JSON route is covered by an OpenAPI operation —
-the generated `packages/api-contract/coverage-matrix.md` is the authoritative route-by-route list,
+the [coverage report entry](../../packages/api-contract/coverage-matrix.md) explains how to generate
+the route-by-route list and find the report for a CI run,
 and CI rejects any route that is neither contracted nor listed. By domain:
 
 - auth and account: password login, login public key, TOTP (verify + management), logout,
@@ -267,9 +268,13 @@ packages/api-contract/fixtures/      @gooseforum/client/openapi types
   then requires every snapshot route to be either an OpenAPI operation or listed in
   `packages/api-contract/route-coverage.json` (`excluded` for non-JSON-API routes such as SSR pages and
   static assets, `knownUncovered` with an owning slice for pending `/api` routes), rejects stale or
-  dangling list entries and contract operations with no matching route, and regenerates the committed
-  `packages/api-contract/coverage-matrix.md` — CI rejects an uncommitted matrix diff, same as the
-  generated TypeScript types. Net effect: a new route that is neither contracted nor listed turns CI red.
+  dangling list entries and contract operations with no matching route, and generates the ignored
+  `packages/api-contract/.tmp/coverage-matrix.md`. CI publishes this report in the contract job summary
+  and `api-route-coverage` artifact with the checked-out source commit. Only generated TypeScript
+  types require a committed diff; route snapshots, coverage exceptions and contracts remain committed
+  inputs. Independent route changes may still require merging those inputs; regenerate the report
+  after merging rather than resolving generated rows. A failed coverage check removes the previous
+  local report. Net effect: a new route that is neither contracted nor listed turns CI red.
 
 Breaking-change comparison is not a current gate. Enable a base-versus-head bundled-spec breaking
 gate (for example `oasdiff` against the bundled base and head specs) in a separate change; that gate
@@ -448,7 +453,11 @@ Principle: projections must be rebuildable from the fact source; never treat a p
 
 The AI-readable exports are public text representations, not JSON API operations in the controlled
 OpenAPI surface. Their visibility boundary is the existing forum publication and moderation state:
-draft, blocked, pending-review, soft-deleted, or first-post-blocked content is excluded. The index follows
+draft, blocked, pending-review, soft-deleted, or first-post-blocked content is excluded. Wiki pages
+(`topics.topic_type = 1`) are excluded as well — the forum export covers forum topics, while wiki
+content is the read-only GitHub-synced projection served under `/wiki` (MADR-0005); the index and
+full-text exports never listed wiki pages, and the per-topic document
+(`GET /p/posts/{id}.md`) follows the same boundary. The index follows
 the llms.txt Markdown structure (site heading, optional description, and a `Topics` link list); full-text
 and per-topic documents preserve the stored Markdown source.
 
@@ -540,6 +549,19 @@ each batch checks ownership. Jobs bind to the configured server origin and requi
 `meilisearch.maintenance_enabled`, preventing main snapshot tasks from running on dev.
 Status responses omit raw errors, document bodies and the instance fingerprint.
 See the [maintenance decision](../decisions/0024-admin-search-index-maintenance.md).
+
+## Profile section privacy
+
+`Current`: `user_privacy_settings` keeps one row per member (`user_id` primary key) with a
+`varchar(16)` audience for each profile section, defaulting to `everyone`; a missing row reads as
+all defaults, so existing accounts need no backfill. Writes lock the row, merge a validated partial
+update and upsert only the supplied columns in one transaction, so two first saves of different
+sections both persist; the response is re-read from storage. `profileprivacyservice` evaluates the viewer once per
+profile request (follow state in one query, blocks fail closed) before section queries, and the
+timeline query filters `action IN (...)` so hidden actions cannot surface through rows or cursors.
+Account closure deletes the row in the same transaction as private notes and blocks. Anonymous
+profiles never read it, so a persona's page cannot echo its owner's audiences.
+See [0088](../decisions/0088-profile-section-privacy.md).
 
 ## Private user-name overlays
 

@@ -41,7 +41,7 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
   interactions (post create/update/delete/window/revisions, topic status/delete/like/bookmark/watch,
   post like/bookmark, follow-user, report), user account and identity (captcha, user-card,
   profile/email/username/avatar/badge settings, upload-avatar, change-password, OAuth
-  bindings/unbind), notifications/unread/chat, forum moderation workbench, the admin console
+  bindings/unbind, profile privacy settings), notifications/unread/chat, forum moderation workbench, the admin console
   (`/api/admin/*`: user/role/category/moderator management, topic/post moderation, agent
   administration, operation records, traffic overview, content contribution statistics
   (per-category summary/trend and contributor ranking/account detail), page settings, site settings,
@@ -119,8 +119,11 @@ docs/        Docs center (product/architecture/development/operations)
   Route coverage is gated: every route from `RegisterByGin` (snapshot
   `packages/api-contract/fixtures/routes-snapshot.json`, regenerate with
   `YOURTJ_UPDATE_ROUTES_SNAPSHOT=1 go test ./app/http/routes/ -run TestRoutesSnapshot`) must be an
-  OpenAPI operation or listed in `packages/api-contract/route-coverage.json`, and the generated
-  `packages/api-contract/coverage-matrix.md` must be committed — `pnpm run check` and CI fail otherwise.
+  OpenAPI operation or listed in `packages/api-contract/route-coverage.json`. `pnpm run check` and CI
+  validate coverage and generate the ignored `packages/api-contract/.tmp/coverage-matrix.md` report;
+  CI publishes it as a job summary and artifact. Commit the route snapshot and contract inputs,
+  not the generated coverage report. The stable [report entry](packages/api-contract/coverage-matrix.md)
+  explains how to reproduce and find it.
 - Design-token changes ship in the same PR: changing `resource/src/styles/tokens.css` requires
   updating `apps/mobile/packages/ui_kit/lib/src/theme/tokens.json` in the same commit.
 - Web `serverMessages` changes ship in the same PR: changing `server`/`serverMessages` keys in

@@ -130,12 +130,20 @@ func TestContributionStatsAggregatesOnPostgreSQL(t *testing.T) {
 	if ranking[1].UserId != 2 || ranking[1].ReplyCount != 2 || ranking[1].LikeCount != 1 {
 		t.Fatalf("ranking[1] = %+v, want user 2 with 2 replies and 1 like (anonymous floor and cancelled like excluded)", ranking[1])
 	}
+	// 总数与估算标记由同一条 UNION 扫描返回：真人侧含账号 1 的估算主题（103 无 first_public_at）。
 	rankingTotal, err := userRankingTotal(scoped, scope, users.ActorTypeHuman)
 	if err != nil {
 		t.Fatalf("ranking total on postgres: %v", err)
 	}
-	if rankingTotal != 2 {
-		t.Fatalf("ranking total = %d, want 2", rankingTotal)
+	if rankingTotal.Total != 2 || !rankingTotal.Estimated {
+		t.Fatalf("ranking total = %+v, want 2 accounts with estimated=true", rankingTotal)
+	}
+	agentRankingTotal, err := userRankingTotal(scoped, scope, users.ActorTypeBot)
+	if err != nil {
+		t.Fatalf("agent ranking total on postgres: %v", err)
+	}
+	if agentRankingTotal.Total != 1 || agentRankingTotal.Estimated {
+		t.Fatalf("agent ranking total = %+v, want one account with estimated=false", agentRankingTotal)
 	}
 
 	detail, err := userContentTotals(scoped, scope, 2)

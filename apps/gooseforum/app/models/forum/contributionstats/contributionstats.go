@@ -61,6 +61,13 @@ type RankingRow struct {
 	LikeCount  int64  `gorm:"column:like_count"`
 }
 
+// RankingTotal 是用户排行的去重账号总数（分页依据）与该范围内是否有估算时间归属：
+// total 与 estimated 由同一条 UNION 扫描产出，两者永远描述同一批计入的行（口径 R4/R8）。
+type RankingTotal struct {
+	Total     int64 `gorm:"column:total"`
+	Estimated bool  `gorm:"column:estimated"`
+}
+
 // UserContentTotal 是单个账号的内容汇总。
 type UserContentTotal struct {
 	TopicCount int64 `gorm:"column:topic_count"`

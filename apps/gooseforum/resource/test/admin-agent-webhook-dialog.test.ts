@@ -43,6 +43,7 @@ const agent: AdminAgent = {
   subscriptionGeneration: 2,
   secretConfigured: true,
   secretVersion: 1,
+  webhookAuthorizationConfigured: false,
   latestAcceptedAt: '2026-10-04T10:00:00Z',
   pendingCount: 2,
   pauseReason: '',
@@ -111,16 +112,17 @@ afterEach(() => {
   i18n.global.locale.value = priorLocale
 })
 
-async function mountDialog({ initialDelivery = delivery, initialIntent = deadIntent }: {
+async function mountDialog({ initialDelivery = delivery, initialIntent = deadIntent, initialAgent = agent }: {
   initialDelivery?: AdminAgentWebhookDelivery
   initialIntent?: AdminAgentInteractionIntent
+  initialAgent?: AdminAgent
 } = {}) {
   priorLocale = i18n.global.locale.value
   await setLocale('en')
   vi.mocked(getAgentWebhookDeliveries).mockResolvedValue({ list: [initialDelivery], total: 1, page: 1, pageSize: 10 })
   vi.mocked(getAgentInteractionIntents).mockResolvedValue({ list: [initialIntent], total: 1, page: 1, pageSize: 10 })
   wrapper = mount(AgentWebhookManagementDialog, {
-    props: { open: true, agent },
+    props: { open: true, agent: initialAgent },
     global: { plugins: [i18n] },
     attachTo: document.body,
   })
@@ -204,6 +206,35 @@ describe('Agent Webhook management dialog', () => {
       webhookEnabled: true,
       webhookEndpoint: 'https://new.example/hook',
     })
+  })
+
+  test('sends the static Authorization only when it changes and clears it on request', async () => {
+    const configured = { ...agent, webhookAuthorizationConfigured: true }
+    vi.mocked(saveAgentWebhookConfig).mockResolvedValue({ ...configured, configVersion: 6 })
+    const { body } = await mountDialog({ initialAgent: configured })
+    await flushPromises()
+
+    const authorization = body.findAll('input').find(input => input.attributes('type') === 'password')!
+    expect(authorization.attributes('placeholder')).toBe('Leave blank to keep the current value')
+    await authorization.setValue('  Bearer receiver-token  ')
+    await clickByText(body, 'Save configuration')
+    await flushPromises()
+    expect(saveAgentWebhookConfig).toHaveBeenLastCalledWith(expect.objectContaining({ webhookAuthorization: 'Bearer receiver-token' }))
+
+    // Saving without typing keeps the stored value: the field is omitted.
+    vi.mocked(saveAgentWebhookConfig).mockResolvedValue({ ...configured, configVersion: 7 })
+    await clickByText(body, 'Save configuration')
+    await flushPromises()
+    expect('webhookAuthorization' in vi.mocked(saveAgentWebhookConfig).mock.calls.at(-1)![0]).toBe(false)
+
+    // The clear checkbox sends the empty string and disables the input.
+    const clear = body.findAll('label').find(item => item.text().includes('Clear the stored Authorization header'))!.find('[role="checkbox"]')
+    await clear.trigger('click')
+    expect(authorization.attributes('disabled')).toBeDefined()
+    vi.mocked(saveAgentWebhookConfig).mockResolvedValue({ ...agent, configVersion: 8 })
+    await clickByText(body, 'Save configuration')
+    await flushPromises()
+    expect(saveAgentWebhookConfig).toHaveBeenLastCalledWith(expect.objectContaining({ webhookAuthorization: '' }))
   })
 
   test('keeps the draft on a config conflict and reloads the latest version before retrying', async () => {

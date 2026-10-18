@@ -239,6 +239,11 @@ export interface SitePayload {
   brandType: string
   brandText: string
   brandImage: string
+  /**
+   * 外链免确认白名单（issue #1200）：小写主机名，条目覆盖其全部子域；
+   * 命中且风险为 normal_external 的站外链接跳过确认弹层。
+   */
+  trustedExternalDomains: string[]
 }
 
 export interface ViewerPayload {
@@ -252,6 +257,7 @@ export interface ViewerPayload {
   isModerator: boolean
   requiresEmailVerification: boolean
   adminPermissions: number[]
+  canManageAgents?: boolean
 }
 
 export interface CategoryNavPayload {
@@ -709,10 +715,31 @@ export interface UserProfileProps {
   following: UserConnectionPayload[]
   followers: UserConnectionPayload[]
   isOwnProfile: boolean
+  canManageAgent?: boolean
   canMessage: boolean
   canFollow: boolean
   messageUrl: string
   settingsUrl: string
+  /** Profile sections as resolved for the current viewer (issue #1124). */
+  visibility: UserProfileVisibility
+}
+
+export type ProfileVisibilityReason = 'signin' | 'followers' | 'mutual' | 'private'
+
+export interface ProfileSectionVisibility {
+  visible: boolean
+  /** Present only when the section is hidden from this viewer. */
+  reason?: ProfileVisibilityReason
+  /** Present only on the owner's own profile. */
+  audience?: 'everyone' | 'members' | 'followers' | 'mutual' | 'self'
+}
+
+export interface UserProfileVisibility {
+  profileTopics: ProfileSectionVisibility
+  profileActivity: ProfileSectionVisibility
+  profileLikes: ProfileSectionVisibility
+  followingList: ProfileSectionVisibility
+  followersList: ProfileSectionVisibility
 }
 
 export interface BadgePayload {

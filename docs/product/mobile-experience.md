@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-12
+> Last verified: 2026-10-13
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
@@ -50,16 +50,44 @@ labels. See [feed ranking and measurement](feed-ranking.md) for the shared behav
 
 
 `Current`: root layout uses the available window width. Below 600 logical pixels it retains bottom
-destinations; at 600 and above it uses a persistent, scrollable 72-pixel navigation rail. Forum,
-notification and conversation lists occupy a centered column up to 720 pixels wide. Campus can use
-1120 pixels for its timetable and tools. Wide layouts reclaim the bottom-navigation inset, keep
+destinations; at 600 and above it uses a persistent, scrollable navigation rail. At 1100 pixels and above with text scale no greater than 1.4, its 220-pixel
+sidebar places destination icons and names in the same row. Smaller windows or larger text use
+a 72–160-pixel rail according to localized label width and system text size. Home, Campus and
+Messages can use 1120 pixels for their workspaces; notifications retain a readable column up to
+720 pixels wide. The rail is anchored to the same workspace edge across destinations; narrower
+content starts beside it, so switching pages does not move navigation. Wide layouts reclaim the bottom-navigation inset, keep
 compose actions inside the content column and anchor their menu to that column. Resizing preserves
 the retained branch navigator, inputs and reading position; opening a keyboard does not change the
 width breakpoint.
 
-`Current`: the rail shares destination icons and unread state with the bottom bar. Each action
+`Current`: the rail shares destination icons and unread state with the bottom bar and displays each
+localized destination name beside or below its icon. Labels wrap and the rail scrolls when large system text
+or a short window needs more space. Each action
 exposes its name, selected state and activation in one semantic node. Persistent navigation is
 ordered after the active route in the accessibility tree so iOS does not hide it behind that route.
+On a hardware keyboard, ⌘1–4 select the four shell destinations and ⌘F opens search. These commands
+are inactive while a dialog, drawer or pushed page covers the shell; text editing keeps its platform
+shortcuts. The navigation and keyboard patterns draw on [X for iOS](https://help.x.com/en/using-x/x-ios-app).
+
+`Current`: pushed forum, account and information pages keep their complete header and content in a
+centered column up to 720 logical pixels wide. Course, Wiki, search, settings, publishing, chat, drafts, content management and
+Campus Explore can use 1120 pixels; the scheduler, authenticated management and image viewer use the full viewport.
+Login fills the viewport with one continuous surface while its form stays within 520 pixels.
+Imperative account, message and sticker-library routes share the reading window. Horizontal safe
+areas are consumed once and each bounded page receives its actual column width. Resizing leaves the
+route, input and scroll state mounted; the compact route continues to use the iOS edge-swipe transition.
+
+`Current`: tablet workspaces organize navigation beside their content. Home keeps its category
+tabs in a horizontal row above the retained topic feed at every window width. Sufficiently wide Home windows add a
+search entry and up to five topics from the existing Hot feed on the right; their loading, empty and retry states
+remain visible. This right column collapses for narrow windows or enlarged text without resetting the reading position.
+Settings places its directory beside the
+selected section, so changing sections updates the detail without a full-screen route transition.
+Enlarged text raises the required width, restoring a single pane when labels or content need more
+space. Messages keeps the conversation directory beside the selected chat, courses keep their filters or
+offering selector beside content, and Wiki keeps namespaces or its table of contents beside reading.
+Publishing uses its existing editor and preview workspace. These layouts follow available
+window space rather than device names; see [0095](../decisions/0095-adaptive-ios-interaction-surfaces.md).
 
 
 - `Current`: Home offers a server-defined Following sort. It requires sign-in and shows only
@@ -150,6 +178,24 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   left edge. Android keeps the shared mobile fade/rise transition. Horizontal
   scroll rails keep working; the back gesture only claims the narrow left-edge
   band.
+- `Partial`: iOS status-bar taps use Flutter `Scaffold`'s built-in callback and
+  `PrimaryScrollController` for the active main scroll region. Root feeds,
+  notifications, messages, campus tabs, topic/profile/search pages, drafts,
+  settings, publishing, course catalog/detail, Wiki detail and conversation
+  detail provide their current explicit controller; profile's nested scroll
+  view keeps its coordinated outer/inner behavior. Ordinary vertical scroll
+  views without an explicit controller continue using the route's default
+  primary controller. Programmatic scrolling does not create a drag gesture,
+  so it does not arm pull-to-refresh or footer pagination. Android and Web do
+  not receive this adapter. Widget tests cover target selection and callback
+  behavior; a real iOS status-bar tap still requires simulator or device
+  verification. In-app browser content and modal/editor-local scroll regions
+  are outside this Flutter page-level behavior.
+- `Current`: the centered YourTJ mark in the Home header is an accessible
+  48-by-48 logical-pixel action. On iOS and Android it smoothly returns the
+  selected feed (`最新`, `关注`, `热门`, `流行`, or the available feed tabs) to
+  the top using that feed's existing scroll controller. Other tabs retain their
+  reading position; the action does not reload data or navigate.
 - `Current`: four persistent destinations — Home, Campus, Notifications and Messages — use an
   icon-only bottom bar on compact windows, with the selected Filled icon, indicator and unread state
   kept together at a fixed compact height, so labels never add height or grow with text size. Each
@@ -592,9 +638,19 @@ are not displayed. Chat bubbles use 20-pixel corners and are bounded by the conv
 `Current`: primary and secondary buttons use pill shapes with state-specific colors and a separate
 48-pixel hit target. Icon actions retain at least 44 pixels, except the compact profile social links,
 whose touch areas are 24 pixels wide and 32 pixels high. Menus, segmented controls and choice
-labels grow with system text size; selected states expose semantics. Dialogs use one scrollable
+labels grow with system text size; selected states expose semantics. Complex dialogs use one scrollable
 surface with 24-pixel corners, while inline alerts use a quiet 16-pixel surface. Avatars, loading,
 badges, dividers and selectors share the same semantic palette without third-party default skins.
+
+`Current`: iOS short menus, attachment and language choices, and dropdown fields use shared Cupertino
+actions. Windows narrower than 600 logical pixels present a bottom action sheet; wider windows use
+a scrollable menu up to 380 pixels wide near the initiating control, bounded by root safe areas and
+the keyboard. Cancellation leaves the current value unchanged; choices show the current selection,
+disabled actions cannot activate and destructive actions use the platform's destructive treatment.
+Simple confirmations use Cupertino alerts. Complex credential and editing forms retain their Gf
+surface, validation and failed-save recovery. Android retains Material presentation. Radio rows,
+switches and sliders also follow the platform; both palettes follow the selected light/dark theme.
+These are Flutter Cupertino components; native UIKit and Liquid Glass presentation are not claimed.
 
 ## Publishing
 
@@ -1015,6 +1071,13 @@ identity survive this layout change. The header keeps a small outer margin for i
   intentionally bypasses flutter_appauth/AppAuth/CustomTabs. No OAuth provider uses a WebView for
   Android login. Non-Android platforms retain AppAuth. `Partial`: the new Android path awaits a
   physical-device APK test; the exact native crash stack remains unproven without logcat.
+- `Partial`: when the server enables passkeys, a separate native sign-in action uses discoverable
+  credentials and platform user verification, then completes through the ordinary staged token and
+  offline-cache cleanup path. Account security can add, rename and revoke passkeys after a fresh
+  password check and TOTP when enabled. The flow depends on matching iOS Associated Domains and
+  Android Digital Asset Links. The Flutter Android authenticator requires Android API 28 or later
+  at runtime; older versions retain password and OAuth login. Physical-device acceptance, including
+  Android OEM providers, remains outstanding. The authentication decision is recorded in [MADR 0091](../decisions/0091-forum-owned-cross-platform-passkeys.md).
 - `Current`: native routes that require a session lead guests to sign-in before constructing the
   private page. Login retains the original native location, including topic reply position, composer
   context and chat recipient, using an explicit route/query allowlist. External, recursive and
@@ -1086,6 +1149,20 @@ or production push delivery behavior. The shared business and privacy rules are 
 [anonymous identity](anonymous-identity.md).
 
 ## Profile and privacy
+
+- `Current`: account settings (Account, security & privacy, also on the Settings index) →
+  Privacy → Profile visibility lists the five profile sections with
+  their saved audience, then a fixed, non-tappable bookmarks row reading "only you" with a lock
+  in the chevron slot. Tapping a row opens a bottom-sheet picker limited to that section's
+  audiences; a row changes only after the server confirms, failures keep the saved value with an
+  error toast, and widening asks for confirmation. Loading uses the settings skeleton, load errors
+  offer retry and signed-out visits offer sign-in. Profile streams follow the server-resolved
+  visibility: other members and guests see a "not public" state naming the owner and reason, with
+  sign-in only when it could help. Profile tabs mark such sections, and for the owner every
+  section narrower than everyone, with a lock badge on the tab icon that leaves tab widths and
+  labels unchanged; long press and screen readers name who can see the section. Servers
+  without profile privacy keep every stream public. See
+  [profile visibility](identity-and-access.md#profile-visibility).
 
 - `Current`: visit statistics run automatically for guests and signed-in users in official Android/iOS
   release builds against `https://f.yourtj.de`, with no settings switch or consent preference. Fresh

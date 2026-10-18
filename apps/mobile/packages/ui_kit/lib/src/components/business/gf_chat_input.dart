@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../gf_motion.dart';
 import '../gf_symbol.dart';
 import 'gf_composer_panel.dart';
@@ -26,6 +27,7 @@ class GfChatInput extends StatefulWidget {
     this.previewBuilder,
     this.onAttach,
     this.attachLabel,
+    this.attachButtonKey,
   });
 
   final ValueChanged<String> onSend;
@@ -51,6 +53,7 @@ class GfChatInput extends StatefulWidget {
   final Widget Function(String text)? previewBuilder;
   final VoidCallback? onAttach;
   final String? attachLabel;
+  final Key? attachButtonKey;
 
   @override
   State<GfChatInput> createState() => _GfChatInputState();
@@ -269,20 +272,25 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         if (widget.onAttach != null) ...[
-                          IconButton(
-                            key: const Key('chat-attach'),
-                            tooltip: widget.attachLabel,
-                            icon: const GfSymbol('plus', size: 24),
-                            onPressed: widget.enabled ? widget.onAttach : null,
-                            style: IconButton.styleFrom(
-                              fixedSize: const Size.square(44),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              backgroundColor: colors.base200,
-                              foregroundColor: colors.baseContent,
-                              disabledForegroundColor: colors.iconMuted
-                                  .withValues(alpha: .45),
-                              shape: const CircleBorder(),
-                              padding: EdgeInsets.zero,
+                          KeyedSubtree(
+                            key: widget.attachButtonKey,
+                            child: IconButton(
+                              key: const Key('chat-attach'),
+                              tooltip: widget.attachLabel,
+                              icon: const GfSymbol('plus', size: 24),
+                              onPressed: widget.enabled
+                                  ? widget.onAttach
+                                  : null,
+                              style: IconButton.styleFrom(
+                                fixedSize: const Size.square(44),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                backgroundColor: colors.base200,
+                                foregroundColor: colors.baseContent,
+                                disabledForegroundColor: colors.iconMuted
+                                    .withValues(alpha: .45),
+                                shape: const CircleBorder(),
+                                padding: EdgeInsets.zero,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -430,7 +438,7 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
                                         minimumSize: const Size(48, 48),
                                         padding: EdgeInsets.zero,
                                       ),
-                                      child: Text(
+                                      child: GfText(
                                         emoji,
                                         style: const TextStyle(fontSize: 24),
                                       ),

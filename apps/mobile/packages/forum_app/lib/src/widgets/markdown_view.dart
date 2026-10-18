@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:html/parser.dart' show parseFragment;
 import 'package:markdown_widget/markdown_widget.dart';
 import 'package:ui_kit/ui_kit.dart';
 
@@ -20,6 +21,10 @@ import 'rich_content/gf_table.dart';
 import 'stickers/sticker_image.dart';
 import 'stickers/resolved_sticker_content.dart';
 import 'stickers/sticker_strings.dart';
+import 'link_preview_card.dart';
+
+// 既有引用方（页面与测试）仍从这里拿卡片实现，避免为一次拆分改所有 import。
+export 'link_preview_card.dart' show GfLinkPreviewCard, LinkPreviewPlatformLabels;
 import 'share/share_image_readiness.dart';
 
 /// Body text comes from [GfRichContentTypography] so post bodies, publish
@@ -81,8 +86,15 @@ class GfMarkdownView extends ConsumerStatefulWidget {
 class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
   late Widget _markdownBody;
   Future<List<LinkPreviewPayload>>? _linkPreviews;
+  String _linkPreviewSelectionSource = '';
+  int _linkPreviewGeneration = 0;
 
   Map<String, String> _stickerUrls = const {};
+
+  /// 标签与目标不符的链接目标（issue #1200 review）：按源文本记忆，避免每次
+  /// 重建都重新解析 Markdown AST。
+  String _mislabeledSource = '';
+  Set<String> _mislabeledTargets = const <String>{};
 
   /// Reader preference the cached body was built with; the persisted setting
   /// must reach every renderer branch, including this cached one.
@@ -106,7 +118,13 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         oldWidget.compact != widget.compact ||
         !listEquals(oldWidget.images, widget.images) ||
         !listEquals(oldWidget.mentions, widget.mentions)) {
-      if (oldWidget.data != widget.data) _linkPreviews = null;
+      if (oldWidget.data != widget.data) {
+        _linkPreviews = null;
+        _linkPreviewSelectionSource = '';
+        _linkPreviewGeneration++;
+        _mislabeledSource = '';
+        _mislabeledTargets = const <String>{};
+      }
       _contentScale = ref.read(contentFontScaleProvider);
       _markdownBody = _buildMarkdownBody(_contentScale);
     }
@@ -117,6 +135,52 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
     // relative and absolute destinations so the viewer mirrors the renderer.
     final RegExp re = RegExp(r'!\[([^\]]*)\]\(([^)\s]+)\)');
     return re.allMatches(data).map((m) => m.group(2)!).toList(growable: false);
+  }
+
+  Future<List<LinkPreviewPayload>> _loadLinkPreviews(
+    List<String> urls,
+    int generation,
+  ) async {
+    final previews = await ref
+        .read(linkPreviewRepositoryProvider)
+        .resolve(urls);
+    if (!mounted || generation != _linkPreviewGeneration) return previews;
+
+    // These are the text values GfLinkPreviewCard can expose through GfText.
+    // Reserve them in the shared selection registry before the FutureBuilder
+    // mounts the card, so late PUA characters cannot collide with an Emoji
+    // placeholder allocated by an earlier Markdown block.
+    final AppLocalizations? l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    final String source = previews
+        .expand(
+          (preview) => <String>[
+            preview.siteName ?? '',
+            preview.displayHost ?? '',
+            preview.title ?? '',
+            preview.description ?? '',
+            if (preview.campus) l10n?.linkPreviewCampusFallbackTitle ?? '',
+            if (preview.campus)
+              l10n?.linkPreviewCampusFallbackDescription ?? '',
+            // 平台卡片的来源行、类型徽标与作者行也都是可见文本，同样要预先登记。
+            ...LinkPreviewPlatformLabels.of(l10n, preview).visible,
+          ],
+        )
+        .join('\n');
+    if (source == _linkPreviewSelectionSource) return previews;
+
+    setState(() {
+      _linkPreviewSelectionSource = source;
+      _markdownBody = _buildMarkdownBody(_contentScale);
+    });
+    // GfSelectionArea must receive the expanded reservation before
+    // FutureBuilder exposes the returned preview widgets to the selection
+    // scope. Otherwise a descendant's late source registration can make its
+    // Emoji placeholder ambiguous and disable copying.
+    await WidgetsBinding.instance.endOfFrame;
+    return previews;
   }
 
   void _openViewer(BuildContext context, List<String> urls, int index) {
@@ -214,11 +278,22 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
             decoration: TextDecoration.underline,
           ),
           onTap: (String url) {
+            // 标签与目标不符的链接按 suspicious 处理（对齐 Web linkRisk）：
+            // 白名单与会话信任都不豁免，始终弹确认层（issue #1200）。
+            // 按 widget.data 而非展开后的 data 记忆：贴纸 token 展开会插入每次
+            // 重建都变的随机 source，用它做键会让缓存永远失效。
+            if (_mislabeledSource != widget.data) {
+              _mislabeledSource = widget.data;
+              _mislabeledTargets = mislabeledLinkTargets(widget.data);
+            }
             unawaited(
               LinkNavigation.open(
                 context,
                 url,
                 baseUrl: ref.read(apiClientProvider).baseUrl,
+                risk: _mislabeledTargets.contains(url)
+                    ? LinkRisk.suspicious
+                    : LinkRisk.normalExternal,
               ),
             );
           },
@@ -228,7 +303,7 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         H3Config(style: profile.h3),
         H4Config(style: profile.h4),
         H5Config(style: profile.h5),
-        H6Config(style: profile.h6),        // 图片:contain + 高度约束 + 圆角边框(prose.css img)。
+        H6Config(style: profile.h6), // 图片:contain + 高度约束 + 圆角边框(prose.css img)。
         ImgConfig(
           builder: (String url, Map<String, String> attributes) {
             final sticker = stickerImages[url];
@@ -340,16 +415,34 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
 
     Widget buildMarkdown(String source) => MarkdownWidget(
       data: source,
-      selectable: widget.selectable && !widget.screenshot,
+      // The shared selection area below owns selection across every Markdown
+      // block; GfText joins its registrar and Twemoji restoration scope.
+      selectable: false,
       shrinkWrap: true,
       markdownGenerator: MarkdownGenerator(
         linesMargin: EdgeInsets.symmetric(vertical: profile.paragraphSpacing),
+        richTextBuilder: (span) => GfText.rich(span),
       ),
       // Embedded in the page scroll view: never repeat its safe-area insets.
       padding: EdgeInsets.zero,
       physics: const NeverScrollableScrollPhysics(),
       config: config,
     );
+
+    Widget withMarkdownSelection(Widget child) {
+      if (!widget.selectable || widget.screenshot) return child;
+
+      // Include decoded numeric entities so every code unit a rendered leaf
+      // can expose is reserved before Twemoji placeholder allocation. Avoid
+      // parsing Markdown without entity syntax on the common path.
+      final String entityText = data.contains('&#')
+          ? parseFragment(data).text ?? ''
+          : '';
+      return GfSelectionArea(
+        selectionSource: '$data$entityText$_linkPreviewSelectionSource',
+        child: child,
+      );
+    }
 
     final List<LinkPreviewMarkdownBlock> blocks = splitLinkPreviewMarkdown(
       data,
@@ -358,26 +451,30 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         .where((LinkPreviewMarkdownBlock block) => block.isPreview)
         .map((LinkPreviewMarkdownBlock block) => block.url!)
         .toList(growable: false);
-    if (previewUrls.isEmpty || widget.screenshot) return buildMarkdown(data);
+    if (previewUrls.isEmpty || widget.screenshot) {
+      return withMarkdownSelection(buildMarkdown(data));
+    }
 
-    Future<List<LinkPreviewPayload>> loadPreviews() => _linkPreviews ??= ref
-        .read(linkPreviewRepositoryProvider)
-        .resolve(previewUrls);
+    Future<List<LinkPreviewPayload>> loadPreviews() => _linkPreviews ??=
+        _loadLinkPreviews(previewUrls, _linkPreviewGeneration);
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        for (final LinkPreviewMarkdownBlock block in blocks)
-          if (block.isPreview)
-            _DeferredLinkPreview(
-              url: block.url!,
-              fallback: buildMarkdown(block.markdown),
-              load: loadPreviews,
-            )
-          else
-            buildMarkdown(block.markdown),
-      ],
+    return withMarkdownSelection(
+      Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          for (final LinkPreviewMarkdownBlock block in blocks)
+            if (block.isPreview)
+              _DeferredLinkPreview(
+                url: block.url!,
+                sourceRevision: _linkPreviewGeneration,
+                fallback: buildMarkdown(block.markdown),
+                load: loadPreviews,
+              )
+            else
+              buildMarkdown(block.markdown),
+        ],
+      ),
     );
   }
 
@@ -400,11 +497,13 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
 class _DeferredLinkPreview extends StatefulWidget {
   const _DeferredLinkPreview({
     required this.url,
+    required this.sourceRevision,
     required this.fallback,
     required this.load,
   });
 
   final String url;
+  final int sourceRevision;
   final Widget fallback;
   final Future<List<LinkPreviewPayload>> Function() load;
 
@@ -437,7 +536,10 @@ class _DeferredLinkPreviewState extends State<_DeferredLinkPreview> {
   @override
   void didUpdateWidget(covariant _DeferredLinkPreview oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.url == widget.url) return;
+    if (oldWidget.url == widget.url &&
+        oldWidget.sourceRevision == widget.sourceRevision) {
+      return;
+    }
     _retry?.cancel();
     _future = null;
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadWhenVisible());
@@ -496,234 +598,6 @@ class _DeferredLinkPreviewState extends State<_DeferredLinkPreview> {
                 ? widget.fallback
                 : GfLinkPreviewCard(preview: preview);
           },
-    );
-  }
-}
-
-class GfLinkPreviewCard extends ConsumerStatefulWidget {
-  const GfLinkPreviewCard({super.key, required this.preview});
-
-  final LinkPreviewPayload preview;
-
-  @override
-  ConsumerState<GfLinkPreviewCard> createState() => _GfLinkPreviewCardState();
-}
-
-class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
-  /// Web 端同一套档位：<480 不显示描述（小卡化最缺的正是垂直空间），
-  /// 480–639 一行，≥640 两行。
-  static int descriptionLinesFor(double cardWidth) =>
-      cardWidth < 480 ? 0 : (cardWidth < 640 ? 1 : 2);
-
-  bool _coverFailed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final LinkPreviewPayload preview = widget.preview;
-    final GfColors colors = GfTheme.colorsOf(context);
-    final GfBorders borders = GfTheme.bordersOf(context);
-    final GfRadii radii = GfTheme.radiiOf(context);
-    final String? coverUrl =
-        !_coverFailed && preview.imageUrl?.isNotEmpty == true
-        ? resolveApiAssetUrl(preview.imageUrl!)
-        : null;
-    final String? faviconUrl = preview.faviconUrl?.isNotEmpty == true
-        ? resolveApiAssetUrl(preview.faviconUrl!)
-        : null;
-    final String sourceLabel = preview.siteName?.trim().isNotEmpty == true
-        ? preview.siteName!.trim()
-        : (preview.displayHost?.trim() ?? '');
-    // #733 要求离开前能看到真实 host；与来源行是同一个字符串时不再重复占一行。
-    final String rawHost = preview.displayHost?.trim() ?? '';
-    final String hostLabel = rawHost.toLowerCase() == sourceLabel.toLowerCase()
-        ? ''
-        : rawHost;
-    final AppLocalizations? l10n = Localizations.of<AppLocalizations>(
-      context,
-      AppLocalizations,
-    );
-    // 校园网卡片由服务端按部署配置本地渲染：配置没给名字时 title / description
-    // 为空，兜底文案必须由客户端按语言出（服务端不留任何中文，issue #729）。
-    final String title = preview.title?.trim().isNotEmpty == true
-        ? preview.title!.trim()
-        : (preview.campus ? (l10n?.linkPreviewCampusFallbackTitle ?? '') : '');
-    final String description = preview.description?.trim().isNotEmpty == true
-        ? preview.description!.trim()
-        : (preview.campus
-              ? (l10n?.linkPreviewCampusFallbackDescription ?? '')
-              : '');
-
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final bool railCover = constraints.maxWidth >= 640;
-        final int descriptionLines = descriptionLinesFor(constraints.maxWidth);
-        // 封面走 Stack + Positioned，刻意不参与卡片高度计算：竖版封面若留在
-        // 文档流里，会按自身比例把整张卡片撑高（Web 端实测 164px → 362px）。
-        // <640px 是右上角 56px 方形缩略图；≥640px 是保留 16px 内边距的
-        // 168px 居中缩略图，宽屏使用 contain 完整显示，避免裁掉封面两端。
-        final double coverInset = railCover ? 16 : 14;
-        final double coverWidth = railCover ? 168 : 56;
-        final double bodyRightPadding = coverUrl == null
-            ? 14
-            : (railCover ? coverWidth + 16 : 14 + coverWidth + 12);
-
-        final Widget body = Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                if (faviconUrl != null) ...<Widget>[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: GfNetworkImage(
-                      faviconUrl,
-                      width: 16,
-                      height: 16,
-                      cacheWidth: (32 * MediaQuery.devicePixelRatioOf(context))
-                          .round(),
-                      cacheHeight: (32 * MediaQuery.devicePixelRatioOf(context))
-                          .round(),
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                Expanded(
-                  child: Text(
-                    sourceLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colors.baseContent.withValues(alpha: 0.6),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: colors.baseContent,
-                fontWeight: FontWeight.w600,
-                height: 1.35,
-              ),
-            ),
-            if (description.isNotEmpty && descriptionLines > 0) ...<Widget>[
-              const SizedBox(height: 12),
-              Text(
-                description,
-                maxLines: descriptionLines,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontSize: 13,
-                  color: colors.baseContent.withValues(alpha: 0.65),
-                  height: 1.4,
-                ),
-              ),
-            ],
-            if (hostLabel.isNotEmpty) ...<Widget>[
-              const SizedBox(height: 12),
-              Text(
-                hostLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontSize: 11,
-                  color: colors.baseContent.withValues(alpha: 0.5),
-                ),
-              ),
-            ],
-          ],
-        );
-
-        return Semantics(
-          link: true,
-          label: <String>[
-            title,
-            if (sourceLabel.isNotEmpty) sourceLabel,
-          ].join(', '),
-          hint: preview.kind == 'external'
-              ? l10n?.linkPreviewExternalTitle
-              : null,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Material(
-              color: colors.base100,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(radii.box),
-                side: BorderSide(color: colors.line, width: borders.width),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: () => LinkNavigation.open(
-                  context,
-                  preview.url!,
-                  baseUrl: ref.read(apiClientProvider).baseUrl,
-                  previewKind: preview.kind,
-                ),
-                child: Stack(
-                  children: <Widget>[
-                    ConstrainedBox(
-                      // 缩略图绝对定位不参与高度计算，短卡片要自己留够 56 + 上下 14。
-                      constraints: BoxConstraints(
-                        minHeight: coverUrl != null && !railCover
-                            ? coverWidth + 28
-                            : 0,
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          14,
-                          14,
-                          bodyRightPadding,
-                          14,
-                        ),
-                        child: body,
-                      ),
-                    ),
-                    if (coverUrl != null)
-                      Positioned(
-                        top: coverInset,
-                        right: coverInset,
-                        bottom: railCover ? coverInset : null,
-                        width: coverWidth,
-                        height: railCover ? null : coverWidth,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: GfNetworkImage(
-                            coverUrl,
-                            fit: railCover ? BoxFit.contain : BoxFit.cover,
-                            cacheWidth:
-                                (coverWidth *
-                                        MediaQuery.devicePixelRatioOf(context))
-                                    .round(),
-                            cacheHeight:
-                                (coverWidth *
-                                        MediaQuery.devicePixelRatioOf(context))
-                                    .round(),
-                            errorBuilder: (_, _, _) {
-                              // 封面挂了就把让位空间一起收回，不留死白。
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (mounted && !_coverFailed) {
-                                  setState(() => _coverFailed = true);
-                                }
-                              });
-                              return const SizedBox.shrink();
-                            },
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 }

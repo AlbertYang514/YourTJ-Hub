@@ -231,6 +231,8 @@ export interface SiteSettings {
   siteDescription: string
   siteKeywords: string
   externalLinks?: string
+  /** 外链免确认白名单（issue #1200）：小写主机名，条目覆盖其全部子域。 */
+  trustedExternalDomains?: string[]
 }
 
 export interface SiteChromeItem {
@@ -665,6 +667,11 @@ export interface GithubRelease {
 }
 
 export interface AdminAgent {
+  profileCoverUrl: string
+  bio: string
+  signature: string
+  website: string
+  websiteName: string
   agentId: number
   username: string
   nickname: string
@@ -680,6 +687,8 @@ export interface AdminAgent {
   subscriptionGeneration: number
   secretConfigured: boolean
   secretVersion: number
+  /** Whether a static Authorization header is stored; the value is never returned. */
+  webhookAuthorizationConfigured: boolean
   latestAcceptedAt: string | null
   pendingCount: number
   pauseReason: string
@@ -785,3 +794,14 @@ export interface WikiNamespaceTree {
 
 /** Completed local course materialization (the API returns only after commit). */
 export type PkMaterializeResult = import('@gooseforum/client/openapi').components['schemas']['PkMaterializeResult']
+
+export interface BotContentSource {
+  topicId: number
+  postId: number
+  title: string
+  content: string
+  categoryId: number[]
+  revisionNo: number
+  botUserId: number
+  botName: string
+}

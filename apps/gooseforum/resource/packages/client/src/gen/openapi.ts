@@ -235,7 +235,11 @@ export interface paths {
         put?: never;
         /**
          * Configure independent event and Webhook switches
-         * @description CAS configVersion is mandatory for concurrency correctness (initial version 0). Endpoint accepts public HTTPS port 443 only. Subscriptions and endpoint generations are separate; historical events never move to a new endpoint. A secret must exist before enabling Webhook.
+         * @description Activated unfrozen human creator of the target Agent, or station administrator role_id=1 or Admin permission; ownership denial returns HTTP 200 permission.denied.
+         *     CAS configVersion is mandatory for concurrency correctness (initial
+         *     version 0). Endpoint accepts public HTTPS port 443 only. Subscriptions and endpoint
+         *     generations are separate; historical events never move to a new endpoint. A
+         *     secret must exist before enabling Webhook.
          */
         post: operations["adminAgentWebhookConfigure"];
         delete?: never;
@@ -255,7 +259,10 @@ export interface paths {
         put?: never;
         /**
          * Rotate the one-time Webhook HMAC secret
-         * @description Returns Cache-Control: no-store. Ordinary rotation dual signs for 24 hours; emergency rotation immediately invalidates the previous secret. Independent from bearer token rotation.
+         * @description Activated unfrozen human creator of the target Agent, or station administrator role_id=1 or Admin permission; ownership denial returns HTTP 200 permission.denied.
+         *     Returns Cache-Control: no-store. Ordinary rotation dual signs for
+         *     24 hours; emergency rotation immediately invalidates the previous secret. Independent
+         *     from bearer token rotation.
          */
         post: operations["adminAgentWebhookRotateSecret"];
         delete?: never;
@@ -275,7 +282,9 @@ export interface paths {
         put?: never;
         /**
          * Queue a signed connection test
-         * @description Sends agent.webhook_test through the same safety policy; receivers must not create content for tests.
+         * @description Activated unfrozen human creator of the target Agent, or station administrator role_id=1 or Admin permission; ownership denial returns HTTP 200 permission.denied.
+         *     Sends agent.webhook_test through the same safety policy; receivers
+         *     must not create content for tests.
          */
         post: operations["adminAgentWebhookTest"];
         delete?: never;
@@ -295,7 +304,9 @@ export interface paths {
         put?: never;
         /**
          * Inspect bounded delivery and attempt diagnostics
-         * @description Returns no body, secret or raw receiver response. Accepted means durable receiver ingress, not Agent processing.
+         * @description Activated unfrozen human creator of the target Agent, or station administrator role_id=1 or Admin permission; ownership denial returns HTTP 200 permission.denied.
+         *     Returns no body, secret or raw receiver response. Accepted means
+         *     durable receiver ingress, not Agent processing.
          */
         post: operations["adminAgentWebhookDeliveries"];
         delete?: never;
@@ -315,7 +326,10 @@ export interface paths {
         put?: never;
         /**
          * Explicitly restart one failed delivery round
-         * @description Preserves eventId and endpoint generation. Only unexpired failed deliveries with current generation and source visibility are allowed; maximum 3 rounds and 27 total attempts.
+         * @description Activated unfrozen human creator of the target Agent, or station administrator role_id=1 or Admin permission; ownership denial returns HTTP 200 permission.denied.
+         *     Preserves eventId and endpoint generation. Only unexpired failed
+         *     deliveries with current generation and source visibility are allowed; maximum
+         *     3 rounds and 27 total attempts.
          */
         post: operations["adminAgentWebhookRedeliver"];
         delete?: never;
@@ -335,7 +349,9 @@ export interface paths {
         put?: never;
         /**
          * Inspect pending and failed source intents
-         * @description Recipient-filtered recovery list; preserves failed unmaterialized intent diagnostics independently from deliveries.
+         * @description Activated unfrozen human creator of the target Agent, or station administrator role_id=1 or Admin permission; ownership denial returns HTTP 200 permission.denied.
+         *     Recipient-filtered recovery list; preserves failed unmaterialized
+         *     intent diagnostics independently from deliveries.
          */
         post: operations["adminAgentInteractionIntents"];
         delete?: never;
@@ -355,7 +371,9 @@ export interface paths {
         put?: never;
         /**
          * Replay one retained source intent
-         * @description Uses original frozen recipient identities and generations; re-materialization preserves eventId. Expired or unrelated source intents are refused.
+         * @description Activated unfrozen human creator of the target Agent, or station administrator role_id=1 or Admin permission; ownership denial returns HTTP 200 permission.denied.
+         *     Uses original frozen recipient identities and generations; re-materialization
+         *     preserves eventId. Expired or unrelated source intents are refused.
          */
         post: operations["adminAgentInteractionReplay"];
         delete?: never;
@@ -842,6 +860,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/passkey/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Return whether passkey sign-in is enabled on this deployment */
+        get: operations["getPasskeyStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/apple-app-site-association": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Return the configured Apple webcredentials app association */
+        get: operations["getAppleWebCredentialsAssociation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/assetlinks.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Return the configured Android Digital Asset Links association */
+        get: operations["getAndroidDigitalAssetLinks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/passkey/login/begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Begin discoverable passkey sign-in */
+        post: operations["beginPasskeyLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/passkey/login/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify a passkey assertion and issue a standard forum session */
+        post: operations["finishPasskeyLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/logout": {
         parameters: {
             query?: never;
@@ -1150,6 +1253,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/user/passkeys/reauth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reauthenticate with password and enabled TOTP before passkey management */
+        post: operations["reauthenticatePasskeyManagement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/passkeys/registration/begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Begin a discoverable passkey registration for the current account */
+        post: operations["beginPasskeyRegistration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/passkeys/registration/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify and store a passkey credential */
+        post: operations["finishPasskeyRegistration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/passkeys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List active passkeys for the current account */
+        get: operations["listPasskeyCredentials"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/passkeys/rename": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rename a passkey using a fresh strong-authentication proof */
+        post: operations["renamePasskeyCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/passkeys/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke a passkey using a fresh strong-authentication proof */
+        post: operations["revokePasskeyCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/apple/exchange": {
         parameters: {
             query?: never;
@@ -1231,10 +1436,11 @@ export interface paths {
          * @description First-party mobile WebView handoff. Requires an explicit valid human Bearer session and
          *     at least one admin permission (admin), moderation-workbench access (moderation), or the
          *     independent CourseManager/Admin permission (courseManagement and courseReviews).
-         *     The campus target requires only a live human session and redirects to /campus.
+         *     The agents target admits activated, unfrozen human Agent creators or station administrators
+         *     (role_id=1 or Admin permission) and redirects to /admin/agents. The campus target requires only a live human session and redirects to /campus.
          *     Cookie-only authentication is rejected. Installs the same
          *     session as an HttpOnly, SameSite=Lax cookie (Secure on HTTPS deployments), then redirects
-         *     exclusively to /admin, /moderation, /moderation/courses, /moderation/course-reviews or /campus.
+         *     exclusively to /admin, /admin/agents, /moderation, /moderation/courses, /moderation/course-reviews or /campus.
          *     Arbitrary redirect targets are never accepted; no token appears in the URL,
          *     response body, or New-Token header. Responses are no-store. Normal admin role, revocation,
          *     writable-account, and CSRF checks continue to apply to all subsequent operations.
@@ -2106,6 +2312,39 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/user/privacy-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the caller's profile privacy settings
+         * @description Owner comes only from the session; another account's raw settings are never readable.
+         *     Each setting chooses who can see one profile aggregate (topic list, activity timeline,
+         *     liked topics, following list, follower list). Accounts without a stored row return the
+         *     public defaults that predate the setting. The settings hide profile aggregates only: topics,
+         *     replies and relationships keep their ordinary forum visibility. Responses use private, no-store.
+         */
+        get: operations["getPrivacySettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update the caller's profile privacy settings
+         * @description Partial update of the caller's own settings; omitted fields keep their value. At least one
+         *     field is required. Unknown fields, null, non-string values, trailing JSON documents and
+         *     bodies over 4096 bytes fail with common.request.parseFailed. An audience a setting does not
+         *     offer fails with common.request.invalidParams. Rejected requests change nothing. The new
+         *     audience applies to the next profile request on every channel. Restricted (frozen) accounts
+         *     may still reduce what they disclose. Responses use private, no-store.
+         */
+        patch: operations["updatePrivacySettings"];
         trace?: never;
     };
     "/api/user-blocks": {
@@ -3461,6 +3700,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/external-link-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the trusted external-domain whitelist
+         * @description Public read (no auth) of the admin-configured trusted external domains,
+         *     consumed by the mobile app to mirror the Web external-link confirmation
+         *     policy (issue #1200). Links whose hostname equals an entry or is a
+         *     subdomain of an entry skip the "leaving the site" confirmation when
+         *     their risk class is normal_external; the tag-mismatch (suspicious) and
+         *     blocked classes are never exempted, and clients enforce that boundary.
+         *     Entries are lower-cased hostnames (IDN in punycode) validated at save
+         *     time; the same list is embedded in the SSR payload as
+         *     layout.site.trustedExternalDomains. An empty array means no domain is
+         *     exempted.
+         */
+        get: operations["getExternalLinkPolicy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/user/my-content": {
         parameters: {
             query?: never;
@@ -4414,6 +4682,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/agents/content-source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Load editable Agent content source
+         * @description Requires an activated, unfrozen human creator of the author Agent or station administrator
+         *     (role_id=1 or Admin permission). Bot login remains isolated. Only active, published, nonanonymous forum content
+         *     is eligible. Authors remain the bot; revisions and atomic audit records name the human operator.
+         *     The source returns the latest submitted Markdown and revisionNo, including an edit under review.
+         *     Edits require expectedRevisionNo from that source. A stale revision fails with HTTP 409
+         *     admin.agent.contentConflict; the client preserves the draft and reloads explicitly.
+         *     Existing moderation and validation apply; an approved version stays public during edit review.
+         */
+        post: operations["adminAgentContentSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/agents/edit-topic": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Correct a managed Agent topic
+         * @description Requires an activated, unfrozen human creator of the author Agent or station administrator
+         *     (role_id=1 or Admin permission). Bot login remains isolated. Only active, published, nonanonymous forum content
+         *     is eligible. Authors remain the bot; revisions and atomic audit records name the human operator.
+         *     The source returns the latest submitted Markdown and revisionNo, including an edit under review.
+         *     Edits require expectedRevisionNo from that source. A stale revision fails with HTTP 409
+         *     admin.agent.contentConflict; the client preserves the draft and reloads explicitly.
+         *     Existing moderation and validation apply; an approved version stays public during edit review.
+         */
+        post: operations["adminAgentEditTopic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/agents/edit-post": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Correct a managed Agent post
+         * @description Requires an activated, unfrozen human creator of the author Agent or station administrator
+         *     (role_id=1 or Admin permission). Bot login remains isolated. Only active, published, nonanonymous forum content
+         *     is eligible. Authors remain the bot; revisions and atomic audit records name the human operator.
+         *     The source returns the latest submitted Markdown and revisionNo, including an edit under review.
+         *     Edits require expectedRevisionNo from that source. A stale revision fails with HTTP 409
+         *     admin.agent.contentConflict; the client preserves the draft and reloads explicitly.
+         *     Existing moderation and validation apply; an approved version stays public during edit review.
+         */
+        post: operations["adminAgentEditPost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/agent-list": {
         parameters: {
             query?: never;
@@ -4425,10 +4771,10 @@ export interface paths {
         put?: never;
         /**
          * List all managed Agents (bot personas)
-         * @description Admin console operation gated by the `Admin` role permission; only roles
-         *     holding the Admin permission pass, others fail with HTTP 403 and
-         *     `permission.denied` (params permission=<localized permission name>).
-         *     Returns every Agent with its bot user, newest first. The token hash never
+         * @description Requires an activated, unfrozen human Agent creator or station administrator (role_id=1 or Admin permission).
+         *     Creators see only their own Agents; administrators see all. Other authenticated humans
+         *     receive an empty list without exposing another Agent.
+         *     Returns only manageable Agents with its bot user, newest first. The token hash never
          *     leaves the server; only the non-secret token prefix is exposed. JSON
          *     binding is lenient: the request body is ignored.
          */
@@ -4483,14 +4829,21 @@ export interface paths {
         put?: never;
         /**
          * Update an Agent's nickname, webhook, or enabled state
-         * @description Admin console operation gated by the `Admin` role permission; callers
-         *     without it fail with HTTP 403 and `permission.denied`. Only present
+         * @description Requires an activated, unfrozen human Agent creator or station administrator (role_id=1 or Admin permission).
+         *     Creators manage only their own Agents; administrators manage all. Ownership denial or
+         *     an unknown Agent uses HTTP 200 permission.denied without exposing another Agent.
+         *     Only present
          *     (non-null) fields are applied. Setting `enabled` to 0 disables the Agent
          *     and revokes its stored credential (the token hash is cleared, so a leaked
          *     token can never validate again); re-enabling such an Agent fails with
          *     `admin.agent.needsRotate` (HTTP 200) until adminAgentRotateToken issues a
-         *     new token. Unknown agents fail with `admin.agent.notFound` (HTTP 200); an
-         *     over-long nickname or an `enabled` value outside 0-1 fails with
+         *     new token. An
+         *     Profile fields (avatarUrl, profileCoverUrl, bio, signature, website and websiteName)
+         *     are optional and preserve stored values when absent. Avatar values must be built-in
+         *     presets or ready image files owned by the human actor or target Bot; cover and website
+         *     URLs use the safe http(s)/site-path policy. Profile text uses the normal user-profile
+         *     moderation rules, and mutation rechecks live human authority inside its transaction.
+         *     An over-long nickname/profile field or an `enabled` value outside 0-1 fails with
          *     `common.request.invalidParams` (HTTP 200); an invalid webhook endpoint
          *     fails with `admin.agent.webhookInvalid` (HTTP 200). JSON binding is
          *     lenient: a malformed body binds to zero values and fails validation as
@@ -4514,15 +4867,16 @@ export interface paths {
         put?: never;
         /**
          * Rotate an Agent's bearer token
-         * @description Admin console operation gated by the `Admin` role permission; callers
-         *     without it fail with HTTP 403 and `permission.denied`. Replaces the
+         * @description Requires an activated, unfrozen human Agent creator or station administrator (role_id=1 or Admin permission).
+         *     Creators manage only their own Agents; administrators manage all. Ownership denial or
+         *     an unknown Agent uses HTTP 200 permission.denied without exposing another Agent.
+         *     Replaces the
          *     stored token prefix and hash atomically (compare-and-swap), so the old
          *     token stops resolving immediately and the new plaintext token (`agt_`
          *     prefix) is returned exactly once. Rotation is also the recovery path
          *     after a disable revoked the credential: it succeeds and the Agent can
          *     then be re-enabled. A concurrent rotation loses the compare-and-swap and
-         *     fails with `admin.agent.rotateConflict` (HTTP 200); unknown agents fail
-         *     with `admin.agent.notFound` (HTTP 200). JSON binding is lenient: a
+         *     fails with `admin.agent.rotateConflict` (HTTP 200). JSON binding is lenient: a
          *     malformed body binds to zero values and fails validation as
          *     `common.request.invalidParams` (HTTP 200) because agentId is required.
          */
@@ -4544,14 +4898,15 @@ export interface paths {
         put?: never;
         /**
          * Disable an Agent and revoke its credential
-         * @description Admin console operation gated by the `Admin` role permission; callers
-         *     without it fail with HTTP 403 and `permission.denied`. Turns the Agent
+         * @description Requires an activated, unfrozen human Agent creator or station administrator (role_id=1 or Admin permission).
+         *     Creators manage only their own Agents; administrators manage all. Ownership denial or
+         *     an unknown Agent uses HTTP 200 permission.denied without exposing another Agent.
+         *     Turns the Agent
          *     off and clears the stored token hash, so bearer resolution with the old
          *     token fails with HTTP 401 immediately and can never validate again, even
          *     if the Agent is later re-enabled. Re-enabling requires an explicit
          *     adminAgentRotateToken first (adminAgentUpdate fails with
-         *     `admin.agent.needsRotate` otherwise). Unknown agents fail with
-         *     `admin.agent.notFound` (HTTP 200). A successful disable returns result
+         *     `admin.agent.needsRotate` otherwise). A successful disable returns result
          *     `success` with messageCode `common.operation.success`. JSON binding is
          *     lenient: a malformed body binds to zero values and fails validation as
          *     `common.request.invalidParams` (HTTP 200) because agentId is required.
@@ -5511,8 +5866,11 @@ export interface paths {
          *     `permission.denied` (params permission=<localized permission name>,
          *     `站点管理` in zh). Returns the stored site settings, or the built-in
          *     default configuration when nothing has been saved yet (the default is
-         *     not persisted by reads). JSON binding is lenient: query string and
-         *     body are ignored.
+         *     not persisted by reads). Stored rows that predate
+         *     `trustedExternalDomains` (the key is absent or null) report the
+         *     built-in default whitelist; an explicit empty array reports an empty
+         *     list, and invalid stored entries are filtered on read (issue #1200).
+         *     JSON binding is lenient: query string and body are ignored.
          */
         get: operations["adminGetSiteSettings"];
         put?: never;
@@ -5548,7 +5906,18 @@ export interface paths {
          *     rejected; empty values are valid. A rejected field fails the request
          *     with HTTP 200 `code: 1`, messageCode `admin.url.invalid` and params
          *     `field` naming the first offending field (`settings.siteUrl` or
-         *     `settings.siteLogo`); nothing is persisted. JSON binding stays
+         *     `settings.siteLogo`); nothing is persisted. `trustedExternalDomains`
+         *     entries are normalized before persistence (trimmed, lower-cased, IDN
+         *     converted to punycode, de-duplicated, blank entries dropped) under the
+         *     trusted-domain policy (issue #1200): entries carry no scheme, path,
+         *     port, wildcard or IP literal, are not a bare public suffix, are limited
+         *     to 200 entries, and each must be a valid hostname. Rejection fails the
+         *     request with HTTP 200 `code: 1`, messageCode
+         *     `admin.externalDomain.invalid` and params `domain` naming the first
+         *     offending entry; nothing is persisted. A request that omits
+         *     `trustedExternalDomains` (or sends null) keeps the stored list — or the
+         *     built-in default when nothing has been saved — while an explicit empty
+         *     array clears it. JSON binding stays
          *     lenient: a missing/malformed body binds to zero values (empty URL
          *     fields, hence valid) and is saved as-is.
          */
@@ -9431,6 +9800,11 @@ export interface components {
         };
         UploadAvatarRequest: {
             /**
+             * Format: uint64
+             * @description Optional managed Bot target; human creator or station admin remains uploader and pays quotas.
+             */
+            agentId?: number;
+            /**
              * Format: binary
              * @description Primary avatar image file.
              */
@@ -11367,11 +11741,22 @@ export interface components {
             siteUrl: string;
             siteEmail: string;
             externalLinks: string;
+            /**
+             * @description Trusted external-domain whitelist (issue #1200): lower-cased
+             *     hostnames whose normal_external links skip the external-link
+             *     confirmation; an entry also matches its subdomains. Optional in
+             *     requests — omitting the key (or sending null) keeps the stored list,
+             *     while an explicit empty array clears it — and always present in
+             *     responses (the stored list, or the built-in default when nothing has
+             *     been saved).
+             */
+            trustedExternalDomains?: string[];
         };
         AdminSiteSettingsResponse: components["schemas"]["ApiSuccess"] & {
             /** @description Stored site settings, or the built-in default when nothing has been saved. */
-            result: components["schemas"]["AdminSiteSettingsConfig"];
+            result: components["schemas"]["AdminSiteSettingsResult"];
         };
+        AdminSiteSettingsResult: components["schemas"]["AdminSiteSettingsConfig"] & Record<string, never>;
         /**
          * @description Replacement site settings. URL fields are validated before persistence
          *     under the shared admin URL policy (issue #409): `siteUrl` must be an
@@ -11383,6 +11768,18 @@ export interface components {
          *     and params `field` naming the first offending field; nothing is
          *     persisted. A missing/malformed body binds to zero values (empty URL
          *     fields, hence valid) and is saved as-is.
+         *     `trustedExternalDomains` entries are normalized before persistence
+         *     (trimmed, lower-cased, IDN converted to punycode, de-duplicated, blank
+         *     entries dropped) under the trusted-domain policy (issue #1200): entries
+         *     carry no scheme, path, port, wildcard or IP literal, are not a bare
+         *     public suffix (`com`, `co.uk`, `github.io`), are limited to 200 entries,
+         *     and each must be a valid hostname. On rejection the request fails with
+         *     HTTP 200 `code: 1`, messageCode `admin.externalDomain.invalid` and params
+         *     `domain` naming the first offending entry; nothing is persisted. An
+         *     explicit empty array is valid and disables the whitelist, while omitting
+         *     the key (or sending null) keeps the stored list — or the built-in default
+         *     when nothing has been saved — so an admin tab running the previous bundle
+         *     cannot clear the whitelist by saving unrelated settings.
          */
         AdminSaveSiteSettingsRequest: {
             settings?: components["schemas"]["AdminSiteSettingsConfig"];
@@ -11546,6 +11943,17 @@ export interface components {
             result: components["schemas"]["PublicSiteThemeTokensResult"];
         };
         PublicSiteThemeTokensResponse: components["schemas"]["PublicSiteThemeTokensSuccess"] | components["schemas"]["ApiFailure"];
+        ExternalLinkPolicyResult: {
+            /**
+             * @description Lower-cased hostnames (IDN in punycode) in submission order; an entry
+             *     also matches its subdomains. Empty means no domain is exempted.
+             */
+            trustedDomains: string[];
+        };
+        ExternalLinkPolicySuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ExternalLinkPolicyResult"];
+        };
+        ExternalLinkPolicyResponse: components["schemas"]["ExternalLinkPolicySuccess"] | components["schemas"]["ApiFailure"];
         AdminSecuritySettingsConfig: {
             enableSignup: boolean;
             enableEmailVerification: boolean;
@@ -13028,6 +13436,11 @@ export interface components {
             agentId: number;
         };
         AdminAgentItem: {
+            profileCoverUrl: string;
+            bio: string;
+            signature: string;
+            website: string;
+            websiteName: string;
             configVersion: number;
             eventsEnabled: boolean;
             eventTypes: ("agent.mentioned" | "agent.post_replied" | "agent.topic_commented" | "forum.topic_created" | "forum.post_created")[];
@@ -13036,6 +13449,8 @@ export interface components {
             endpointGeneration: number;
             secretConfigured: boolean;
             secretVersion: number;
+            /** @description Whether a static Authorization header is stored for webhook deliveries. The value is never returned. */
+            webhookAuthorizationConfigured: boolean;
             /** Format: date-time */
             latestAcceptedAt: string | null;
             pendingCount: number;
@@ -13095,6 +13510,18 @@ export interface components {
             };
         };
         AdminAgentUpdateRequest: {
+            /** @description Applied only when present; must be a built-in preset or ready image file owned by the human actor or target Bot. */
+            avatarUrl?: string;
+            /** @description Applied only when present; empty text clears the field. */
+            profileCoverUrl?: string;
+            /** @description Applied only when present; empty text clears the field. */
+            bio?: string;
+            /** @description Applied only when present; empty text clears the field. */
+            signature?: string;
+            /** @description Applied only when present; empty text clears the field. */
+            website?: string;
+            /** @description Applied only when present; empty text clears the field. */
+            websiteName?: string;
             /**
              * Format: uint64
              * @description Unknown ids fail with `admin.agent.notFound` (HTTP 200); missing/zero fails request validation with `common.request.invalidParams` (HTTP 200).
@@ -14051,6 +14478,8 @@ export interface components {
             eventTypes?: ("agent.mentioned" | "agent.post_replied" | "agent.topic_commented" | "forum.topic_created" | "forum.post_created")[];
             webhookEnabled?: boolean;
             webhookEndpoint?: string;
+            /** @description Optional static `Authorization` header value sent with every delivery (for receivers that only accept a static token, e.g. `Bearer …`). Omit to keep the stored value; send an empty string to clear it. Stored encrypted and never returned; Standard Webhooks signing headers are unchanged and cannot be overridden. Visible ASCII only (no CR/LF). */
+            webhookAuthorization?: string;
         };
         AgentWebhookConfigSuccess: components["schemas"]["ApiSuccess"] & {
             result?: components["schemas"]["AdminAgentItem"];
@@ -14261,6 +14690,48 @@ export interface components {
         revealAnonymousIdentityResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["AnonymousRevealedOwner"];
         }) | components["schemas"]["ApiFailure"];
+        PasskeyStatusResult: {
+            enabled: boolean;
+        };
+        PasskeyStatusResponse: (components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["PasskeyStatusResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AppleAssociationResponse: {
+            webcredentials: {
+                apps: string[];
+            };
+        };
+        AndroidAssociationResponse: {
+            relation: string[];
+            target: {
+                /** @constant */
+                namespace: "android_app";
+                package_name: string;
+                sha256_cert_fingerprints: string[];
+            };
+        }[];
+        /** @description WebAuthn options serialized by the relying-party implementation. */
+        PasskeyWebAuthnOptions: {
+            [key: string]: unknown;
+        };
+        PasskeyLoginBeginResult: {
+            ceremonyId: string;
+            publicKey: components["schemas"]["PasskeyWebAuthnOptions"];
+        };
+        PasskeyLoginBeginResponse: (components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["PasskeyLoginBeginResult"];
+        }) | components["schemas"]["ApiFailure"];
+        /** @description WebAuthn public-key credential response; base64url encoded binary members. */
+        PasskeyCredentialResponseObject: {
+            [key: string]: unknown;
+        };
+        PasskeyLoginFinishRequest: {
+            ceremonyId: string;
+            credential: components["schemas"]["PasskeyCredentialResponseObject"];
+        };
+        PasskeyEmptyResponse: (components["schemas"]["ApiSuccess"] & {
+            result?: Record<string, never>;
+        }) | components["schemas"]["ApiFailure"];
         TongjiRegistrationStatus: {
             csrfToken: string;
             email: string;
@@ -14285,6 +14756,60 @@ export interface components {
         };
         TongjiRegistrationResultResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["TongjiRegistrationResult"];
+        };
+        PasskeyReauthRequest: {
+            /** @description RSA-OAEP-256 encrypted password payload, matching POST /api/login. */
+            encryptedPassword: string;
+            /** @description Required only when TOTP is enabled. */
+            totpCode?: string;
+        };
+        PasskeyReauthResult: {
+            proof: string;
+            /** @constant */
+            expiresInSeconds: 120;
+        };
+        PasskeyReauthResponse: (components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["PasskeyReauthResult"];
+        }) | components["schemas"]["ApiFailure"];
+        PasskeyRegistrationBeginRequest: {
+            /** @description One-use proof from POST /api/user/passkeys/reauth. */
+            proof: string;
+        };
+        PasskeyRegistrationBeginResponse: (components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["PasskeyLoginBeginResult"];
+        }) | components["schemas"]["ApiFailure"];
+        PasskeyRegistrationFinishRequest: {
+            ceremonyId: string;
+            /** @description Optional user-facing label; defaults to Passkey. */
+            name?: string;
+            credential: components["schemas"]["PasskeyCredentialResponseObject"];
+        };
+        PasskeyCredentialSummary: {
+            /** @description Base64url credential identifier, never a private key. */
+            id: string;
+            name: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            lastUsedAt?: string;
+            backupEligible: boolean;
+            backupState: boolean;
+            transports: string[];
+        };
+        PasskeyCredentialResponse: (components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["PasskeyCredentialSummary"];
+        }) | components["schemas"]["ApiFailure"];
+        PasskeyCredentialListResponse: (components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["PasskeyCredentialSummary"][];
+        }) | components["schemas"]["ApiFailure"];
+        PasskeyCredentialRenameRequest: {
+            proof: string;
+            credentialId: string;
+            name: string;
+        };
+        PasskeyCredentialRevokeRequest: {
+            proof: string;
+            credentialId: string;
         };
         UpdateTopicAgentRepliesRequest: {
             /** Format: uint64 */
@@ -14412,6 +14937,32 @@ export interface components {
         };
         ModerationApprovalActionResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["ModerationApprovalActionView"];
+        };
+        /**
+         * @description Who can see a profile aggregate, from the widest to the narrowest audience.
+         * @enum {string}
+         */
+        ProfileAudience: "everyone" | "members" | "followers" | "mutual" | "self";
+        /** @enum {string} */
+        ProfileLikesAudience: "everyone" | "followers" | "self";
+        /** @enum {string} */
+        ProfileConnectionsAudience: "everyone" | "followers" | "mutual" | "self";
+        UserPrivacySettings: {
+            profileTopics: components["schemas"]["ProfileAudience"];
+            profileActivity: components["schemas"]["ProfileAudience"];
+            profileLikes: components["schemas"]["ProfileLikesAudience"];
+            followingList: components["schemas"]["ProfileConnectionsAudience"];
+            followersList: components["schemas"]["ProfileConnectionsAudience"];
+        };
+        UserPrivacySettingsSuccess: components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["UserPrivacySettings"];
+        };
+        UserPrivacySettingsUpdateRequest: {
+            profileTopics?: components["schemas"]["ProfileAudience"];
+            profileActivity?: components["schemas"]["ProfileAudience"];
+            profileLikes?: components["schemas"]["ProfileLikesAudience"];
+            followingList?: components["schemas"]["ProfileConnectionsAudience"];
+            followersList?: components["schemas"]["ProfileConnectionsAudience"];
         };
         UserBlock: {
             /** Format: uint64 */
@@ -14722,6 +15273,18 @@ export interface components {
             fetchedAt?: string;
             /** @description Set when the card was rendered from the deployment's local campus configuration without any outbound request. `title` and `description` may be absent in that case; clients supply their own localized fallback copy instead of relying on server-side text. */
             campus?: boolean;
+            /**
+             * @description Set when the URL was strictly recognized as a supported external platform resource. A platform identifier, not a display name: clients render the localized platform label themselves, while `siteName` stays the page's own label. Absent for generic cards.
+             * @enum {string}
+             */
+            platform?: "bilibili" | "apple_music";
+            /**
+             * @description Resource kind inside the recognized platform. Only present together with `platform`.
+             * @enum {string}
+             */
+            resourceType?: "video" | "song" | "album";
+            /** @description Uploader or artist published by the platform source. Optional; absent when the platform did not publish one, and never synthesized by the server. */
+            author?: string;
         };
         LinkPreviewResolveSuccess: components["schemas"]["ApiSuccess"] & {
             result?: components["schemas"]["LinkPreview"][];
@@ -14798,6 +15361,45 @@ export interface components {
         ModerationPostRevealResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["PostAuthorRevealPayload"];
         }) | components["schemas"]["ApiFailure"];
+        AgentContentSourceRequest: {
+            /** Format: uint64 */
+            topicId?: number;
+            /** Format: uint64 */
+            postId?: number;
+        } & (unknown | unknown);
+        AgentContentSource: {
+            /** Format: uint64 */
+            topicId: number;
+            /** Format: uint64 */
+            postId: number;
+            title: string;
+            content: string;
+            categoryId: number[];
+            /** Format: uint64 */
+            revisionNo: number;
+            /** Format: uint64 */
+            botUserId: number;
+            botName: string;
+        };
+        AgentContentSourceResponse: components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["AgentContentSource"];
+        };
+        AgentEditTopicRequest: {
+            /** Format: uint64 */
+            topicId: number;
+            title: string;
+            content: string;
+            categoryId: number[];
+            /** Format: uint64 */
+            expectedRevisionNo: number;
+        };
+        AgentEditPostRequest: {
+            /** Format: uint64 */
+            postId: number;
+            content: string;
+            /** Format: uint64 */
+            expectedRevisionNo: number;
+        };
         /**
          * @description Notification channel adapter (issue #1049). `generic` posts the structured JSON envelope
          *     with `X-Goose-*` headers and the optional HMAC signature; `feishu` posts a schema 2.0
@@ -15710,7 +16312,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Admin role required. */
+            /** @description Non-writable account or rejected CSRF request. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15752,7 +16354,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Admin role required. */
+            /** @description Non-writable account or rejected CSRF request. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15794,7 +16396,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Admin role required. */
+            /** @description Non-writable account or rejected CSRF request. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15836,7 +16438,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Admin role required. */
+            /** @description Non-writable account or rejected CSRF request. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15878,7 +16480,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Admin role required. */
+            /** @description Non-writable account or rejected CSRF request. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15920,7 +16522,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Admin role required. */
+            /** @description Non-writable account or rejected CSRF request. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15962,7 +16564,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Admin role required. */
+            /** @description Non-writable account or rejected CSRF request. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17020,6 +17622,134 @@ export interface operations {
             };
         };
     };
+    getPasskeyStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Public passkey availability flag. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyStatusResponse"];
+                };
+            };
+        };
+    };
+    getAppleWebCredentialsAssociation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description AASA association for the configured Apple Team ID and bundle ID. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppleAssociationResponse"];
+                };
+            };
+            /** @description No Apple Team ID is configured; the response contains an empty app list. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppleAssociationResponse"];
+                };
+            };
+        };
+    };
+    getAndroidDigitalAssetLinks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Credential-sharing association for the configured Android package and signing fingerprints, or an empty list. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AndroidAssociationResponse"];
+                };
+            };
+        };
+    };
+    beginPasskeyLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Discoverable WebAuthn request options and opaque ceremony ID. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyLoginBeginResponse"];
+                };
+            };
+        };
+    };
+    finishPasskeyLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyLoginFinishRequest"];
+            };
+        };
+        responses: {
+            /** @description Success sets the standard New-Token and session cookie; invalid credentials return the normal business failure envelope. */
+            200: {
+                headers: {
+                    "New-Token"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyEmptyResponse"];
+                };
+            };
+            /** @description Login rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
     logout: {
         parameters: {
             query?: never;
@@ -17513,6 +18243,191 @@ export interface operations {
             };
         };
     };
+    reauthenticatePasskeyManagement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyReauthRequest"];
+            };
+        };
+        responses: {
+            /** @description Short-lived, one-use proof bound to the current user and session. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyReauthResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description CSRF or writable-account check rejected the request. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    beginPasskeyRegistration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyRegistrationBeginRequest"];
+            };
+        };
+        responses: {
+            /** @description WebAuthn credential creation options. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyRegistrationBeginResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    finishPasskeyRegistration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyRegistrationFinishRequest"];
+            };
+        };
+        responses: {
+            /** @description Created credential summary. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyCredentialResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listPasskeyCredentials: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Credential metadata; raw credential data and public keys are never returned. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyCredentialListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    renamePasskeyCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyCredentialRenameRequest"];
+            };
+        };
+        responses: {
+            /** @description Renamed credential. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyEmptyResponse"];
+                };
+            };
+        };
+    };
+    revokePasskeyCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyCredentialRevokeRequest"];
+            };
+        };
+        responses: {
+            /** @description Revoked credential. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyEmptyResponse"];
+                };
+            };
+        };
+    };
     exchangeNativeAppleCode: {
         parameters: {
             query?: never;
@@ -17756,7 +18671,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Fixed workspace destination; each target checks its existing permissions. */
-                target?: "admin" | "moderation" | "courseManagement" | "courseReviews" | "campus";
+                target?: "admin" | "agents" | "moderation" | "courseManagement" | "courseReviews" | "campus";
             };
             header?: never;
             path?: never;
@@ -17767,7 +18682,7 @@ export interface operations {
             /** @description Browser session installed; follow the fixed same-origin admin redirect. */
             303: {
                 headers: {
-                    Location?: "/admin" | "/moderation" | "/moderation/courses" | "/moderation/course-reviews";
+                    Location?: "/admin" | "/admin/agents" | "/moderation" | "/moderation/courses" | "/moderation/course-reviews" | "/campus";
                     /** @description HttpOnly access_token session cookie. */
                     "Set-Cookie"?: string;
                     "Cache-Control"?: "no-store";
@@ -19164,6 +20079,114 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CaptchaSuccess"];
+                };
+            };
+        };
+    };
+    getPrivacySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's settings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPrivacySettingsSuccess"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Storage unavailable; no successful response is returned. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    updatePrivacySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserPrivacySettingsUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description The complete settings after the update. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPrivacySettingsSuccess"];
+                };
+            };
+            /** @description Malformed body, unknown field or unsupported audience. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cookie request rejected with auth.csrf.rejected by the CSRF gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+            /** @description Storage unavailable; nothing was saved. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };
@@ -20608,7 +21631,7 @@ export interface operations {
                     "application/json": components["schemas"]["response"];
                 };
             };
-            /** @description Malformed JSON or invalid group value types. */
+            /** @description Malformed JSON, a wrong field value type, an unknown (additional) field, a non-object/null body, or a request body over the 4KiB limit. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -20624,6 +21647,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved; when email verification is enabled a pending-activation account is also rejected. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected` (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Push-preference update rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -21503,6 +22545,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicSiteThemeTokensResponse"];
+                };
+            };
+        };
+    };
+    getExternalLinkPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Trusted external domains: the stored list, or the built-in default
+             *     whitelist when nothing has been saved (or the stored row predates
+             *     the field). JSON binding is lenient: query string and body are
+             *     ignored.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalLinkPolicyResponse"];
                 };
             };
         };
@@ -23702,6 +24769,150 @@ export interface operations {
             };
         };
     };
+    adminAgentContentSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentContentSourceRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or the existing validation/moderation business failure envelope; inspect code and messageCode. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentContentSourceResponse"];
+                };
+            };
+            /** @description Missing or invalid human session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Unmanageable, inactive, anonymous, non-forum or unavailable content (admin.agent.contentUnavailable); account and CSRF gates also use HTTP 403. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminAgentEditTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentEditTopicRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or the existing validation/moderation business failure envelope; inspect code and messageCode. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WriteTopicResponse"];
+                };
+            };
+            /** @description Missing or invalid human session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Unmanageable, inactive, anonymous, non-forum or unavailable content (admin.agent.contentUnavailable); account and CSRF gates also use HTTP 403. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Latest submission changed; preserve the draft and reload the source. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminAgentEditPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentEditPostRequest"];
+            };
+        };
+        responses: {
+            /** @description Success or the existing validation/moderation business failure envelope; inspect code and messageCode. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdatePostResponse"];
+                };
+            };
+            /** @description Missing or invalid human session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Unmanageable, inactive, anonymous, non-forum or unavailable content (admin.agent.contentUnavailable); account and CSRF gates also use HTTP 403. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Latest submission changed; preserve the draft and reload the source. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
     adminAgentList: {
         parameters: {
             query?: never;
@@ -23711,13 +24922,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description All Agents (empty array when none exist). */
+            /** @description Manageable Agents (empty when the caller manages none). */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminAgentListResponse"];
+                    "application/json": components["schemas"]["AdminAgentListResponse"] | components["schemas"]["ApiFailure"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */
@@ -23729,7 +24940,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            /** @description Frozen or non-writable account. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -23813,7 +25024,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            /** @description Frozen or non-writable account. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -23855,7 +25066,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            /** @description Frozen or non-writable account. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -23897,7 +25108,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            /** @description Frozen or non-writable account. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;

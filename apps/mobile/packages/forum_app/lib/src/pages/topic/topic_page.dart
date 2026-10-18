@@ -1508,20 +1508,20 @@ class _TopicPageState extends ConsumerState<TopicPage>
       if (!saved) {
         if (!_replySaveFailed) return;
         final l10n = AppLocalizations.of(context);
-        final discard = await showDialog<bool>(
-          context: context,
-          animationStyle: GfMotion.dialogStyle(context),
-          builder: (context) => AlertDialog(
-            title: Text(l10n.draftLocalSaveFailed),
-            content: Text(l10n.draftReplyLeaveUnsaved),
+        final discard = await showGfAlertDialog<bool>(
+          context,
+          builder: (context) => GfAlertDialog(
+            title: GfText(l10n.draftLocalSaveFailed),
+            content: GfText(l10n.draftReplyLeaveUnsaved),
             actions: [
-              TextButton(
+              GfDialogAction(
                 onPressed: () => Navigator.pop(context, false),
-                child: Text(l10n.publishContinue),
+                child: GfText(l10n.publishContinue),
               ),
-              TextButton(
+              GfDialogAction(
+                destructive: true,
                 onPressed: () => Navigator.pop(context, true),
-                child: Text(l10n.publishDiscard),
+                child: GfText(l10n.publishDiscard),
               ),
             ],
           ),
@@ -1654,7 +1654,11 @@ class _TopicPageState extends ConsumerState<TopicPage>
           size: 44,
           onPressed: _goBack,
         ),
-        title: Text(appBarTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+        title: GfText(
+          appBarTitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         actions: [
           if (!_fromCache && _page.valueOrNull != null)
             TopicActions(
@@ -1754,7 +1758,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                             _sort == CommentSort.desc
                                       ? _retryLatestReplies
                                       : () => _loadMore(earlier: true),
-                                  child: Text(
+                                  child: GfText(
                                     _sort == CommentSort.desc
                                         ? l10n.topicLaterReplies
                                         : l10n.topicEarlierReplies,
@@ -1976,7 +1980,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                                 Row(
                                                   children: [
                                                     Expanded(
-                                                      child: Text(
+                                                      child: GfText(
                                                         _replySaveStatus,
                                                         style: Theme.of(
                                                           context,
@@ -1987,7 +1991,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                                       TextButton(
                                                         onPressed:
                                                             _saveReplyDraft,
-                                                        child: Text(
+                                                        child: GfText(
                                                           l10n.commonRetry,
                                                         ),
                                                       ),
@@ -2004,7 +2008,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                                             const EdgeInsets.only(
                                                               bottom: 8,
                                                             ),
-                                                        child: Text(
+                                                        child: GfText(
                                                           l10n.publishCaptchaExplanation,
                                                           style: Theme.of(
                                                             context,
@@ -2159,7 +2163,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _goBack();
       },
-      child: scaffold,
+      child: GfStatusBarScrollToTop(controller: _scrollToTop, child: scaffold),
     );
   }
 
@@ -2276,7 +2280,7 @@ class _TopicHeader extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(
+                    GfText(
                       '${topic.author.publicUid != null ? (isOwnTopic ? l10n.anonymousTagOwn : l10n.anonymousTag) : '@${topic.author.username}'} · ${timeAgo(topic.createdAt, l10n: l10n)}',
                       style: GfTheme.typographyOf(
                         context,
@@ -2314,7 +2318,7 @@ class _TopicHeader extends StatelessWidget {
           // 无标题瞬间不渲染详情大标题（titleKey 缺失时滚动页头检测自动跳过）。
           if (topic.title.trim().isNotEmpty) ...[
             const SizedBox(height: 14),
-            Text(
+            GfText(
               topic.title,
               key: titleKey,
               style: GfTheme.typographyOf(context).title1,
@@ -2335,7 +2339,7 @@ class _TopicHeader extends StatelessWidget {
           ],
           if (!available) ...<Widget>[
             const SizedBox(height: 16),
-            Text(l10n.topicRemoved),
+            GfText(l10n.topicRemoved),
           ] else if (mainPost != null) ...<Widget>[
             const SizedBox(height: 16),
             GfMarkdownView(
@@ -2345,7 +2349,7 @@ class _TopicHeader extends StatelessWidget {
             ),
           ] else if (topic.description.isNotEmpty) ...<Widget>[
             const SizedBox(height: 12),
-            Text(topic.description, style: readingBodyStyle(context)),
+            GfText(topic.description, style: readingBodyStyle(context)),
           ],
           const SizedBox(height: 18),
           Wrap(
@@ -2392,7 +2396,7 @@ class _ReplySectionHeader extends StatelessWidget {
         spacing: 8,
         runSpacing: 8,
         children: <Widget>[
-          Text(
+          GfText(
             l10n.topicReplies(count),
             style: GfTheme.typographyOf(context).title3,
           ),
@@ -2429,7 +2433,7 @@ class _CommentSortCapsule extends StatelessWidget {
           child: Container(
             constraints: const BoxConstraints(minHeight: 32),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Text(
+            child: GfText(
               label,
               style: TextStyle(
                 color: selected
@@ -2483,7 +2487,7 @@ class _TopicStat extends StatelessWidget {
           children: [
             GfSymbol(symbol, size: 16, color: color),
             const SizedBox(width: 5),
-            Text(
+            GfText(
               value,
               style: GfTheme.typographyOf(
                 context,
@@ -2597,12 +2601,12 @@ class _PostCard extends StatelessWidget {
                 ),
               ),
               if (post.author.publicUid != null)
-                Text(
+                GfText(
                   post.isOwnPost ? l10n.anonymousTagOwn : l10n.anonymousTag,
                   style: GfTheme.typographyOf(context).caption,
                 ),
               if (post.postNo > 0)
-                Text(
+                GfText(
                   '#${post.postNo}',
                   style: GfTheme.typographyOf(context).caption.copyWith(
                     color: GfTheme.colorsOf(context).iconMuted,
@@ -2628,7 +2632,7 @@ class _PostCard extends StatelessWidget {
                     quoteTarget == null || quoteTarget?.unavailable == true,
               )
             else
-              Text(
+              GfText(
                 '${l10n.topicReply} @${post.replyToUsername}',
                 style: GfTheme.typographyOf(
                   context,
@@ -2637,7 +2641,7 @@ class _PostCard extends StatelessWidget {
           ],
           const SizedBox(height: 4),
           if (post.isAuthorDeleted || post.isModeratorRemoved)
-            Text(l10n.topicRemoved)
+            GfText(l10n.topicRemoved)
           else
             GfMarkdownView(data: post.content, mentions: post.mentions),
           // 待审回复（issue #975）：作者与审核员可见，标明尚未公开。
@@ -2650,7 +2654,7 @@ class _PostCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 4),
-          Text(
+          GfText(
             timeAgo(post.createdAt, l10n: l10n),
             style: GfTheme.typographyOf(
               context,
@@ -2756,7 +2760,7 @@ class _ReplyQuoteState extends State<_ReplyQuote> {
                 const SizedBox(width: 8),
               ],
               Expanded(
-                child: Text(
+                child: GfText(
                   '@${widget.username}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -2764,7 +2768,7 @@ class _ReplyQuoteState extends State<_ReplyQuote> {
                 ),
               ),
               if (widget.postNo != null)
-                Text(
+                GfText(
                   '#${widget.postNo}',
                   style: style.copyWith(color: colors.iconMuted),
                 ),
@@ -2772,7 +2776,7 @@ class _ReplyQuoteState extends State<_ReplyQuote> {
           ),
           if (widget.unavailable) ...[
             const SizedBox(height: 6),
-            Text(l10n.topicReplyTargetUnavailable, style: style),
+            GfText(l10n.topicReplyTargetUnavailable, style: style),
           ] else if (hasPreview) ...[
             const SizedBox(height: 6),
             LayoutBuilder(
@@ -2788,7 +2792,7 @@ class _ReplyQuoteState extends State<_ReplyQuote> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    GfText(
                       preview,
                       maxLines: _expanded ? null : 4,
                       overflow: _expanded
@@ -2808,7 +2812,7 @@ class _ReplyQuoteState extends State<_ReplyQuote> {
                           _expanded ? 'chevron-up' : 'chevron-down',
                           size: 16,
                         ),
-                        label: Text(
+                        label: GfText(
                           _expanded
                               ? l10n.replyQuoteCollapse
                               : l10n.replyQuoteExpand,
@@ -2864,7 +2868,7 @@ class _PendingReviewNotice extends StatelessWidget {
             ),
             SizedBox(width: compact ? 4 : 8),
             Expanded(
-              child: Text(text, style: style.copyWith(color: colors.warning)),
+              child: GfText(text, style: style.copyWith(color: colors.warning)),
             ),
           ],
         ),
