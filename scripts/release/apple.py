@@ -8,7 +8,7 @@ from publish_ios import asc, APP_ID, GROUP_ID
 from model import require
 
 
-def discover():
+def discover(include_history=False):
     builds_response = asc('builds', 'list', '--app', APP_ID, '--platform', 'IOS', '--processing-state', 'VALID',
                           '--include', 'preReleaseVersion,buildBetaDetail,betaGroups', '--paginate')
     included = {i['id']: i for i in builds_response.get('included', [])}
@@ -49,8 +49,20 @@ def discover():
         require(build_id in builds, 'Live App Store version is missing its exact build')
         store = {'buildId': build_id, 'buildNumber': builds[build_id]['attributes']['version'],
                  'version': version['attributes']['versionString'], 'state': version['attributes']['appStoreState']}
-    return {'ios-testflight': testflight, 'ios-app-store': store, 'validBuilds': identities}
+    result = {'ios-testflight': testflight, 'ios-app-store': store, 'validBuilds': identities}
+    if include_history:
+        result['testflightBuilds'] = [row[1] for row in distributed]
+        history = asc('versions', 'list', '--app', APP_ID, '--platform', 'IOS', '--include', 'build', '--paginate')
+        builds = {b['id']: b for b in history.get('included', []) if b['type'] == 'builds'}
+        result['storeVersions'] = []
+        for item in history['data']:
+            build_id = (item.get('relationships', {}).get('build', {}).get('data') or {}).get('id')
+            if build_id in builds:
+                result['storeVersions'].append({'version': item['attributes']['versionString'],
+                    'buildNumber': builds[build_id]['attributes']['version'], 'buildId': build_id,
+                    'state': item['attributes']['appStoreState']})
+    return result
 
 
 if __name__ == '__main__':
-    Path(sys.argv[1]).write_text(json.dumps(discover(), indent=2) + '\n', encoding='utf-8')
+    Path(sys.argv[1]).write_text(json.dumps(discover('--history' in sys.argv[2:]), indent=2) + '\n', encoding='utf-8')

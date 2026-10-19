@@ -13,7 +13,7 @@ on:
         options: [patch, minor, major]
         default: patch
       source:
-        description: main or a full SHA already in main history
+        description: Approved full cycle SHA (main selects the active cycle, never the moving main head)
         type: string
         default: main
       ios_destination:
@@ -25,14 +25,14 @@ on:
         description: Optional existing candidate ID to promote its exact Apple build to App Store
         type: string
 permissions:
-  contents: read
+  contents: write
   pull-requests: read
   checks: read
   deployments: read
   actions: read
 # This short lock ends after PR preparation, never across human/Apple review.
 concurrency:
-  group: release-prepare-${{ inputs.scope == 'web' && 'web' || 'mobile' }}
+  group: release-mobile-identities
   cancel-in-progress: false
   queue: max
 jobs:

@@ -27,6 +27,9 @@ jobs:
     env:
       CANDIDATE: ${{ inputs.candidate }}
       RELEASE_SOURCE_ROOT: ${{ github.workspace }}/.source
+      SOURCE_SHA: ${{ inputs.source }}
+      MOBILE_ENVIRONMENT: production
+      MOBILE_PREVIEW: 'false'
       MOBILE_VERSION: ${{ inputs.version }}
       MOBILE_BUILD_NUMBER: ${{ inputs.number }}
       RELEASE_TAG: ${{ inputs.tag }}
@@ -101,17 +104,18 @@ jobs:
         if: ${{ !inputs.recover }}
         working-directory: .source/apps/mobile/packages/forum_app
         run: |
+          mapfile -t defines < <(python3 "$GITHUB_WORKSPACE/scripts/mobile-release/build_environment.py")
+          test "${#defines[@]}" -eq 6
           flutter build apk --release --split-per-abi \
             --build-name="$MOBILE_VERSION" --build-number="$MOBILE_BUILD_NUMBER" \
-            --dart-define=YOURTJ_API_BASE_URL=https://f.yourtj.de \
-            --dart-define=YOURTJ_OIDC_ISSUER=https://f.yourtj.de/api/oauth \
-            --dart-define=YOURTJ_OIDC_CLIENT_ID=yourtj-mobile
+            "${defines[@]}"
       - name: Preserve signed APKs for recovery
         if: ${{ !inputs.recover }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: android-${{ inputs.version }}-${{ inputs.number }}
           path: .source/apps/mobile/packages/forum_app/build/app/outputs/flutter-apk/*-release.apk
+          include-hidden-files: true
           retention-days: 30
           if-no-files-found: error
       - name: Restore original signed APKs (never rebuild a recovery)

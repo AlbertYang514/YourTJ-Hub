@@ -83,6 +83,7 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 ### Operations
 
 - [Reviewed releases](operations/releases.md)
+- [Release cycles, previews and hotfixes](operations/release-cycles.md)
 - [Deployment & release](operations/deployment.md)
 - [Campus connection operations](operations/campus.md)
 - [Independent status site on Cloudflare](operations/status-cloudflare.md)

@@ -10,6 +10,10 @@
 
 ## Deployment shape
 
+`Current`: an active [release cycle](release-cycles.md) pauses ordinary automatic dev deployment.
+The controlled prerelease deploy explicitly selects the frozen SHA and uses the same instance lock
+and database snapshot/reset procedure. It does not create another server site.
+
 - **Single binary**: `make build` produces `bin/yourtj-hub` (frontend static/dist + GoHTML templates
   go:embed). The binary runs inside a minimal `alpine` container (`deploy/Dockerfile`).
 - Runtime deps: **PostgreSQL 16+ is the default deployment database** (`deploy/config.toml.example`

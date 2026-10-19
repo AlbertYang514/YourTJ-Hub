@@ -18,6 +18,11 @@ def request(branch, repository=REPOSITORY):
 
 
 class ReviewRegressions(unittest.TestCase):
+    def setUp(self):
+        gate = patch('workflow.production_gate')
+        gate.start()
+        self.addCleanup(gate.stop)
+
     def test_open_slot_ignores_forks_and_deleted_repositories(self):
         for repository in ('attacker/YourTJ-Hub', None):
             remote = Mock(repository=REPOSITORY)

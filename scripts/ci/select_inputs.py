@@ -110,7 +110,8 @@ def main():
         verify_results(json.loads(os.environ["CI_PLAN"]), json.loads(os.environ["CI_NEEDS"]))
         return
     event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text()) if os.environ.get("GITHUB_EVENT_PATH") else {}
-    base = args.base or event.get("pull_request", {}).get("base", {}).get("sha") or event.get("before")
+    base = (args.base or event.get("pull_request", {}).get("base", {}).get("sha")
+            or event.get('merge_group', {}).get('base_sha') or event.get("before"))
     try:
         if not base or set(base) == {"0"}:
             raise ValueError("No comparison base")

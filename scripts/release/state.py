@@ -8,7 +8,7 @@ from github import git
 def reservations():
     rows = []
     for tag in git("tag", "--list").splitlines():
-        if not re.fullmatch(r"(?:mobile-)?v\d+\.\d+\.\d+", tag):
+        if not re.fullmatch(r"(?:mobile-)?v\d+\.\d+\.\d+|mobile-build-[1-9]\d*", tag):
             continue
         item = {"tag": tag, "sourceSha": git("rev-parse", f"refs/tags/{tag}^{{commit}}"), "buildNumber": None}
         if tag.startswith("mobile-"):
@@ -17,6 +17,8 @@ def reservations():
                 metadata = json.loads(raw)
                 require(type(metadata.get("buildNumber")) is int, "Invalid annotated build number")
                 item["buildNumber"] = metadata["buildNumber"]
+                if tag.startswith('mobile-build-'):
+                    require(tag == f"mobile-build-{item['buildNumber']}", 'Build reservation identity mismatch')
             else:
                 source = git("show", f"refs/tags/{tag}:apps/mobile/packages/forum_app/pubspec.yaml")
                 found = re.search(r"(?m)^version:\s*(\d+\.\d+\.\d+)\+([1-9]\d*)\s*$", source)
