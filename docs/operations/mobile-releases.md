@@ -94,7 +94,7 @@ signing/Apple keys. Keep main-only environment restrictions and tag rules togeth
 | `FCM_GOOGLE_SERVICES_JSON` | Firebase Android client configuration for the optional FCM adapter; package must be `tj.yourtj.forum_app` |
 | `IOS_DISTRIBUTION_P12_BASE64` | Base64 of the Apple Distribution certificate **and private key**, exported as a macOS-compatible PKCS#12 file |
 | `IOS_P12_PASSWORD` | PKCS#12 export password |
-| `IOS_PROFILE_BASE64` | Base64 of the App Store provisioning profile for `tj.yourtj.forumApp`, with production Push Notifications and App Group `group.tj.yourtj.forumApp.widgets` |
+| `IOS_PROFILE_BASE64` | Base64 of the App Store provisioning profile for `tj.yourtj.forumApp`, with production Push Notifications, Sign in with Apple, Associated Domains and App Group `group.tj.yourtj.forumApp.widgets` |
 | `IOS_WIDGET_PROFILE_BASE64` | Base64 of the App Store provisioning profile for `tj.yourtj.forumApp.ScheduleWidgets`, with App Group `group.tj.yourtj.forumApp.widgets` |
 | `ASC_PRIVATE_KEY_BASE64` | Base64 of the App Store Connect `.p8` API key |
 | `ASC_KEY_ID` | API key ID |
@@ -210,6 +210,24 @@ Dart hot-code update. Debug-signed installations cannot update to the distributi
 ## iOS upload and review
 
 The workflow pins and checksum-verifies ASC CLI 5.0.0, then signs using an ephemeral keychain.
+When the source app declares Associated Domains (Passkey web credentials), the Runner profile
+must cover those domains. The signer checks the source entitlements before invoking Flutter/Xcode;
+a missing capability requires replacing `mobile-release/IOS_PROFILE_BASE64`.
+
+For this specific profile repair, a repository admin can dispatch **Release / iOS publisher** on
+**main**, selecting `operation=refresh-profile`. Both the initiating and rerunning actor must have
+live admin permission. This maintenance operation never starts the publisher or catalog jobs.
+It verifies the existing `tj.yourtj.forumApp` team, profile and certificate identities, enables only
+`ASSOCIATED_DOMAINS` if absent, and creates a new App Store profile with the same certificates.
+Reruns reuse the named result; old profiles/certificates and Widget settings are not revoked or changed.
+The implementation uses the pinned [ASC profiles interface](https://github.com/rorkai/App-Store-Connect-CLI/tree/5.0.0/internal/cli/profiles).
+
+The `ios-runner-profile-<run>` artifact is retained for one day and contains the validated public
+provisioning profile and metadata, never a private key or Apple authentication. Verify the bundle,
+team and old/new UUID metadata, then base64-encode `Runner.mobileprovision` into the existing encrypted
+`mobile-release/IOS_PROFILE_BASE64` secret. Only after that update, rebuild the fixed preview SHA.
+This operation does not distribute an app or supply release review/QA approval.
+
 Provisioning overrides apply only to the Runner release target, not Pods/SwiftPM dependencies.
 Private inputs, temporary profiles and keychain changes are cleaned up even after build failure.
 The exported IPA and dSYMs are retained as workflow artifacts for 30 days; private keys are excluded.
