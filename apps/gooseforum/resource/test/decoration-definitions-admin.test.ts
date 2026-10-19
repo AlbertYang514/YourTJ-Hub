@@ -163,6 +163,19 @@ it('submits the form colors for an image frame although the palette fields are h
   wrapper.unmount()
 })
 
+it('warns that a GIF frame is dropped by clients without GIF support', async () => {
+  const wrapper = await editor()
+  await wrapper.get('#decoration-code').setValue('gif-frame')
+  await wrapper.get('#decoration-name').setValue('GIF frame')
+  await wrapper.get('#decoration-frame-mode').setValue('image')
+  expect(wrapper.text()).not.toContain('decoration.configAdmin.gifReleaseWarning')
+  await wrapper.get('#decoration-asset').setValue('/static/decorations/gif-frame.gif')
+  expect(wrapper.text()).toContain('decoration.configAdmin.gifReleaseWarning')
+  await wrapper.get('#decoration-asset').setValue('/static/decorations/gif-frame.png')
+  expect(wrapper.text()).not.toContain('decoration.configAdmin.gifReleaseWarning')
+  wrapper.unmount()
+})
+
 it('shows only the current kind: frame palette copy vs nickname palette copy', async () => {
   const wrapper = await editor()
   expect(wrapper.text()).toContain('decoration.configAdmin.framePalette')
@@ -180,6 +193,9 @@ it('shows only the current kind: frame palette copy vs nickname palette copy', a
   expect(wrapper.text()).not.toContain('decoration.configAdmin.framePaletteHint')
   await wrapper.get('#decoration-frame-mode').setValue('solid')
   expect(wrapper.text()).toContain('decoration.configAdmin.framePaletteHint')
+  // 「头像框形式」要排在配色区上方（先选形式，再看/填对应字段）。
+  const html = wrapper.html()
+  expect(html.indexOf('decoration-frame-mode')).toBeLessThan(html.indexOf('decoration-lightColors-0'))
   wrapper.unmount()
 })
 

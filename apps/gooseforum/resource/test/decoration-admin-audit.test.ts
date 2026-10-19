@@ -149,6 +149,16 @@ it('searches users by username and grants with the resolved numeric id', async (
     await wrapper.findAll('button').find(button => button.text() === 'decoration.grant')!.trigger('click')
     await flushPromises()
     expect(vi.mocked(changeUserDecoration).mock.calls[0][1].userId).toBe(42)
+    // 服务端只按字段过滤（username/email LIKE、userId 精确），不支持昵称搜索：
+    // 搜索框按输入形态只填一个字段。
+    await wrapper.get('#decoration-user-search').setValue('bob@example.com')
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+    expect(getUserList).toHaveBeenLastCalledWith({ page: 1, pageSize: 8, email: 'bob@example.com' })
+    await wrapper.get('#decoration-user-search').setValue('42')
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+    expect(getUserList).toHaveBeenLastCalledWith({ page: 1, pageSize: 8, userId: 42 })
     wrapper.unmount()
   } finally {
     vi.useRealTimers()

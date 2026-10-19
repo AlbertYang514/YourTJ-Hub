@@ -54,7 +54,13 @@ watch([userId, code, reason], () => { confirmingRevoke.value = false })
 async function searchUsers(text: string) {
   searching.value = true
   try {
-    const page = await getUserList({ page: 1, pageSize: 8, username: text })
+    // 服务端按字段分别过滤（username / email 为 LIKE，userId 为精确匹配），
+    // 不支持昵称搜索，因此按输入形态只填一个字段。
+    const params: { page: number, pageSize: number, username?: string, email?: string, userId?: number } = { page: 1, pageSize: 8 }
+    if (/^\d+$/.test(text)) params.userId = Number(text)
+    else if (text.includes('@')) params.email = text
+    else params.username = text
+    const page = await getUserList(params)
     // 丢弃过时响应：用户可能已经改了关键词或已选中结果。
     if (userQuery.value.trim() !== text) return
     userResults.value = page.list ?? []
