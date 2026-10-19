@@ -128,6 +128,10 @@ run may reuse a successful Web deployment for the same candidate, avoiding anoth
 For example, use `web,android` for a Web/Android release, `web` for an API-only release with existing-client
 regression, or build `web` first and add `ios` separately.
 
+iOS archive/export logs are retained for 30 days in `preview-ios-build-logs-<attempt>`,
+even when signing or archive fails. Inspect those diagnostics before retrying; a log artifact
+does not mean an IPA was built or uploaded to Apple. Signed IPA recovery artifacts remain separate.
+
 Each artifact retains its latest distribution run for this source. Successful Web/Android work can
 be reused when another platform fails; QA verifies each required artifact's validation/distribution
 jobs, rather than requiring every unrelated job in its original run to succeed. A failed latest
