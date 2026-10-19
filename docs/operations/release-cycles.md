@@ -84,7 +84,7 @@ not deleted. To leave testing, use the normal App Store/Android entry; an Androi
 require uninstalling the preview, so preserve local-only data first. No automatic production install
 is attempted. Builds predating the notice require testers to follow the release page manually.
 
-Control saves and seals the transition before a separate `project` job refreshes merge checks and
+Control saves and seals the transition before a separate `project` job re-runs freeze checks and
 the public notice. If that job fails, use **Re-run failed jobs** to retry these projections without
 reapplying the transition. Both jobs remain under the dev instance lock. Do not rerun all jobs for
 an already sealed `start`, handoff or cancellation; **Control → refresh** also repairs projections
@@ -174,11 +174,16 @@ supported by this preview entry: internal testing requires invited App Store Con
 
 The owner admits a blocker with **Release / Control → admit**, supplying the dev PR number and
 reason. Admission binds the current PR head; another push revokes it. Admission does not replace
-review or `ci-required`. Labels alone confer no permission. The controller rewrites the freeze check
-on every open dev PR when state changes and on PR head/label changes. Starting a cycle requires an
-empty dev merge queue. State-wide refreshes also rewrite checks on outstanding merge-group SHAs,
-including previously green groups. Groups created during a freeze receive failing checks;
-admitted fixes use reviewed PR merges.
+review or `ci-required`. Labels alone confer no permission. The `release-freeze` check is the
+GitHub Actions job of that name in **Release / Freeze gate**: it runs trusted-main
+`cycle_control.py check-pr` on PR head/label changes and merge-group requests, and its exit code is
+the verdict. Branch rulesets accept only job check runs from GitHub Actions, so the controller never
+writes the check through the Checks API. When state changes, Control and dev pushes re-run the latest
+completed `release-freeze` run of every open dev PR head and outstanding merge-group SHA, including
+previously green groups; a queued run reads the new state itself, and a head without any run is
+logged and needs a new PR event (push or reopen). A re-run reuses the workflow file of its original
+run. Starting a cycle requires an empty dev merge queue. Groups created during a freeze fail the
+check; admitted fixes use reviewed PR merges.
 
 After a blocker merges, select **advance** with the new full current dev SHA and a reason, then run
 the dev prerelease again. Old QA cannot authorize the changed source. Before recording `qa`, the
