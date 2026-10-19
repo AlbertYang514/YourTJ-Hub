@@ -23,6 +23,13 @@ def main():
     live(c, int(time.time()))
     fetch_source(c['source'])
     authorize_preview_source(github, c, purpose, os.environ['GITHUB_RUN_ID'])
+    if os.environ.get('IOS_EXISTING_RUN'):
+        from preview_recovery import read_identity
+        recovered = read_identity(github, c, os.environ['IOS_EXISTING_RUN'], purpose)
+        output(recovered)
+        with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+            out.write(f"Recover existing Apple preview {recovered['version']} ({recovered['number']}); no signing/upload.\n")
+        return
     pubspec = git('show', f"{c['source']}:apps/mobile/packages/forum_app/pubspec.yaml")
     floor = re.search(r'(?m)^version:\s*(\d+\.\d+\.\d+)\+([1-9]\d*)\s*$', pubspec)
     require(floor, 'Mobile version/build floor missing')

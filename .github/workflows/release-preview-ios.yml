@@ -7,6 +7,8 @@ on:
       purpose: {type: string, required: true}
       version: {type: string, required: true}
       number: {type: string, required: true}
+      recover: {type: boolean, default: false}
+      apple_build: {type: string, default: ''}
 permissions:
   contents: read
   actions: read
@@ -36,6 +38,8 @@ jobs:
       ASC_TELEMETRY_DISABLED: '1'
       ASC_TIMEOUT: 90s
       RELEASE_RESULT_PATH: .preview-ios.json
+      IOS_EXISTING_BUILD_ONLY: ${{ inputs.recover }}
+      IOS_EXPECTED_BUILD_ID: ${{ inputs.apple_build }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -60,14 +64,17 @@ jobs:
           PRERELEASE_TESTFLIGHT_GROUP_ID: ${{ vars.PRERELEASE_TESTFLIGHT_GROUP_ID }}
         run: python3 scripts/mobile-release/publish_preview_ios.py --check-groups
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        if: ${{ !inputs.recover }}
         with:
           flutter-version: "3.44.9"
           channel: stable
           cache: true
       - name: Bootstrap
+        if: ${{ !inputs.recover }}
         working-directory: .source/apps/mobile/packages/forum_app
         run: flutter pub get
       - name: Install private iOS signing inputs
+        if: ${{ !inputs.recover }}
         env:
           IOS_DISTRIBUTION_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_P12_BASE64 }}
           IOS_PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
@@ -89,6 +96,7 @@ jobs:
       - name: Validate release tools
         run: python3 -m unittest discover -s scripts/mobile-release -p 'test_*.py'
       - name: Build App Store IPA
+        if: ${{ !inputs.recover }}
         env:
           IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
         run: |
@@ -103,6 +111,7 @@ jobs:
           include-hidden-files: true
           if-no-files-found: ignore
       - name: Preserve signed IPA and symbols for recovery
+        if: ${{ !inputs.recover && success() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: preview-ios-${{ inputs.version }}-${{ inputs.number }}

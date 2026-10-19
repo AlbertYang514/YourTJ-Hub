@@ -177,11 +177,24 @@ A known external group may omit this internal flag: external distribution requir
 assignment and review, as described in [Apple’s external testing guide](https://developer.apple.com/help/app-store-connect/test-a-beta-version/invite-external-testers/).
 Previews never assign builds to an external group or submit beta/App Store review. The publisher
 does not change groups or production reviewer credentials.
+Automatic internal groups and existing manual assignments are reconciled without repeating a manual
+add operation. The publisher verifies the complete effective audience belongs only to the selected
+internal group before reporting availability.
 
 The iOS result artifact records upload/processing/assignment/Apple availability separately.
 `available_for_testing` and a successful workflow mean the channels are ready to test, not that a
 device has passed QA. Any failed/skipped required channel blocks `qa`. External testers are not
 supported by this preview entry: internal testing requires invited App Store Connect users.
+
+For a failure **after Apple processed the upload**, use **Release / Prerelease** with the same
+`cycle`, full `source`, `purpose=dev`, `artifacts=ios`, and `ios_existing_run` set to the original
+upload run. The current owner/source authorization and source checks run again. The controller
+verifies the original trusted-main run, successful signed build, immutable tag and Apple receipt;
+it resumes only that exact Apple build, without signing, uploading or allocating another identity.
+Expired/missing receipts, a changed candidate, or a missing/different Apple build fail closed.
+Use a new ordinary preview if a rebuild is needed; fixed SHA does not imply frozen binaries.
+An admin can inspect a processed build with **Release / iOS publisher → inspect-preview-groups**
+and optional `build_id`; this reads effective group membership and Apple availability only.
 
 ## Freeze, fixes and QA
 
