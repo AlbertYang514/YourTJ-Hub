@@ -7,7 +7,7 @@ from pathlib import Path
 from build_identity import reserve_number
 from cycle_store import load
 from cycle import current, live
-from cycle_control import output, fetch_source, reviewed_preview_source
+from cycle_control import output, fetch_source, authorize_preview_source
 from github import GitHub, git
 from model import next_identity, require
 from state import reservations
@@ -22,7 +22,7 @@ def main():
             'Preview was superseded')
     live(c, int(time.time()))
     fetch_source(c['source'])
-    reviewed_preview_source(github, c['source'])
+    authorize_preview_source(github, c, purpose, os.environ['GITHUB_RUN_ID'])
     pubspec = git('show', f"{c['source']}:apps/mobile/packages/forum_app/pubspec.yaml")
     floor = re.search(r'(?m)^version:\s*(\d+\.\d+\.\d+)\+([1-9]\d*)\s*$', pubspec)
     require(floor, 'Mobile version/build floor missing')
