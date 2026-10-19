@@ -1436,6 +1436,7 @@ export default {
     continueWith: 'または次で続行',
     oauthNoAccount: 'この外部アカウントに対応する本サイトのアカウントはまだありません。先に登録し、登録後に「設定 → アカウント連携」から連携してください。',
     oauthOtherLogin: '別の方法でログイン',
+    githubUnavailable: 'GitHub はまだ利用できません',
     googleUnavailable: 'Google はまだ利用できません',
     panelTagline: '未済は終わりにあらず、可能性は無限',
     panelTaglineSource: '『易経』未済卦より着想 · 六十四卦の最終',
@@ -3730,6 +3731,9 @@ export default {
       },
       callback: {
         failed: 'OAuth 認証に失敗しました',
+      },
+      provider: {
+        unavailable: 'このログイン方法は現在利用できません。別の方法を選んでください。',
       },
       process: {
         failed: 'OAuth コールバックの処理に失敗しました',

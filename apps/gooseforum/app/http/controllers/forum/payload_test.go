@@ -16,6 +16,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/gin-gonic/gin"
+	"github.com/markbates/goth"
 )
 
 func TestBuildTopicPayloadsIncludesImageMetadataWhenAvailable(t *testing.T) {
@@ -234,6 +235,42 @@ func TestLoginPagePayloadAllowedDomainsNeverNull(t *testing.T) {
 	}
 	if payload.Props.AllowedDomains == nil {
 		t.Fatalf("props.allowedDomains = null, want non-null array (issue #643); body=%s", recorder.Body.String())
+	}
+}
+
+func TestLoginPagePropsHideUnregisteredOAuthRoutes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	providers := make([]goth.Provider, 0, len(goth.GetProviders()))
+	for _, provider := range goth.GetProviders() {
+		providers = append(providers, provider)
+	}
+	goth.ClearProviders()
+	t.Cleanup(func() {
+		goth.ClearProviders()
+		goth.UseProviders(providers...)
+	})
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/login", nil)
+
+	encoded, err := json.Marshal(buildLoginPageProps(ctx))
+	if err != nil {
+		t.Fatalf("marshal login props: %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		t.Fatalf("decode login props: %v", err)
+	}
+	if ready, ok := payload["githubReady"].(bool); !ok || ready {
+		t.Fatalf("githubReady = %#v, want false when no provider is registered", payload["githubReady"])
+	}
+	if route, _ := payload["githubUrl"].(string); route != "" {
+		t.Fatalf("githubUrl = %q, want no route when GitHub is unavailable", route)
+	}
+	if ready, ok := payload["googleReady"].(bool); !ok || ready {
+		t.Fatalf("googleReady = %#v, want false when no provider is registered", payload["googleReady"])
+	}
+	if route, _ := payload["googleUrl"].(string); route != "" {
+		t.Fatalf("googleUrl = %q, want no route when Google is unavailable", route)
 	}
 }
 

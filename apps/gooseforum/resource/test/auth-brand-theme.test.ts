@@ -61,7 +61,8 @@ function layout(brandType: 'default' | 'image' | 'text', brandImage: string): La
 const loginProps = {
   initialMode: 'login' as const,
   redirectUrl: '/',
-  githubUrl: '/api/oauth/github',
+  githubUrl: '/api/auth/github',
+  githubReady: true,
   googleUrl: '',
   googleReady: false,
   termsOfServiceEnabled: true,

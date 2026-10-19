@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers, Security reviewer
 >
-> Last verified: 2026-10-13
+> Last verified: 2026-10-19
 
 ## Identity model
 
@@ -59,6 +59,10 @@ private binding and restricted audits indefinitely and prevents subsequent perso
   only through password registration, where the `allowedDomains` allowlist is enforced. Provider credential changes
   require a process restart; saving a new site callback URL in the admin console refreshes the
   providers immediately.
+- The Web login page derives GitHub and Google availability from the providers registered in the
+  running server. A missing provider is shown as a disabled, localized control without a login link;
+  a direct request to its OAuth start route returns the shared localized error page with HTTP 503.
+  Configured providers continue through the existing Goth state, callback and session flow.
 
 ### Tongji unified sign-in
 

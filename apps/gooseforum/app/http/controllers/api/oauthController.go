@@ -23,6 +23,10 @@ func ProviderLogin(c *gin.Context) {
 		TongjiLoginStart(c)
 		return
 	}
+	if !oauthservice.IsOAuthProviderReady(c.Param("provider")) {
+		forum.RenderOAuthErrorPage(c, http.StatusServiceUnavailable, component.MessageOAuthProviderUnavailable)
+		return
+	}
 	q := c.Request.URL.Query()
 	q.Set("provider", c.Param("provider"))
 	c.Request.URL.RawQuery = q.Encode()
@@ -33,7 +37,16 @@ func ProviderLogin(c *gin.Context) {
 		c.Request.URL.RawQuery = q.Encode()
 	}
 	// 开始 OAuth 流程
-	oauthservice.BeginOAuthAuthHandler(c.Writer, c.Request)
+	if err := oauthservice.BeginOAuthAuthHandler(c.Writer, c.Request); err != nil {
+		if errors.Is(err, oauthservice.ErrOAuthProviderUnavailable) {
+			// Provider may be refreshed between the page-state check and this request.
+			// Keep the final check under the provider-registry lock and use the site error page.
+			forum.RenderOAuthErrorPage(c, http.StatusServiceUnavailable, component.MessageOAuthProviderUnavailable)
+			return
+		}
+		slog.Error("OAuth provider login failed", "error", err)
+		forum.RenderInternalOAuthErrorPage(c, component.MessageOAuthProcessFailed)
+	}
 }
 
 // ProviderCallback 处理OAuth登录/绑定回调（根据登录状态自动判断）

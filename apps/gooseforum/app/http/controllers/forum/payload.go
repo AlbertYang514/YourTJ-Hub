@@ -135,6 +135,7 @@ type LoginPageProps struct {
 	InitialMode           string   `json:"initialMode"`
 	RedirectURL           string   `json:"redirectUrl"`
 	GitHubURL             string   `json:"githubUrl"`
+	GitHubReady           bool     `json:"githubReady"`
 	GoogleURL             string   `json:"googleUrl"`
 	AppleReady            bool     `json:"appleReady"`
 	GoogleReady           bool     `json:"googleReady"`
@@ -1092,8 +1093,16 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 	if !IsSafeRedirect(redirectURL) {
 		redirectURL = ""
 	}
-	githubURL := "/api/auth/github"
-	googleURL := "/api/auth/google"
+	githubReady := oauthservice.IsOAuthProviderReady(oauthservice.ProviderGitHub)
+	googleReady := oauthservice.IsOAuthProviderReady(oauthservice.ProviderGoogle)
+	githubURL := ""
+	googleURL := ""
+	if githubReady {
+		githubURL = "/api/auth/github"
+	}
+	if googleReady {
+		googleURL = "/api/auth/google"
+	}
 	tongjiURL := "/api/auth/tongji"
 	_, campusErr := campusservice.Configured()
 	tongjiNotice := c.Query("tongjiNotice")
@@ -1103,17 +1112,22 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 		tongjiNotice = ""
 	}
 	if redirectURL != "" {
-		githubURL += "?redirect=" + url.QueryEscape(redirectURL)
-		googleURL += "?redirect=" + url.QueryEscape(redirectURL)
+		if githubReady {
+			githubURL += "?redirect=" + url.QueryEscape(redirectURL)
+		}
+		if googleReady {
+			googleURL += "?redirect=" + url.QueryEscape(redirectURL)
+		}
 		tongjiURL += "?redirect=" + url.QueryEscape(redirectURL)
 	}
 	return LoginPageProps{
 		InitialMode:           mode,
 		RedirectURL:           redirectURL,
 		GitHubURL:             githubURL,
+		GitHubReady:           githubReady,
 		GoogleURL:             googleURL,
 		AppleReady:            appleauthservice.Ready(),
-		GoogleReady:           oauthservice.IsGoogleOAuthReady(),
+		GoogleReady:           googleReady,
 		TongjiReady:           campusErr == nil,
 		TongjiURL:             tongjiURL,
 		TongjiNotice:          tongjiNotice,

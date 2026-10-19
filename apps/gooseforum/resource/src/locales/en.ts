@@ -1437,6 +1437,7 @@ export default {
     continueWith: 'Or continue with',
     oauthNoAccount: 'This third-party account has no matching site account yet. Please register first, then bind it under Settings → Account binding.',
     oauthOtherLogin: 'Sign in another way',
+    githubUnavailable: 'GitHub is not available yet',
     googleUnavailable: 'Google is not available yet',
     panelTagline: 'Weiji: unfinished, yet full of possibility',
     panelTaglineSource: 'Inspired by the I Ching — Weiji, the 64th and final hexagram',
@@ -3731,6 +3732,9 @@ export default {
       },
       callback: {
         failed: 'OAuth authentication failed',
+      },
+      provider: {
+        unavailable: 'This sign-in method is unavailable right now. Please choose another way to sign in.',
       },
       process: {
         failed: 'Failed to process OAuth callback',

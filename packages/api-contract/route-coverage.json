@@ -39,12 +39,12 @@
     {
       "method": "GET",
       "path": "/api/auth/:provider",
-      "reason": "浏览器重定向入口：GitHub/Google 使用 goth；tongji 使用校园授权配置和 /api/campus/tongji/callback，在服务端保留登录用途及安全续跳，不返回 JSON。"
+      "reason": "OAuth 浏览器启动路由：成功时重定向到 Goth 或 Tongji；provider 不可用时返回站点错误页，内部 X-Goose-Page 请求返回 JSON 页面 payload；不属于稳定的 REST 操作。"
     },
     {
       "method": "GET",
       "path": "/api/auth/:provider/callback",
-      "reason": "goth 浏览器 302 重定向流程（HTML 错误页/重定向，非 JSON API）；OAuth/OIDC 协议面由专项契约轨道跟进"
+      "reason": "Goth 浏览器 callback：成功时重定向，失败时返回站点错误页（内部 X-Goose-Page 请求使用 JSON 页面 payload）；OAuth/OIDC 协议面由专项契约轨道跟进"
     },
     {
       "method": "GET",

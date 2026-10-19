@@ -119,6 +119,7 @@
   "serverMessages.permission.emailRequired": "続行する前にメール認証を完了してください。",
   "serverMessages.common.operation.failed": "操作に失敗しました。しばらくしてからもう一度お試しください。",
   "serverMessages.oauth.callback.failed": "OAuth コールバックに失敗しました。しばらくしてからもう一度お試しください。",
+  "serverMessages.oauth.provider.unavailable": "このログイン方法は現在利用できません。別の方法を選んでください。",
   "serverMessages.oauth.process.failed": "OAuth ログイン処理に失敗しました。しばらくしてからもう一度お試しください。",
   "serverMessages.oauth.activation.updateFailed": "アカウントの有効化状態の更新に失敗しました。しばらくしてからもう一度お試しください。",
   "serverMessages.oauth.token.failed": "ログイン認証情報の作成に失敗しました。しばらくしてからもう一度お試しください。",

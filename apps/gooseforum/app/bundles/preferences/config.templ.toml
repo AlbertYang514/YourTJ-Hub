@@ -119,7 +119,7 @@ logIp = false
 slowSQL = true
 slowSQLThreshold = "200ms"
 
-# GitHub OAuth配置
+# GitHub OAuth配置（可选；需要在站点设置中配置绝对 Site URL）
 [github]
 client_id = ""
 client_secret = ""

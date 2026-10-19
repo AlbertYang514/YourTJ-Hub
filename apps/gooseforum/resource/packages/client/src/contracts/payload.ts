@@ -49,6 +49,7 @@ export interface LoginPageProps {
   initialMode: 'login' | 'register' | 'forgot'
   redirectUrl: string
   githubUrl: string
+  githubReady: boolean
   googleUrl: string
   tongjiReady?: boolean
   tongjiUrl?: string

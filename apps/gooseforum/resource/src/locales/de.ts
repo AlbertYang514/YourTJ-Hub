@@ -1436,6 +1436,7 @@ export default {
     continueWith: 'Oder weiter mit',
     oauthNoAccount: 'Dieses Drittanbieter-Konto hat noch kein Konto auf dieser Seite. Bitte registriere dich zuerst und verknüpfe es danach unter Einstellungen → Kontoverknüpfung.',
     oauthOtherLogin: 'Mit einer anderen Methode anmelden',
+    githubUnavailable: 'GitHub ist noch nicht verfügbar',
     googleUnavailable: 'Google ist noch nicht verfügbar',
     panelTagline: 'Weiji: Das Unvollendete eröffnet jede Möglichkeit',
     panelTaglineSource: 'Inspiriert vom I Ging — Weiji, dem 64. und letzten Hexagramm',
@@ -3730,6 +3731,9 @@ export default {
       },
       callback: {
         failed: 'OAuth-Authentifizierung fehlgeschlagen',
+      },
+      provider: {
+        unavailable: 'Diese Anmeldemethode ist derzeit nicht verfügbar. Bitte wähle eine andere Methode.',
       },
       process: {
         failed: 'Verarbeiten des OAuth-Callbacks fehlgeschlagen',
