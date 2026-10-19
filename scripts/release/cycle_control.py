@@ -109,6 +109,10 @@ def production_gate(github, source, channels, manifest=None, binding=None, promo
         verify_production_number(github, original)
         return None
     cycle = authorize_source(state, source, channels, int(time.time()), allow_closed=reserved)
+    if cycle.get('completion'):
+        require(manifest and manifest['candidateId'] == cycle['completion']['candidate']
+                and set(channels) <= set(cycle['completion']['channels']),
+                'This cycle ended with another formal request; start a new cycle for later platforms')
     fetch_source(source)
     if cycle['kind'] != 'hotfix':
         includes_hotfixes(state, source)
@@ -136,12 +140,17 @@ def verify_build_run(github, run_id, artifact):
             f'Prerelease {artifact} validation and distribution must succeed before QA')
 
 
+def cycle_receipts(github, cycle, channel):
+    return [r for r in github.pages(f"deployments?environment=release-{channel}&sha={cycle['source']}")
+            if r.get('payload', {}).get('details', {}).get('cycleId') == cycle['id']]
+
+
 def reconcile_abort(github, cycle, apple):
     """Preserve facts, including uncertainty; abort is neither success nor rollback."""
     outcome = {}
     tags = reservations()
     for channel in cycle['channels']:
-        receipts = github.pages(f"deployments?environment=release-{channel}&sha={cycle['source']}")
+        receipts = cycle_receipts(github, cycle, channel)
         statuses = github.pages(f"deployments/{receipts[0]['id']}/statuses") if receipts else []
         row = {'receiptId': receipts[0]['id'] if receipts else None,
                'receiptState': statuses[0]['state'] if statuses else 'none',
@@ -170,43 +179,6 @@ def qa_builds(github, cycle, purpose):
     for artifact, run in previews.items():
         verify_build_run(github, run, artifact)
     return previews
-
-
-def publication_results(github, cycle, *, closing, apple):
-    tags = reservations()
-    def apple_matches(items, states):
-        return any(item.get('state') in states and any(t['tag'] == 'mobile-v' + item['version']
-            and str(t['buildNumber']) == str(item['buildNumber']) and t['sourceSha'] == cycle['source']
-            for t in tags) for item in items)
-    if closing:
-        # A later successful release must not make an older completed cycle impossible to close.
-        for channel in cycle['channels']:
-            if channel == 'ios-app-store':
-                require(apple_matches((apple or {}).get('storeVersions', []),
-                    {'READY_FOR_SALE', 'READY_FOR_DISTRIBUTION', 'REPLACED_WITH_NEW_VERSION'}),
-                    'App Store source has not reached actual availability')
-            elif channel == 'ios-testflight':
-                require(apple_matches((apple or {}).get('testflightBuilds', []), {'IN_BETA_TESTING', 'BETA_APPROVED'}),
-                        'TestFlight source has not reached actual availability')
-            else:
-                receipts = github.pages(f"deployments?environment=release-{channel}&sha={cycle['source']}")
-                successful = False
-                for receipt in receipts:
-                    statuses = github.pages(f"deployments/{receipt['id']}/statuses")
-                    if statuses and statuses[0]['state'] == 'success':
-                        successful = True
-                        break
-                require(successful, 'A required production channel has no successful receipt')
-        return
-    targets = cycle['channels'] if closing else [c for c in cycle['channels'] if c != 'ios-app-store']
-    actual = baselines(github, targets, tags, apple)
-    require(all(actual[c]['sourceSha'] == cycle['source'] for c in targets),
-            'Every required channel must be actually available from this exact source')
-    if not closing and 'ios-app-store' in cycle['channels']:
-        require(apple_matches((apple or {}).get('storeVersions', []), {
-            'WAITING_FOR_REVIEW', 'IN_REVIEW', 'PENDING_DEVELOPER_RELEASE', 'PENDING_APPLE_RELEASE',
-            'READY_FOR_DISTRIBUTION', 'READY_FOR_SALE', 'PROCESSING_FOR_APP_STORE'}),
-            'App Store must be live or actually waiting externally before unfreezing')
 
 
 def refresh_checks(github, state, number=None):
@@ -274,6 +246,16 @@ def main():
         state['lastEvent'] = {'action': 'refresh', 'cycle': state['active'] or '-',
                               'actor': os.environ['GITHUB_ACTOR'], 'at': int(time.time()), 'note': 'Renew state seal'}
         save(github, state)
+        return
+    if args.command == 'change' and os.environ['ACTION'] == 'complete':
+        from cycle_completion import complete_release
+        state, status = complete_release(github, state, os.environ['RELEASE_RUN'], int(time.time()))
+        state.setdefault('lastEvent', {'action': 'complete', 'cycle': '-', 'actor': os.environ['GITHUB_ACTOR'],
+                                      'at': int(time.time()), 'note': status})
+        save(github, state)
+        with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+            out.write(f"Release run {os.environ['RELEASE_RUN']}: {status}. "
+                      "Cycle completion does not assert Apple approval or public availability.\n")
         return
     cycle_id = os.environ.get('CYCLE_ID') or os.environ['GITHUB_RUN_ID']
     if args.command == 'check-build':
@@ -344,7 +326,7 @@ def main():
     if action in {'cancel', 'advance'} or action == 'build' and os.environ['PURPOSE'] == 'dev' and cycle_id in state['cycles']:
         c = state['cycles'][cycle_id]
         for channel in c['channels']:
-            receipts = github.pages(f"deployments?environment=release-{channel}&sha={c['source']}")
+            receipts = cycle_receipts(github, c, channel)
             require(not receipts, 'Production already started; reconcile its channels or start a hotfix instead of replacing the candidate')
     if action == 'build':
         artifacts = preview_artifacts(os.environ.get('ARTIFACTS'), os.environ['PURPOSE'])
@@ -371,10 +353,6 @@ def main():
         qa_builds(github, c, purpose)
         if c['kind'] != 'hotfix':
             require(github.api('git/ref/heads/dev')['object']['sha'] == c['source'], 'Dev moved; QA must restart')
-    if action in {'unfreeze', 'close'}:
-        git('fetch', 'origin', 'main', '--tags')
-        apple = json.loads(Path('.apple-state.json').read_text()) if Path('.apple-state.json').exists() else None
-        publication_results(github, state['cycles'][cycle_id], closing=action == 'close', apple=apple)
     state = transition(state, action, actor, int(time.time()), cycle=cycle_id, **data)
     save(github, state)
     c = state['cycles'][cycle_id]

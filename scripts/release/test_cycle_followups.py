@@ -40,7 +40,7 @@ class CycleFollowupsTests(unittest.TestCase):
         remote.pages.return_value = []
         with patch('cycle_control.reservations', return_value=[]), \
              patch('cycle_control.baselines', side_effect=ReleaseError('Apple baseline unavailable')):
-            outcome = reconcile_abort(remote, {'source': SHA, 'channels': ['ios-app-store']}, None)
+            outcome = reconcile_abort(remote, {'id': '42', 'source': SHA, 'channels': ['ios-app-store']}, None)
         self.assertEqual(outcome['ios-app-store']['actualState'], 'unknown')
         self.assertIsNone(outcome['ios-app-store']['actualSource'])
 

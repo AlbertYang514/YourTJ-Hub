@@ -66,21 +66,6 @@ class CycleTests(unittest.TestCase):
         state['cycles']['42']['qa'] = {'source': SHA}
         authorize_source(state, SHA, ['web'], 110)
         with self.assertRaises(ReleaseError): authorize_source(state, SHA, ['android'], 110)
-        with self.assertRaises(ReleaseError): self.change(state, 'unfreeze', note='Server ready only')
-
-    def test_store_wait_does_not_close_release(self):
-        state = self.start()
-        c = state['cycles']['42']
-        c['channels'].append('ios-app-store')
-        c['qa'] = c['productionQa'] = {'source': SHA}
-        state = self.change(state, 'unfreeze', note='Production smoke passed; App Store waiting')
-        self.assertIsNone(state['active'])
-        self.assertEqual(state['cycles']['42']['phase'], 'waiting')
-        self.assertTrue(can_merge(state, 12, NEW))
-        authorize_source(state, SHA, ['ios-app-store'], 999999)
-        state = self.change(state, 'close', note='All channels available')
-        with self.assertRaises(ReleaseError): authorize_source(state, SHA, ['web'], 999999)
-        authorize_source(state, SHA, ['web'], 999999, allow_closed=True)
 
     def test_hotfix_suspends_normal_candidate_until_backflow_and_new_qa(self):
         state = transition(self.start(), 'hotfix', 'bob', 110, cycle='43', source=NEW,
@@ -89,20 +74,21 @@ class CycleTests(unittest.TestCase):
         with self.assertRaises(ReleaseError):
             authorize_source(state, SHA, ['web'], 110)
         state['cycles']['43']['qa'] = state['cycles']['43']['productionQa'] = {'source': NEW}
-        state = transition(state, 'unfreeze', 'bob', 110, cycle='43', note='Live smoke passed')
+        state['cycles']['43'].update(phase='backflow', completion={'candidate': 'web-1.2.3'})
         self.assertEqual(state['active'], '43')  # Backflow is still outstanding.
         state = transition(state, 'backflow', 'bob', 110, cycle='43', source='c'*40, note='Merged and retested')
         self.assertEqual(state['active'], '42')
         self.assertEqual(state['cycles']['42']['source'], 'c'*40)
         self.assertIsNone(state['cycles']['42']['qa'])
         self.assertIn(NEW, state['requiredHotfixes'])
+        self.assertEqual(state['cycles']['43']['phase'], 'closed')
 
     def test_cancelling_paused_candidate_does_not_resurrect_it_after_hotfix(self):
         state = transition(self.start(), 'hotfix', 'bob', 110, cycle='43', source=NEW,
                            base=SHA, issue=1241, channels=['web'], note='Outage')
         state = self.change(state, 'cancel', note='Cancel the paused release')
         state['cycles']['43']['qa'] = {'source': NEW}
-        state = transition(state, 'unfreeze', 'bob', 110, cycle='43', note='Production smoke passed')
+        state['cycles']['43'].update(phase='backflow', completion={'candidate': 'web-1.2.3'})
         state = transition(state, 'backflow', 'bob', 110, cycle='43', source='c'*40, note='Retested merge')
         self.assertIsNone(state['active'])
         self.assertEqual(state['cycles']['42']['phase'], 'cancelled')

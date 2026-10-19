@@ -58,6 +58,9 @@ jobs:
       tag: ${{ steps.authorize.outputs.tag }}
       channels: ${{ steps.authorize.outputs.channels }}
       promotion: ${{ steps.authorize.outputs.promotion }}
+      cycle: ${{ steps.authorize.outputs.cycle }}
+      approved_head: ${{ steps.authorize.outputs.approved_head }}
+      content_digest: ${{ steps.authorize.outputs.content_digest }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -204,3 +207,20 @@ jobs:
           REQUESTED_CHANNEL: ${{ inputs.channel }}
           RESULTS: ${{ toJSON(needs) }}
         run: python3 scripts/release/verify_jobs.py
+      - name: Bind the successful request to its release cycle
+        env:
+          CYCLE_ID: ${{ needs.authorize.outputs.cycle }}
+          CANDIDATE: ${{ needs.authorize.outputs.candidate }}
+          SOURCE_SHA: ${{ needs.authorize.outputs.sha }}
+          CHANNELS: ${{ needs.authorize.outputs.channels }}
+          APPROVED_HEAD: ${{ needs.authorize.outputs.approved_head }}
+          CONTENT_DIGEST: ${{ needs.authorize.outputs.content_digest }}
+        run: python3 scripts/release/cycle_completion.py
+      - name: Seal completion for the main controller
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: release-completion-${{ github.run_attempt }}
+          path: .release-completion/completion.json
+          include-hidden-files: true
+          retention-days: 90
+          if-no-files-found: error

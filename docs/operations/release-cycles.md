@@ -25,9 +25,10 @@ The implementation is [cycle.py](../../scripts/release/cycle.py),
 
 ## Ownership and environments
 
-The human who starts the prerelease owns that release through production deployment, smoke,
-channel failures, store review and closure. A rerun preserves the initiating identity. Only a human
-with write/maintain/admin permission can initiate a cycle or accept ownership. `offer` names a
+The human who starts the prerelease owns production deployment, smoke, channel failures and any
+later store-review follow-up. The ordinary cycle ends automatically when its formal Release request
+completes; Apple approval and public availability do not hold dev frozen. A rerun preserves the
+initiating identity. Only a human with write/maintain/admin permission can initiate a cycle or accept ownership. `offer` names a
 successor; `accept` must be dispatched by that successor. Asking another contributor to fix a bug
 does not transfer ownership. Bots cannot initiate or accept ownership.
 
@@ -97,7 +98,10 @@ channels and purpose `dev`. Omit `cycle` to create a cycle; its ID is the initia
 Starting another ordinary cycle while dev is occupied fails. Each run distributes only the
 artifacts selected for that run.
 
-`channels` defines the eventual **production scope**; `artifacts` selects **this preview run**.
+`channels` defines the **permitted production scope**; `artifacts` selects **this preview run**.
+One formal Release request may select a subset of that scope. Its successful completion ends the
+ordinary cycle, even if other tested platforms have not been formally released. Later platforms
+start a new cycle with fresh QA; they do not keep the first cycle open.
 Use a comma-separated subset of `web,android,ios` for dev, or `android,ios` for production rehearsal.
 Empty defaults to all artifacts supported by that purpose. Web-only runs skip mobile identity
 allocation, signing and native builds; Android-only runs do not require the iOS build or TestFlight
@@ -186,22 +190,14 @@ Use this checklist in the tracking issue; record failures, unsupported cases and
 An absent item is not a pass. Update the existing issue with the testing context; no separate manual
 artifact digest register is required.
 
-## Enter main, publish, unfreeze, close
+## Enter main, publish and finish
 
 Promote the tested source through a reviewed PR to main using a merge commit that preserves the
 source SHA. A clean merge is supported; fast-forward-only is not required. The controller rejects
 squash/rebase replacement of the candidate identity and conflict/manual edits to the integration
 merge tree. Resolve such changes on dev, advance the cycle, rebuild and repeat QA.
 
-Use **Release / Prepare → web** after dev QA when mobile requires the new server API. Deploy that
-same SHA, verify production Web and older-client compatibility, and then run the mobile production
-configuration rehearsal against the updated server. Web publication requires dev QA; mobile
-publication additionally requires `production-qa`. This ordering avoids making a new server API
-depend on mobile testing that needs it. Web deployment retains its configuration/health checks;
-the owner records its production smoke before unfreezing. A web-only cycle does not need mobile
-production rehearsal or newly built mobile previews; it still needs older-client compatibility checks.
-
-Use **Release / Prepare** for the remaining selected channels. Its default `source=main` now selects the
+Use **Release / Prepare** for this formal request's channels. Its default `source=main` selects the
 active cycle SHA, not the moving main head; an explicit full SHA also needs the cycle's approval.
 Main may advance without changing the selected application source. Release-data PR approval,
 source CI, immutable formal tags and independent publisher checks still apply. Every publisher
@@ -210,12 +206,36 @@ use the existing [recovery procedure](releases.md#recovery-and-completion) for i
 The prepared PR links the tracking issue and identifies the cycle and owner at preparation; GitHub
 shows the cross-reference in that issue. Keep test results and channel follow-up there.
 
-The owner runs production smoke and uses **unfreeze** only when required non-store channels are
-actually available from this source. If App Store is in scope it must at least have a successful
-submission. A pending store review can leave the cycle `waiting` while dev integration resumes.
-The owner continues tracking rejection, failure or release. **close** requires availability of every
-selected channel, including the live App Store source; a submitted build is insufficient.
+After **Release / Publish** succeeds, **Release / Control** automatically finishes that request's
+cycle and restores ordinary dev integration. There is no separate manual unfreeze/close step.
+The completion boundary is the formal request, not all platforms selected during preview: a
+successful Web request ends its ordinary cycle even if Android/iOS were also tested. Web must have
+passed production deployment/health checks, Android its publisher, and selected Apple channels their
+publication/submission steps. TestFlight Beta App Review and App Store approval or actual availability
+are not completion prerequisites. Submission remains submission in channel receipts and the public
+catalog; ending the cycle does not label an unapproved build as downloadable.
+
+If mobile requires a new server API, publish Web first, verify production Web and older-client
+compatibility, then start a new mobile cycle. Select the current dev SHA (the same SHA is allowed if
+dev has not moved), perform fresh dev QA and the production-configuration rehearsal against the
+updated server, then prepare the mobile request. Web publication requires dev QA; mobile publication
+also requires `production-qa`. A web-only cycle does not require new mobile builds, but still needs
+older-client compatibility coverage. The owner records production smoke and subsequent Apple
+rejections or release results in the tracking issue; these follow-ups do not prolong the ordinary freeze.
 Changing code for a rejected review needs a new candidate and new QA.
+
+Automatic completion runs after the formal workflow has completed, outside its publication lock.
+The main controller verifies the successful Publish/Recover run, its immutable cycle/request binding,
+reviewed source/metadata and latest successful receipts for that request's channels. A failed,
+cancelled or skipped publisher cannot end the cycle. Recovery of one channel only finishes the cycle
+once all channels of that same request succeeded; unrelated future requests are not prerequisites.
+Old callbacks cannot unlock another cycle or revive an aborted/paused candidate. If the completion
+callback fails, rerun **Control → complete** with the successful formal run ID; it repeats only
+completion, never builds, uploads or deploys again:
+
+```sh
+python3 scripts/release/cli.py control --action complete --release-run RELEASE_RUN_ID --note 'Retry automatic completion' --dry-run
+```
 
 Use **cancel** only before any formal publication has started. It invalidates QA and releases dev.
 Once publication has started, use recovery while retaining the candidate, or **abort** to stop it.
@@ -224,7 +244,7 @@ channel's latest receipt, actual available source/tag and relevant Apple state. 
 unknown baseline is recorded as `unknown`; it is not silently called failed, rolled back or successful.
 The owner must record follow-up in the tracking issue. Abort revokes both QA conclusions and blocker
 admissions, releases this cycle's dev freeze and leaves its outcomes and owner on record. It works
-after freeze expiry and after `unfreeze` while waiting for a store decision. The aborted candidate
+after freeze expiry while the cycle is still open. The aborted candidate
 cannot publish/recover using old QA or historical-release compatibility; use a newly tested candidate
 for further publication. Cancel/abort do not roll back a successful channel, withdraw Apple review or
 expire distributed previews. An already submitted Apple build may still become available and remains
@@ -253,14 +273,15 @@ hotfix line that still descends from its actual base; it need not equal dev. For
 channels, the baseline priority is Web, Android, App Store, then TestFlight. Split genuinely different
 live baselines into separate hotfixes instead of pulling unrelated work into an emergency patch.
 
-After production smoke, **unfreeze** records the hotfix result but keeps dev reserved until backflow.
-Merge the hotfix back to dev preserving ancestry, complete CI and regression, then use **backflow**
+Successful formal publication moves a hotfix to `backflow`; it does not wait for Apple approval.
+Dev remains reserved for the required hotfix return. After production smoke, admit and merge the
+hotfix PR back to dev preserving ancestry, complete CI and regression, then use **backflow**
 with the merged dev SHA and test summary. The controller verifies ancestry/current dev/successful CI.
 It records the required hotfix ancestor for subsequent production releases. If an ordinary candidate
 was paused, it resumes at the merged dev SHA with no QA and a new 24-hour deadline; rerun dev preview,
-regression and production rehearsal. Without a paused candidate, dev is released. The hotfix owner
-still closes its own release after channel reconciliation. Ordinary publication cannot bypass an
-active hotfix, and subsequent ordinary candidates must include every completed hotfix. A later
+regression and production rehearsal. Without a paused candidate, dev is released. Backflow also
+closes the hotfix cycle; its owner follows up any store decision in the issue. Ordinary publication
+cannot bypass an active hotfix, and subsequent ordinary candidates must include every completed hotfix. A later
 channel-specific hotfix starts from that channel's actual baseline; backflow restores all fixes to dev.
 Cancelling a paused ordinary candidate prevents it from being resumed by backflow.
 An aborted hotfix with any started publication, observed availability/submission or unknown outcome
@@ -330,12 +351,15 @@ Before using the workflows operationally, maintainers verify these external prer
 - `PRERELEASE_TESTFLIGHT_GROUP_ID` names the isolated internal QA group; other groups do not receive
   all builds automatically. Testers can install through this group. Signing secrets/profiles remain
   the existing `mobile-release` inputs. No group/credential configuration is mutated by these scripts.
-- Retain and allow the daily state-seal/status renewal job; monitor failed control runs. The controller
-  needs Actions read, Deployments write, Checks write and Contents write for the public status
+- Retain the successful Publish/Recover completion callback and daily state-seal/status renewal job;
+  monitor failed control runs. Both events are discovered on dev and dispatch the trusted main controller.
+  Dispatchers need Actions write. The main controller needs Actions read, Deployments write,
+  Checks write and Contents write for the public status
   prerelease; preview number reservations/downloads also need Contents write. The status prerelease
   always uses `latest=false` and cannot replace stable download/catalog entries.
 - Rehearse failed preview, changed SHA, timeout/cancellation, partial formal failure, hotfix/backflow,
-  store waiting and compatible rollback with the device checklist and real environment owners.
+  automatic completion during pending Apple review and compatible rollback with the device checklist
+  and real environment owners.
 
 Changing repository protection rules, configuring TestFlight and performing a real distribution are
 separate operational actions; changing workflow files does not perform them.

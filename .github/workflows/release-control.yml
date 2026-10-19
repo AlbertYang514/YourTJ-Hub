@@ -3,11 +3,12 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: Owner action; reassign requires repository admin
+        description: Owner action; complete verifies a successful release; reassign requires admin
         type: choice
-        options: [start, admit, advance, qa, production-qa, extend, offer, accept, reassign, unfreeze, close, cancel, abort, hotfix, backflow, refresh]
+        options: [start, admit, advance, qa, production-qa, extend, offer, accept, reassign, complete, cancel, abort, hotfix, backflow, refresh]
         required: true
-      cycle: {description: 'Cycle ID; empty only for start/hotfix', type: string}
+      cycle: {description: 'Cycle ID; omit for start/hotfix/complete/refresh', type: string}
+      release_run: {description: 'Successful formal Release/Recover run ID; only for complete', type: string}
       source: {description: 'Full source SHA for start/advance/hotfix/backflow', type: string}
       issue: {description: 'Release tracking issue number for start/hotfix', type: string}
       channels: {description: 'Comma-separated production targets', type: string, default: 'web,android,ios-testflight,ios-app-store'}
@@ -19,6 +20,10 @@ on:
   # Renew the immutable state seal well before Actions retention expires.
   schedule:
     - cron: '17 3 * * *'
+  workflow_run:
+    workflows: ['Release / Publish', 'Release / Recover']
+    types: [completed]
+    branches: [main]
 permissions:
   contents: write
   actions: read
@@ -48,7 +53,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - id: apple
-        if: contains(fromJSON('["hotfix","unfreeze","close","abort"]'), inputs.action)
+        if: contains(fromJSON('["hotfix","abort"]'), inputs.action)
         env:
           GH_TOKEN: ${{ github.token }}
           CYCLE_ID: ${{ inputs.cycle }}
@@ -70,6 +75,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           ACTION: ${{ inputs.action }}
+          RELEASE_RUN: ${{ inputs.release_run }}
           CYCLE_ID: ${{ inputs.cycle }}
           SOURCE_SHA: ${{ inputs.source }}
           ISSUE: ${{ inputs.issue }}
@@ -136,3 +142,16 @@ jobs:
       - env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run release-control.yml --repo YourTongji/YourTJ-Hub --ref main -f action=refresh -f note='Renew release state seal'
+  release-completed:
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      # workflow_run executes on dev (the default branch). It only dispatches
+      # main; the main controller verifies the run and immutable completion seal.
+      # Dispatch after completion keeps publication and dev-state locks separate.
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_RUN: ${{ github.event.workflow_run.id }}
+        run: gh workflow run release-control.yml --repo YourTongji/YourTJ-Hub --ref main -f action=complete -f release_run="$RELEASE_RUN" -f note='Finish successful formal release'

@@ -181,7 +181,7 @@ def main():
     # Receipts must still record failures after a cancellation/timeout. Every
     # external publication path independently rechecks the cycle before acting.
     if args.command != 'receipt':
-        production_gate(github, manifest['sourceSha'], manifest['channels'], manifest=manifest, binding=binding)
+        cycle = production_gate(github, manifest['sourceSha'], manifest['channels'], manifest=manifest, binding=binding)
     if args.command == "authorize":
         if os.environ.get('INITIAL_PUBLICATION') == 'true':
             for channel in manifest['channels']:
@@ -191,6 +191,10 @@ def main():
         require(not selected or (selected.removesuffix('-alias') if selected == 'android-alias' else selected)
                 in manifest['channels'], 'Requested channel is outside the approved request')
         emit_outputs(manifest, binding)
+        if os.environ.get('GITHUB_OUTPUT'):
+            with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+                out.write(f"cycle={cycle['id'] if cycle else ''}\n")
+                out.write(f"content_digest={binding['contentDigest']}\n")
     elif args.command in {'verify-publication', 'verify-deploy'}:
         # Run again after a potentially long native build: revoked reviews, changed notes or
         # a moved reservation must stop the next external publication operation.
@@ -250,7 +254,9 @@ def main():
             build_required = web_recovery_needs_build(github, manifest, prior_details)
             if build_required:
                 build_run = os.environ['GITHUB_RUN_ID']
-        record(github, manifest, binding, channel, "in_progress", prior_details | {"buildRunId": build_run, "runId": os.environ["GITHUB_RUN_ID"], "availability": "executing"})
+        record(github, manifest, binding, channel, "in_progress", prior_details | {
+            "buildRunId": build_run, "runId": os.environ["GITHUB_RUN_ID"], "availability": "executing",
+            "cycleId": cycle['id'] if cycle else None})
         with open(os.environ["GITHUB_OUTPUT"], "a") as out:
             out.write('build_required=' + str(build_required).lower() + '\n')
             out.write("binary=" + str(prior_details.get("binarySha256", "")) + "\n")

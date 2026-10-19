@@ -63,10 +63,10 @@ def authorize_source(state, source, channels, now, *, allow_closed=False):
                and set(channels) <= set(c['channels'])]
     require(matches, 'Source/targets have no release cycle')
     cycle = matches[-1]
-    require(cycle['phase'] in ({'testing', 'waiting', 'closed'} if allow_closed else {'testing', 'waiting'}),
+    require(cycle['phase'] in ({'testing', 'backflow', 'closed'} if allow_closed else {'testing'}),
             'The latest cycle for this source ended or was paused; older QA cannot authorize it')
     require(cycle['kind'] == 'hotfix' or not state.get('pendingHotfixes'), 'Complete outstanding hotfix backflow first')
-    # A hotfix preempts ALL ordinary publication, even an unfrozen store submission.
+    # A hotfix preempts ordinary publication until its source flows back to dev.
     active = current(state)
     require(not active or active['kind'] != 'hotfix' or active['id'] == cycle['id'],
             'Hotfix owns publication; ordinary candidates are paused')
@@ -103,7 +103,7 @@ def transition(state, action, actor, now, *, cycle, **data):
             'channels': channels, 'kind': 'hotfix' if action == 'hotfix' else 'normal',
             'base': data.get('base'), 'paused': active['id'] if active else None,
             'phase': 'testing', 'frozen': True, 'started': now, 'until': until,
-            'admitted': {}, 'qa': None, 'productionQa': None, 'builds': {}, 'previews': {}, 'smoke': None,
+            'admitted': {}, 'qa': None, 'productionQa': None, 'builds': {}, 'previews': {},
         }
         state['active'] = cycle
     else:
@@ -130,7 +130,7 @@ def transition(state, action, actor, now, *, cycle, **data):
                 require(c['frozen'] and now < data.get('until', 0) <= now + 7 * 86400, 'Invalid freeze extension')
                 c['until'] = data['until']
             elif action == 'cancel':
-                require(not c['smoke'], 'Published cycle must be reconciled/closed, not cancelled')
+                require(not c.get('completion'), 'Published cycle must finish backflow, not cancel')
                 c.update(phase='cancelled', frozen=False, qa=None, productionQa=None)
                 if state['active'] == cycle:
                     resume_parent(state, c, now)
@@ -157,9 +157,12 @@ def transition(state, action, actor, now, *, cycle, **data):
                 del state['pendingHotfixes'][cycle]
                 c['backflow'] = data['source']
                 resume_parent(state, c, now, data['source'])
-            elif action == 'close':
-                require(not c['frozen'] and c['smoke'], 'Unfreeze and reconcile every channel before closing')
-                c['phase'] = 'closed'
+            elif action == 'backflow':
+                require(c['kind'] == 'hotfix' and c.get('completion'), 'Hotfix publication must complete before backflow')
+                require(SHA.fullmatch(data.get('source', '')), 'Full merged dev SHA required')
+                state['requiredHotfixes'].append(c['source'])
+                c.update(frozen=False, phase='closed', backflow=data['source'])
+                resume_parent(state, c, now, data['source'])
             else:
                 live(c, now)
                 if action == 'admit':
@@ -168,13 +171,13 @@ def transition(state, action, actor, now, *, cycle, **data):
                     c['admitted'][str(data['pr'])] = data['head']
                 elif action == 'advance':
                     require(c['frozen'] and state['active'] == cycle, 'Only the frozen candidate can advance')
-                    require(not c['smoke'], 'A deployed hotfix must flow back before changing its source')
+                    require(not c.get('completion'), 'A deployed hotfix must flow back before changing its source')
                     require(SHA.fullmatch(data.get('source', '')), 'Full source SHA required')
                     c['source'] = data['source']
                     invalidate(c)
                 elif action == 'build':
                     require(c['frozen'] and state['active'] == cycle, 'Only the frozen candidate can build')
-                    require(not c['smoke'], 'Complete hotfix backflow before another build')
+                    require(not c.get('completion'), 'Complete hotfix backflow before another build')
                     purpose = data.get('purpose')
                     require(purpose in {'dev', 'production'}, 'Unknown build environment')
                     artifacts = preview_artifacts(data.get('artifacts'), purpose)
@@ -194,24 +197,6 @@ def transition(state, action, actor, now, *, cycle, **data):
                     c['qa' if action == 'qa' else 'productionQa'] = {
                         'source': c['source'], 'actor': actor, 'note': note, 'run': str(data['run']), 'at': now,
                         'artifacts': c.get('previews', {}).get(purpose, {}).copy()}
-                elif action == 'unfreeze':
-                    authorize_source(state, c['source'], c['channels'], now)
-                    c['smoke'] = {'actor': actor, 'note': note, 'at': now}
-                    # A hotfix keeps dev exclusively until the verified merge back.
-                    if c['kind'] != 'hotfix':
-                        c.update(frozen=False, phase='waiting')
-                        state['active'] = None
-                elif action == 'backflow':
-                    require(c['kind'] == 'hotfix' and c['smoke'], 'Hotfix needs production smoke before backflow')
-                    require(SHA.fullmatch(data.get('source', '')), 'Full merged dev SHA required')
-                    state['requiredHotfixes'].append(c['source'])
-                    c.update(frozen=False, phase='waiting', backflow=data['source'])
-                    state['active'] = c['paused']
-                    if c['paused']:
-                        parent = state['cycles'][c['paused']]
-                        parent['source'] = data['source']
-                        parent['until'] = now + 86400
-                        invalidate(parent)
                 else:
                     require(False, 'Unknown cycle action')
     state['lastEvent'] = {'action': action, 'cycle': cycle, 'actor': actor, 'at': now, 'note': note}

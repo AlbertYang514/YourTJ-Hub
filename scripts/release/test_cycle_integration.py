@@ -5,7 +5,7 @@ import tempfile
 from unittest.mock import Mock, patch
 import workflow
 from cli import parser, execute
-from cycle_control import production_gate, human, reviewed_preview_source, publication_results, main as control
+from cycle_control import production_gate, human, reviewed_preview_source, main as control
 from model import ReleaseError, next_identity, REPOSITORY
 from build_identity import verify_production_number
 from cycle import empty_state, transition
@@ -47,12 +47,28 @@ class CycleIntegrationTests(unittest.TestCase):
     def test_operator_commands_are_dry_run_without_remote_calls(self):
         remote = Mock()
         for argv in [['prerelease', '--source', SHA, '--issue', '1240'],
-                     ['control', '--action', 'cancel', '--cycle', '42', '--note', 'Blocked']]:
+                     ['control', '--action', 'cancel', '--cycle', '42', '--note', 'Blocked'],
+                     ['control', '--action', 'complete', '--release-run', '500', '--note', 'Retry completion']]:
             result = execute(parser().parse_args(argv), remote)
             self.assertTrue(result['dryRun'])
             self.assertEqual(result['ref'], 'main')
         remote.assert_not_called()
         self.assertEqual(remote.mock_calls, [])
+
+    def test_completion_callback_can_run_as_bot_without_taking_release_ownership(self):
+        state = transition(empty_state(), 'start', 'alice', 100, cycle='42', source=SHA,
+                           issue=1240, channels=['web'])
+        with tempfile.NamedTemporaryFile() as summary, patch.dict(os.environ, {
+                'ACTION': 'complete', 'RELEASE_RUN': '500', 'GITHUB_ACTOR': 'github-actions[bot]',
+                'GITHUB_STEP_SUMMARY': summary.name}), patch('sys.argv', ['cycle_control.py', 'change']), \
+             patch('cycle_control.load', return_value=state), patch('cycle_control.human') as human_check, \
+             patch('cycle_completion.complete_release', return_value=(state, 'closed')) as complete, \
+             patch('cycle_control.time.time', return_value=120), patch('cycle_control.save') as save:
+            control()
+            complete.assert_called_once()
+            self.assertEqual(complete.call_args.args[2:], ('500', 120))
+            human_check.assert_not_called()
+            self.assertEqual(save.call_args.args[1]['cycles']['42']['owner'], 'alice')
 
     def test_bot_or_reader_cannot_own_a_release(self):
         remote = Mock()
@@ -115,24 +131,18 @@ class CycleIntegrationTests(unittest.TestCase):
             production_gate(Mock(), SHA, ['android'])
             required.assert_not_called()
 
-    def test_store_wait_can_unfreeze_but_not_close_and_other_channels_must_be_live(self):
-        cycle = {'source': SHA, 'channels': ['web', 'android', 'ios-app-store']}
-        tags = [{'tag': 'mobile-v1.2.3', 'buildNumber': 24, 'sourceSha': SHA}]
-        apple = {'storeVersions': [{'version': '1.2.3', 'buildNumber': 24, 'state': 'WAITING_FOR_REVIEW'}]}
-        remote = Mock()
-        remote.pages.side_effect = lambda path: [{'state': 'success'}] if path.endswith('/statuses') else [{'id': 1}]
-        with patch('cycle_control.reservations', return_value=tags), \
-             patch('cycle_control.baselines', return_value={'web': {'sourceSha': SHA}, 'android': {'sourceSha': SHA}}) as live:
-            publication_results(remote, cycle, closing=False, apple=apple)
-            with self.assertRaisesRegex(ReleaseError, 'actual availability'):
-                publication_results(remote, cycle, closing=True, apple=apple)
-            apple['storeVersions'][0]['state'] = 'READY_FOR_DISTRIBUTION'
-            publication_results(remote, cycle, closing=True, apple=apple)
-            live.return_value['android']['sourceSha'] = 'b'*40
-            with self.assertRaisesRegex(ReleaseError, 'Every required channel'):
-                publication_results(remote, cycle, closing=False, apple=apple)
-            # A later release does not prevent closing this source's successful history.
-            publication_results(remote, cycle, closing=True, apple=apple)
+    def test_closed_cycle_can_recover_its_request_but_not_release_later_platforms(self):
+        state = transition(empty_state(), 'start', 'alice', 100, cycle='42', source=SHA,
+                           issue=1240, channels=['web', 'android'])
+        c = state['cycles']['42']
+        c.update(phase='closed', frozen=False, qa={'source': SHA}, productionQa={'source': SHA},
+                 completion={'candidate': 'web-1.2.3', 'channels': ['web']})
+        state['active'] = None
+        with patch('cycle_control.load', return_value=state), patch('cycle_control.fetch_source'), \
+             patch('cycle_control.includes_hotfixes'), patch('cycle_control.reviewed_main_pr'):
+            production_gate(Mock(), SHA, ['web'], manifest={'candidateId': 'web-1.2.3', 'tag': 'v1.2.3', 'product': 'web'})
+            with self.assertRaisesRegex(ReleaseError, 'start a new cycle'):
+                production_gate(Mock(), SHA, ['android'], manifest=candidate())
 
     def test_rerunning_only_dev_deploy_cannot_preserve_previous_qa(self):
         state = transition(empty_state(), 'start', 'alice', 100, cycle='42', source=SHA,
@@ -148,6 +158,21 @@ class CycleIntegrationTests(unittest.TestCase):
              patch('cycle_control.time.time', return_value=110):
             with self.assertRaisesRegex(ReleaseError, 'QA already recorded'):
                 control()
+
+    def test_new_cycle_at_same_sha_can_cancel_without_inheriting_old_publication(self):
+        state = transition(empty_state(), 'start', 'alice', 100, cycle='42', source=SHA,
+                           issue=1240, channels=['web'])
+        remote = Mock()
+        remote.pages.return_value = [{'payload': {'details': {'cycleId': '41'}}}]
+        with tempfile.NamedTemporaryFile() as summary, patch.dict(os.environ, {
+                'CYCLE_ID': '42', 'GITHUB_RUN_ID': '43', 'GITHUB_ACTOR': 'alice',
+                'ACTION': 'cancel', 'NOTE': 'Stop this new cycle', 'GITHUB_STEP_SUMMARY': summary.name}), \
+             patch('sys.argv', ['cycle_control.py', 'change']), \
+             patch('cycle_control.GitHub', return_value=remote), patch('cycle_control.human'), \
+             patch('cycle_control.load', return_value=state), patch('cycle_control.output'), \
+             patch('cycle_control.time.time', return_value=110), patch('cycle_control.save') as save:
+            control()
+            self.assertEqual(save.call_args.args[1]['cycles']['42']['phase'], 'cancelled')
 
 
 if __name__ == '__main__': unittest.main()

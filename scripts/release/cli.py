@@ -14,7 +14,7 @@ from cycle import current
 from model import SHA
 
 CONTROL_ACTIONS = ['start', 'admit', 'advance', 'qa', 'production-qa', 'extend', 'offer',
-                   'accept', 'reassign', 'unfreeze', 'close', 'cancel', 'abort', 'hotfix', 'backflow']
+                   'accept', 'reassign', 'complete', 'cancel', 'abort', 'hotfix', 'backflow']
 
 
 def parser():
@@ -47,6 +47,7 @@ def parser():
             cmd.add_argument('--artifacts', default='', help='Comma-separated web,android,ios; default all supported for purpose')
         if name == 'control':
             cmd.add_argument('--action', choices=CONTROL_ACTIONS, required=True)
+            cmd.add_argument('--release-run', default='', help='Successful formal run ID for retrying automatic completion')
             cmd.add_argument('--note', required=True)
             for field in ['pr', 'until', 'assignee', 'base']:
                 cmd.add_argument('--' + field, default='')
@@ -62,9 +63,11 @@ def execute(args, github):
         return {'releaseCycles': load_cycle(github)}
     if args.command in {'prerelease', 'control'}:
         fields = ['cycle', 'source', 'issue', 'channels']
-        fields += ['purpose', 'artifacts'] if args.command == 'prerelease' else ['action', 'note', 'pr', 'until', 'assignee', 'base']
+        fields += ['purpose', 'artifacts'] if args.command == 'prerelease' else ['action', 'note', 'pr', 'until', 'assignee', 'base', 'release_run']
         inputs = {key: getattr(args, key) for key in fields}
         require(not args.source or SHA.fullmatch(args.source), 'Use a full source SHA')
+        if args.command == 'control' and args.action == 'complete':
+            require(args.release_run.isdigit(), 'Completion needs a successful formal release run ID')
         if args.command == 'prerelease':
             from cycle import preview_artifacts
             preview_artifacts(args.artifacts, args.purpose)
