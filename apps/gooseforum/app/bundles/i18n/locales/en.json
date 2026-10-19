@@ -119,6 +119,7 @@
   "serverMessages.permission.emailRequired": "Please verify your email before continuing.",
   "serverMessages.common.operation.failed": "Operation failed. Please try again later.",
   "serverMessages.oauth.callback.failed": "OAuth callback failed. Please try again later.",
+  "serverMessages.oauth.provider.unavailable": "This sign-in method is unavailable right now. Please choose another way to sign in.",
   "serverMessages.oauth.process.failed": "OAuth sign-in failed. Please try again later.",
   "serverMessages.oauth.activation.updateFailed": "Failed to update the account activation status. Please try again later.",
   "serverMessages.oauth.token.failed": "Failed to create sign-in credentials. Please try again later.",

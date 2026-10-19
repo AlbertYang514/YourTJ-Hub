@@ -229,6 +229,7 @@ const (
 	MessageOAuthUnbindFailed           MessageCode = "oauth.unbind.failed"           // 解绑第三方账号失败，params.error 可带原始错误。
 	MessageOAuthUnbindSuccess          MessageCode = "oauth.unbind.success"          // 解绑第三方账号成功。
 	MessageOAuthCallbackFailed         MessageCode = "oauth.callback.failed"         // OAuth 认证回调失败。
+	MessageOAuthProviderUnavailable    MessageCode = "oauth.provider.unavailable"    // OAuth 提供商未配置或当前不可用。
 	MessageOAuthProcessFailed          MessageCode = "oauth.process.failed"          // OAuth 登录处理失败。
 	MessageOAuthAccountFrozen          MessageCode = "oauth.account.frozen"          // OAuth 登录账号被冻结。
 	MessageOAuthActivationUpdateFailed MessageCode = "oauth.activation.updateFailed" // OAuth 用户激活状态更新失败。

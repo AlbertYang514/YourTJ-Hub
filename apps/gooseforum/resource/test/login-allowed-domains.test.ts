@@ -62,6 +62,7 @@ function buildProps(allowedDomains: unknown): LoginPageProps {
     initialMode: 'register',
     redirectUrl: '/',
     githubUrl: '/api/auth/github',
+    githubReady: true,
     googleUrl: '/api/auth/google',
     googleReady: true,
     termsOfServiceEnabled: false,

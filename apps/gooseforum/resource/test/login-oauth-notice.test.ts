@@ -57,11 +57,12 @@ const layout: LayoutPayload = {
   umamiEnabled: false,
 }
 
-function buildProps(oauthNotice: boolean, redirectUrl = '/', initialMode: 'login' | 'register' = 'register'): LoginPageProps {
+function buildProps(oauthNotice: boolean, redirectUrl = '/', initialMode: 'login' | 'register' = 'register'): LoginPageProps & { githubReady: boolean } {
   return {
     initialMode,
     redirectUrl,
     githubUrl: '/api/auth/github',
+    githubReady: true,
     googleUrl: '/api/auth/google',
     googleReady: true,
     termsOfServiceEnabled: false,
@@ -128,6 +129,73 @@ describe('LoginPage oauthNotice 注册引导（PR #552 review P2）', () => {
     expect(wrapper.findAll('a[href="/api/auth/google"]')).toHaveLength(2)
     expect(wrapper.findAll('[data-tongji-login]')).toHaveLength(2)
     wrapper.unmount()
+  })
+})
+
+describe('LoginPage OAuth provider availability', () => {
+  test('unconfigured GitHub has no navigable entry in desktop or mobile markup', () => {
+    const wrapper = mount(LoginPage, {
+      props: { layout, props: { ...buildProps(false), githubReady: false, githubUrl: '' } },
+      global: { plugins: [i18n] },
+    })
+
+    expect(wrapper.findAll('a[href="/api/auth/github"]')).toHaveLength(0)
+    const unavailable = wrapper.findAll('button[data-oauth-provider="github"]')
+    expect(unavailable).toHaveLength(2)
+    expect(unavailable.every(button => button.attributes('disabled') !== undefined)).toBe(true)
+    expect(unavailable.every(button => button.text().includes(i18n.global.t('auth.githubUnavailable')))).toBe(true)
+    wrapper.unmount()
+  })
+
+  test('missing provider status fails closed', () => {
+    const props = { ...buildProps(false), githubReady: undefined, githubUrl: '' } as unknown as LoginPageProps
+    const wrapper = mount(LoginPage, {
+      props: { layout, props },
+      global: { plugins: [i18n] },
+    })
+
+    expect(wrapper.findAll('a[href="/api/auth/github"]')).toHaveLength(0)
+    expect(wrapper.findAll('button[data-oauth-provider="github"][disabled]')).toHaveLength(2)
+    wrapper.unmount()
+  })
+
+  test('ready status without a route fails closed for GitHub and Google', () => {
+    const props = { ...buildProps(false), githubReady: true, githubUrl: '', googleReady: true, googleUrl: '' }
+    const wrapper = mount(LoginPage, {
+      props: { layout, props },
+      global: { plugins: [i18n] },
+    })
+
+    expect(wrapper.findAll('a[data-oauth-provider="github"]')).toHaveLength(0)
+    expect(wrapper.findAll('button[data-oauth-provider="github"][disabled]')).toHaveLength(2)
+    expect(wrapper.findAll('a[data-oauth-provider="google"]')).toHaveLength(0)
+    expect(wrapper.findAll('button[data-oauth-provider="google"][disabled]')).toHaveLength(2)
+    wrapper.unmount()
+  })
+
+  test('configured GitHub keeps the OAuth route on desktop and mobile', () => {
+    const wrapper = mount(LoginPage, {
+      props: { layout, props: { ...buildProps(false, '/campus', 'login'), githubReady: true, githubUrl: '/api/auth/github?redirect=%2Fcampus' } },
+      global: { plugins: [i18n] },
+    })
+
+    expect(wrapper.findAll('a[href="/api/auth/github?redirect=%2Fcampus"]')).toHaveLength(2)
+    expect(wrapper.findAll('button[data-oauth-provider="github"]')).toHaveLength(0)
+    wrapper.unmount()
+  })
+
+  test('unavailable label is localized for all supported web locales', async () => {
+    const wrapper = mount(LoginPage, {
+      props: { layout, props: { ...buildProps(false), githubReady: false, githubUrl: '' } },
+      global: { plugins: [i18n] },
+    })
+    for (const locale of ['zh', 'en', 'ja', 'de'] as const) {
+      i18n.global.locale.value = locale
+      await wrapper.vm.$nextTick()
+      expect(wrapper.findAll('button[data-oauth-provider="github"]')[0].text()).toBe(i18n.global.t('auth.githubUnavailable'))
+    }
+    wrapper.unmount()
+    i18n.global.locale.value = 'zh'
   })
 })
 

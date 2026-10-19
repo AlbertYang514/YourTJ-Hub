@@ -119,6 +119,7 @@
   "serverMessages.permission.emailRequired": "请先完成邮箱验证后再进行此操作。",
   "serverMessages.common.operation.failed": "操作失败，请稍后重试。",
   "serverMessages.oauth.callback.failed": "第三方账号登录回调失败，请稍后重试。",
+  "serverMessages.oauth.provider.unavailable": "此登录方式暂不可用，请选择其他方式登录。",
   "serverMessages.oauth.process.failed": "第三方账号登录处理失败，请稍后重试。",
   "serverMessages.oauth.activation.updateFailed": "登录账号激活状态更新失败，请稍后重试。",
   "serverMessages.oauth.token.failed": "登录凭据生成失败，请稍后重试。",

@@ -128,7 +128,10 @@ client_secret = ""                # GitHub OAuth App Client Secret
 
 **配置说明：**
 - 需要在 GitHub Settings > Developer settings > OAuth Apps 创建应用
-- Authorization callback URL: `https://yourdomain.com/api/oauth/github/callback`
+- 只有 `client_id`、`client_secret` 均已配置且站点设置中有有效的绝对 `siteUrl` 时，GitHub provider 才会注册并在登录页显示为可用
+- Authorization callback URL: `<siteUrl>/api/auth/github/callback`，例如 `https://yourdomain.com/api/auth/github/callback`
+- 登录页按当前进程已注册的 provider 显示入口；未配置时显示不可用说明，直接访问 OAuth 路由会返回站点错误页
+- 修改 GitHub 凭据需要重启服务；在管理后台保存新的 `siteUrl` 会刷新 provider 和 callback URL
 
 ### [google] OAuth 配置（可选）
 
@@ -144,6 +147,7 @@ Cloud Console 中登记的重定向 URI 同源的绝对 URL，回调地址为：
 `http://localhost:5234/api/auth/google/callback`。
 Google 仅在 userinfo 返回 `verified_email=true` 时将邮箱视为可信，用于绑定既有账号；
 OAuth 不创建新账号（issue #531）——无对应本地账号时统一 302 跳转注册页。修改 Google 凭据后需要重启服务；
+只有客户端 ID、密钥和有效绝对 `siteUrl` 都可用时，登录页才会显示 Google 登录链接；未配置时显示不可用说明。
 通过管理后台修改 `siteUrl` 会即时刷新 OAuth provider。
 
 ## 🔄 配置文件热重载
