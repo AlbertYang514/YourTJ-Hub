@@ -789,6 +789,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/badge-asset"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/badge-delete"
   },
   {
@@ -834,6 +838,10 @@
   {
     "method": "POST",
     "path": "/api/admin/data/import/tasks/:taskId/replay"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/decoration-asset"
   },
   {
     "method": "POST",

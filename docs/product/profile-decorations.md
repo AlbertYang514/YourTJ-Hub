@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-13
+> Last verified: 2026-10-19
 
 ## Selection and presentation
 
@@ -26,13 +26,25 @@ connections, search, chat peers and the signed-in account, notification actors, 
 and member course-review authors. Private notes retain their existing display-name rules. Existing
 rendered historical exports, Markdown and forwarded-message snapshots are not rewritten.
 
-Frames use bounded gradient borders or an optional transparent PNG/WebP around the avatar,
-preserving its layout and badge overlay. Artwork can be scaled from 50% to 200% of the avatar
-diameter, centered on the portrait; the default is 125%. This saved setting is shared by Web and
-Flutter. Scaling affects artwork only, not the fallback gradient border. Artwork is installed under
-`apps/gooseforum/resource/static/decorations/` and configured by its same-origin static path;
-external URLs and unsafe paths are rejected. Loading failure falls back to the configured gradient
-border. See the [avatar-frame artwork generation spec](avatar-frame-generation.md).
+A frame definition is configured as either a bounded gradient border or a transparent PNG/WebP
+around the avatar; the two choices are exclusive and the admin form shows only the selected kind's
+fields (palette for a gradient border, artwork and scale for an image frame). A gradient border uses
+its palette only and draws no artwork; an image frame uses its artwork only, ignores the palette and
+draws no colored ring — not while the artwork loads, and not when it is unavailable or fails to
+decode; there is no fallback border. Both kinds preserve the avatar's layout and badge overlay.
+Both kinds also scale with the avatar: an image frame's diameter is always the configured scale
+times the avatar diameter, and a gradient border's thickness is a fixed 7.5% of the avatar diameter
+(3 px on a 40 px avatar). List rows use 20–24 px avatars and profile headers 108 px, so neither the
+border nor the artwork may be sized in fixed pixels — that produced a fat ring in lists and a
+hairline ring on the profile.
+Artwork can be scaled from 50% to 200% of the avatar diameter, centered on the portrait; the default
+is 125%. This saved setting is shared by Web and Flutter and applies to image artwork only; gradient
+borders ignore it. SVG, PNG, WebP and GIF uploads are supported. GIF animation is preserved and every composited
+frame must keep the central opening transparent. SVG is rendered to PNG before validation and
+storage. Site managers upload artwork in `/admin/decorations` and save its generated
+`/static/decorations/` path without rebuilding the app. Existing embedded artwork under
+`apps/gooseforum/resource/static/decorations/` remains valid. External URLs and unsafe paths are
+rejected. See the [avatar-frame artwork generation spec](avatar-frame-generation.md).
 Nickname styles use validated hexadecimal colors with separate light/dark palettes; custom HTML,
 CSS, external assets and animations are not accepted. Definition validation checks ordinary-text
 contrast on supported backgrounds; clients fall back to normal text when the actual background

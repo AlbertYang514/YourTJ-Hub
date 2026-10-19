@@ -151,6 +151,129 @@ listDecorations:
             examples:
               failure:
                 externalValue: ../fixtures/permission-denied.json
+uploadDecorationAsset:
+  post:
+    tags: [Admin]
+    summary: Upload avatar-frame artwork (SiteManager)
+    operationId: uploadDecorationAsset
+    description: |
+      Accepts SVG, PNG, WebP or GIF up to 8 MB (administrator artwork cap; other upload paths keep the 4 MB hard limit).
+      The shorter decoded side must be at least 85% of the longer side. Every pixel inside the centered circular opening
+      (diameter 30% of the shorter side) must have at most 1/255 opacity in every composited frame.
+      SVG is rasterized to PNG; GIF bytes and animation are preserved. External SVG resources, scripts and text are rejected; convert text to paths.
+      Images are limited to 4096 px per side. GIF is limited to 300 frames and 48 million total composited canvas pixels.
+      Upload returns a new, never-reused /static/decorations/<uuid> path that
+      keeps the existing path shape; older clients accept only PNG/WebP definitions. Unsaved previews expire after 24 hours;
+      saving a definition makes the asset durable. Replacing artwork requires
+      a new upload and definition save. Only SiteManager may call this endpoint.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [file]
+            properties:
+              file:
+                type: string
+                format: binary
+                description: Square or near-square SVG/PNG/WebP/GIF with a transparent circular center in every frame.
+    responses:
+      '200':
+        description: Upload stored and preview path returned.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/DecorationAssetUploadResponse
+            examples:
+              success:
+                externalValue: ../fixtures/decoration-asset-upload-success.json
+      '400':
+        description: Missing, unsupported, invalid, or oversized image.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              missing:
+                externalValue: ../fixtures/admin-img-upload-file-missing.json
+      '401':
+        description: Missing or invalid session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Account not writable, missing SiteManager permission, or CSRF rejected.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+uploadBadgeAsset:
+  post:
+    tags: [Admin]
+    summary: Upload badge artwork (SiteManager)
+    operationId: uploadBadgeAsset
+    description: |
+      Accepts SVG, PNG, WebP or GIF up to 8 MB (administrator artwork cap; other upload paths keep the 4 MB hard limit).
+      Static images are normalized to PNG; GIF animation, delays and loop count are preserved.
+      Artwork is uniformly centered and scaled to the system-badge ink radius of 10/24, using
+      visible alpha bounds (one shared viewport across all GIF frames). No square or transparent-center requirement.
+      External SVG resources, scripts and text are rejected; convert text to paths.
+      Images are limited to 4096 px per side. GIF is limited to 300 frames and 16 million total composited canvas pixels.
+      Upload returns a new, never-reused /static/badges/normalized/<uuid> path that
+      works on existing clients. Unsaved previews expire after 24 hours;
+      saving a definition makes the asset durable. Replacing artwork requires
+      a new upload and definition save. Only SiteManager may call this endpoint.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [file]
+            properties:
+              file:
+                type: string
+                format: binary
+                description: SVG, PNG, WebP or animated GIF.
+    responses:
+      '200':
+        description: Upload stored and preview path returned.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/BadgeAssetUploadResponse
+            examples:
+              success:
+                externalValue: ../fixtures/badge-asset-upload-success.json
+      '400':
+        description: Missing, unsupported, invalid, or oversized image.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              missing:
+                externalValue: ../fixtures/admin-img-upload-file-missing.json
+      '401':
+        description: Missing or invalid session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Account not writable, missing SiteManager permission, or CSRF rejected.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
 saveDecoration:
   post:
     tags:

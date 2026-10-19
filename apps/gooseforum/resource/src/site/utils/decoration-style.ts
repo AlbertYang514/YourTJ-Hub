@@ -1,7 +1,7 @@
 import type { DecorationStyle } from '@gooseforum/client'
 
 export function isSafeDecorationAssetUrl(value: string | undefined): value is string {
-  return !!value && /^\/static\/decorations\/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(?:png|webp)$/.test(value)
+  return !!value && /^\/static\/decorations\/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(?:png|webp|gif|svg)$/.test(value)
 }
 
 export function decorationAssetScale(style?: DecorationStyle | null): number {

@@ -5,6 +5,13 @@ import 'package:flutter/material.dart';
 
 List<Color> decorationColors(BuildContext context, DecorationStyle? style) {
   if (style == null || !style.isEnabled) return const [];
+  // Colour and image frames are two separate kinds: an image frame never paints
+  // a gradient ring, so a loading or failed asset cannot leak the fallback
+  // colours underneath the artwork (web UserAvatar.vue keeps them exclusive).
+  if (style.kind == 'avatarFrame' &&
+      decorationFrameAssetUrl(style).isNotEmpty) {
+    return const [];
+  }
   final values = Theme.of(context).brightness == Brightness.dark
       ? style.darkColors
       : style.lightColors;
@@ -37,7 +44,7 @@ String decorationFrameAssetUrl(DecorationStyle? style) =>
         style?.kind == 'avatarFrame' &&
         style?.assetUrl != null &&
         RegExp(
-          r'^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp)$',
+          r'^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp|gif|svg)$',
         ).hasMatch(style!.assetUrl!)
     ? resolveApiAssetUrl(style.assetUrl!)
     : '';

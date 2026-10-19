@@ -84,6 +84,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/badge-asset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload badge artwork (SiteManager)
+         * @description Accepts SVG, PNG, WebP or GIF up to 8 MB (administrator artwork cap; other upload paths keep the 4 MB hard limit).
+         *     Static images are normalized to PNG; GIF animation, delays and loop count are preserved.
+         *     Artwork is uniformly centered and scaled to the system-badge ink radius of 10/24, using
+         *     visible alpha bounds (one shared viewport across all GIF frames). No square or transparent-center requirement.
+         *     External SVG resources, scripts and text are rejected; convert text to paths.
+         *     Images are limited to 4096 px per side. GIF is limited to 300 frames and 16 million total composited canvas pixels.
+         *     Upload returns a new, never-reused /static/badges/normalized/<uuid> path that
+         *     works on existing clients. Unsaved previews expire after 24 hours;
+         *     saving a definition makes the asset durable. Replacing artwork requires
+         *     a new upload and definition save. Only SiteManager may call this endpoint.
+         */
+        post: operations["uploadBadgeAsset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decoration-asset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload avatar-frame artwork (SiteManager)
+         * @description Accepts SVG, PNG, WebP or GIF up to 8 MB (administrator artwork cap; other upload paths keep the 4 MB hard limit).
+         *     The shorter decoded side must be at least 85% of the longer side. Every pixel inside the centered circular opening
+         *     (diameter 30% of the shorter side) must have at most 1/255 opacity in every composited frame.
+         *     SVG is rasterized to PNG; GIF bytes and animation are preserved. External SVG resources, scripts and text are rejected; convert text to paths.
+         *     Images are limited to 4096 px per side. GIF is limited to 300 frames and 48 million total composited canvas pixels.
+         *     Upload returns a new, never-reused /static/decorations/<uuid> path that
+         *     keeps the existing path shape; older clients accept only PNG/WebP definitions. Unsaved previews expire after 24 hours;
+         *     saving a definition makes the asset durable. Replacing artwork requires
+         *     a new upload and definition save. Only SiteManager may call this endpoint.
+         */
+        post: operations["uploadDecorationAsset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/user-decorations": {
         parameters: {
             query?: never;
@@ -12693,6 +12750,20 @@ export interface components {
             /** @constant */
             messageCode: "upload.success";
         }) | components["schemas"]["ApiFailure"];
+        BadgeAssetUploadResponse: (components["schemas"]["ApiSuccess"] & {
+            result: {
+                url: string;
+            };
+            /** @constant */
+            messageCode: "upload.success";
+        }) | components["schemas"]["ApiFailure"];
+        DecorationAssetUploadResponse: (components["schemas"]["ApiSuccess"] & {
+            result: {
+                url: string;
+            };
+            /** @constant */
+            messageCode: "upload.success";
+        }) | components["schemas"]["ApiFailure"];
         /**
          * @description Enqueues a background full-table export. The exported content is a verbatim table dump —
          *     for `users` this includes email addresses, freeze/activation state, role ids and profile
@@ -16216,6 +16287,120 @@ export interface operations {
                 };
             };
             /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    uploadBadgeAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description SVG, PNG, WebP or animated GIF.
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Upload stored and preview path returned. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadgeAssetUploadResponse"];
+                };
+            };
+            /** @description Missing, unsupported, invalid, or oversized image. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account not writable, missing SiteManager permission, or CSRF rejected. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    uploadDecorationAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description Square or near-square SVG/PNG/WebP/GIF with a transparent circular center in every frame.
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Upload stored and preview path returned. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecorationAssetUploadResponse"];
+                };
+            };
+            /** @description Missing, unsupported, invalid, or oversized image. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account not writable, missing SiteManager permission, or CSRF rejected. */
             403: {
                 headers: {
                     [name: string]: unknown;

@@ -52,18 +52,16 @@ describe('avatar frame layout', () => {
 })
 
 describe('image avatar frame', () => {
-  it('uses only bundled artwork, leaves portrait accessible, and falls back to a gradient on image failure', async () => {
+  it('uses only bundled artwork, leaves portrait accessible, and never falls back to a gradient', async () => {
     const wrapper = mount(UserAvatar, { props: { src: '/avatar.webp', alt: 'Member', frame: { ...frame, assetUrl: '/static/decorations/tea-garden-v1.png' } }, attrs: { class: 'h-10 w-10 rounded-full' } })
     const artwork = wrapper.get('.gf-avatar-frame-image')
     expect(artwork.attributes('alt')).toBe('')
     expect(artwork.attributes('aria-hidden')).toBe('true')
     expect(wrapper.get('img[alt="Member"]').attributes('src')).toBe('/avatar_medium.webp')
-    expect(wrapper.find('.gf-avatar-frame').exists()).toBe(true)
-    await artwork.trigger('load')
     expect(wrapper.find('.gf-avatar-frame').exists()).toBe(false)
     await artwork.trigger('error')
     expect(wrapper.find('.gf-avatar-frame-image').exists()).toBe(false)
-    expect(wrapper.find('.gf-avatar-frame').exists()).toBe(true)
+    expect(wrapper.find('.gf-avatar-frame').exists()).toBe(false)
     await wrapper.setProps({ frame: { ...frame, assetUrl: 'https://untrusted.example/frame.png' } })
     expect(wrapper.find('.gf-avatar-frame-image').exists()).toBe(false)
     expect(wrapper.find('.gf-avatar-frame').exists()).toBe(true)

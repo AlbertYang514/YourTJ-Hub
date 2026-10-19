@@ -5,21 +5,24 @@ import "time"
 const tableName = "file_usages"
 
 const (
-	TargetTopic        = "topic"
-	TargetPostRevision = "post_revision"
-	TargetPost         = "post"
-	TargetUser         = "user"
-	TargetAdminUpload  = "admin_upload"
-	TargetUploadOwner  = "upload_owner"
-	TargetSticker      = "sticker"
+	TargetTopic           = "topic"
+	TargetPostRevision    = "post_revision"
+	TargetPost            = "post"
+	TargetUser            = "user"
+	TargetAdminUpload     = "admin_upload"
+	TargetUploadOwner     = "upload_owner"
+	TargetSticker         = "sticker"
+	TargetDecorationAsset = "decoration_asset"
+	TargetBadgeAsset      = "badge_asset"
 )
 
 const (
-	UsageInlineImage = "inline_image"
-	UsageAvatar      = "avatar"
-	UsageAdminUpload = "admin_upload"
-	UsageUploadOwner = "upload_owner"
-	UsageSticker     = "sticker"
+	UsageInlineImage     = "inline_image"
+	UsageAvatar          = "avatar"
+	UsageAdminUpload     = "admin_upload"
+	UsageUploadOwner     = "upload_owner"
+	UsageSticker         = "sticker"
+	UsageDecorationAsset = "decoration_asset"
 )
 
 // 附件生命周期状态（Issue #94）：删除时转 RECOVERING，恢复时回 ACTIVE，永久删除置 PURGED。

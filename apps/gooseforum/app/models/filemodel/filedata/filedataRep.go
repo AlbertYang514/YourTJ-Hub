@@ -269,8 +269,14 @@ func CountDailyUploads(userId uint64) int64 {
 }
 
 func SaveFileFromUpload(userId uint64, fileData []byte, filename string, customPath string) (*Entity, error) {
-	if len(fileData) > MaxFileSize {
-		return nil, fmt.Errorf("file size exceeds maximum limit of %dMB", MaxFileSize/(1024*1024))
+	return SaveFileFromUploadWithLimit(userId, fileData, filename, customPath, MaxFileSize)
+}
+
+// SaveFileFromUploadWithLimit 与 SaveFileFromUpload 相同，但允许调用方指定更小/更大的
+// 字节上限（例如管理员上传的头像框动图，见 decorationassetservice）。
+func SaveFileFromUploadWithLimit(userId uint64, fileData []byte, filename string, customPath string, maxBytes int) (*Entity, error) {
+	if len(fileData) > maxBytes {
+		return nil, fmt.Errorf("file size exceeds maximum limit of %dMB", maxBytes/(1024*1024))
 	}
 
 	contentType, err := CheckImageType(filename)

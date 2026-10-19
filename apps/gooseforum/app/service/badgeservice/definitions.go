@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 )
 
 const (
@@ -75,7 +76,7 @@ const badgeAssetPrefix = "/static/badges/"
 // （例如管理端编辑后回存进覆盖记录的 URL）会被替换，其它查询参数与 fragment
 // 原样保留；非内置图形 URL 原样返回。
 func versionedBadgeIconURL(raw string) string {
-	if !strings.HasPrefix(raw, badgeAssetPrefix) {
+	if !strings.HasPrefix(raw, badgeAssetPrefix) || fileUsage.IsManagedAssetName(strings.TrimPrefix(strings.SplitN(raw, "?", 2)[0], "/static/")) {
 		return raw
 	}
 	u, err := url.Parse(raw)
