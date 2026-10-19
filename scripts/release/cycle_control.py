@@ -81,6 +81,14 @@ def record_preview_bypass(github, cycle, *, run, purpose, actor, triggering_acto
             'Source-review bypass needs a reason (1-1000 characters) and is limited to dev previews')
     human(github, actor, admin=True)
     human(github, triggering_actor, admin=True)
+    previous = cycle.get('previewReviewBypasses', {}).get(run)
+    if previous:
+        # A rerun keeps its original authority even if the owner advanced the cycle meanwhile.
+        require(all(previous[key] == value for key, value in {
+            'cycle': cycle['id'], 'source': cycle['source'], 'run': run, 'purpose': purpose,
+            'actor': actor, 'reason': reason}.items()),
+            'An existing source-review bypass cannot be rebound; dispatch a new preview run')
+        return
     cycle.setdefault('previewReviewBypasses', {})[run] = {
         'cycle': cycle['id'], 'source': cycle['source'], 'run': run, 'purpose': purpose,
         'actor': actor, 'triggeringActor': triggering_actor, 'reason': reason, 'at': now}
