@@ -158,7 +158,30 @@ it('searches users by username and grants with the resolved numeric id', async (
     await wrapper.get('#decoration-user-search').setValue('42')
     await vi.advanceTimersByTimeAsync(300)
     await flushPromises()
-    expect(getUserList).toHaveBeenLastCalledWith({ page: 1, pageSize: 8, userId: 42 })
+    expect(getUserList).toHaveBeenCalledWith({ page: 1, pageSize: 8, userId: 42 })
+    expect(getUserList).toHaveBeenLastCalledWith({ page: 1, pageSize: 8, username: '42' })
+    wrapper.unmount()
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('finds a numeric username as well as an exact numeric user id, without duplicates', async () => {
+  vi.useFakeTimers()
+  try {
+    const user = (userId: number, username: string) => ({ userId, username, nickname: username, email: `${username}@example.com`, status: 1, validate: 1, actorType: 0, prestige: 0, createTime: '2026-01-01T00:00:00Z' })
+    vi.mocked(getUserList).mockImplementation(async params => params.userId !== undefined
+      ? { list: [user(2333, 'alice')], total: 1, page: 1 }
+      : { list: [user(9, '2333'), user(2333, 'alice')], total: 2, page: 1 })
+    const wrapper = mount(UserDecorationsManagementPage)
+    await wrapper.get('#decoration-user-search').setValue('2333')
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+    expect(getUserList).toHaveBeenCalledWith({ page: 1, pageSize: 8, userId: 2333 })
+    expect(getUserList).toHaveBeenCalledWith({ page: 1, pageSize: 8, username: '2333' })
+    const candidates = wrapper.findAll('button').filter(button => button.text().includes('#'))
+    expect(candidates.map(button => button.text().includes('#9'))).toContain(true)
+    expect(candidates.filter(button => button.text().includes('#2333'))).toHaveLength(1)
     wrapper.unmount()
   } finally {
     vi.useRealTimers()

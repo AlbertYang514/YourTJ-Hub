@@ -2,6 +2,7 @@ package decorationassetservice
 
 import (
 	"bytes"
+	"errors"
 	"image"
 	"image/color"
 	"image/draw"
@@ -147,5 +148,9 @@ func TestPartialGIFFramesCannotExceedCompositingBudget(t *testing.T) {
 	}
 	if gifBudget(out.Bytes()) {
 		t.Fatal("small encoded patches bypassed logical-canvas allocation budget")
+	}
+	// normalizeBadge 自己也要先过预算再 DecodeAll，不能只依赖调用方先跑过 validateGIF。
+	if _, _, err := normalizeBadge(t.Context(), out.Bytes(), "huge.gif", "image/gif"); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("normalizeBadge decoded an over-budget GIF: %v", err)
 	}
 }

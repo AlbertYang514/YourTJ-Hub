@@ -28,6 +28,9 @@ func normalizeBadge(ctx context.Context, data []byte, filename, contentType stri
 	var still image.Image
 	var err error
 	if contentType == "image/gif" {
+		if !gifBudget(data) {
+			return nil, "", ErrInvalid
+		}
 		animation, err = gif.DecodeAll(bytes.NewReader(data))
 	} else {
 		still, _, err = image.Decode(bytes.NewReader(data))

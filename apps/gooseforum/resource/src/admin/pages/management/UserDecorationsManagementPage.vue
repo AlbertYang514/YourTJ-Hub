@@ -54,16 +54,16 @@ watch([userId, code, reason], () => { confirmingRevoke.value = false })
 async function searchUsers(text: string) {
   searching.value = true
   try {
-    // 服务端按字段分别过滤（username / email 为 LIKE，userId 为精确匹配），
-    // 不支持昵称搜索，因此按输入形态只填一个字段。
-    const params: { page: number, pageSize: number, username?: string, email?: string, userId?: number } = { page: 1, pageSize: 8 }
-    if (/^\d+$/.test(text)) params.userId = Number(text)
-    else if (text.includes('@')) params.email = text
-    else params.username = text
-    const page = await getUserList(params)
+    // 服务端按字段分别过滤（username / email 为 LIKE，userId 为精确匹配，多字段为 AND），
+    // 不支持昵称搜索，因此按输入形态只填一个字段；纯数字可能是 userId 也可能是学号类用户名，两路都查再合并。
+    const base = { page: 1, pageSize: 8 }
+    const pages = /^\d+$/.test(text)
+      ? await Promise.all([getUserList({ ...base, userId: Number(text) }), getUserList({ ...base, username: text })])
+      : [await getUserList(text.includes('@') ? { ...base, email: text } : { ...base, username: text })]
     // 丢弃过时响应：用户可能已经改了关键词或已选中结果。
     if (userQuery.value.trim() !== text) return
-    userResults.value = page.list ?? []
+    const seen = new Set<number>()
+    userResults.value = pages.flatMap(page => page.list ?? []).filter(user => !seen.has(user.userId) && !!seen.add(user.userId)).slice(0, base.pageSize)
     searched.value = true
   } catch (thrown) {
     userResults.value = []
