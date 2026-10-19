@@ -7,6 +7,7 @@ on:
       issue: {description: 'Release tracking issue for a new cycle', type: string}
       channels: {description: 'Production scope for a new cycle', type: string, default: 'web,android,ios-testflight,ios-app-store'}
       artifacts: {description: 'Preview artifacts: web,android,ios; empty = all for purpose. Production rehearsal: android,ios only.', type: string}
+      source_review_bypass_reason: {description: 'Optional admin-only source-review exception for this dev preview run; audited with source SHA and actor', type: string}
       purpose:
         description: 'Dev candidate or same-source production-configuration rehearsal'
         type: choice
@@ -53,6 +54,7 @@ jobs:
           CHANNELS: ${{ inputs.channels }}
           PURPOSE: ${{ inputs.purpose }}
           ARTIFACTS: ${{ inputs.artifacts }}
+          SOURCE_REVIEW_BYPASS_REASON: ${{ inputs.source_review_bypass_reason }}
         run: python3 scripts/release/cycle_control.py begin-build
       - name: Seal release state
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9

@@ -45,6 +45,7 @@ def parser():
         if name == 'prerelease':
             cmd.add_argument('--purpose', choices=['dev', 'production'], default='dev')
             cmd.add_argument('--artifacts', default='', help='Comma-separated web,android,ios; default all supported for purpose')
+            cmd.add_argument('--source-review-bypass-reason', default='', help='Admin-only, audited source-review exception for this dev preview run')
         if name == 'control':
             cmd.add_argument('--action', choices=CONTROL_ACTIONS, required=True)
             cmd.add_argument('--release-run', default='', help='Successful formal run ID for retrying automatic completion')
@@ -63,7 +64,7 @@ def execute(args, github):
         return {'releaseCycles': load_cycle(github)}
     if args.command in {'prerelease', 'control'}:
         fields = ['cycle', 'source', 'issue', 'channels']
-        fields += ['purpose', 'artifacts'] if args.command == 'prerelease' else ['action', 'note', 'pr', 'until', 'assignee', 'base', 'release_run']
+        fields += ['purpose', 'artifacts', 'source_review_bypass_reason'] if args.command == 'prerelease' else ['action', 'note', 'pr', 'until', 'assignee', 'base', 'release_run']
         inputs = {key: getattr(args, key) for key in fields}
         require(not args.source or SHA.fullmatch(args.source), 'Use a full source SHA')
         if args.command == 'control' and args.action == 'complete':
@@ -71,6 +72,9 @@ def execute(args, github):
         if args.command == 'prerelease':
             from cycle import preview_artifacts
             preview_artifacts(args.artifacts, args.purpose)
+            require(not args.source_review_bypass_reason or args.purpose == 'dev'
+                    and 0 < len(args.source_review_bypass_reason.strip()) <= 1000,
+                    'Source-review bypass is limited to dev previews and requires a reason (1-1000 characters)')
         if args.command == 'prerelease' and not args.cycle:
             require(args.source and args.issue and args.purpose == 'dev', 'A new prerelease needs source and tracking issue')
         workflow = 'release-prerelease.yml' if args.command == 'prerelease' else 'release-control.yml'
