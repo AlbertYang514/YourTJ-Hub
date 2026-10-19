@@ -911,11 +911,11 @@ async function loadUserCard() {
                   v-if="userMenuOpen"
                   class="absolute right-0 top-full z-[70] w-56 pt-2"
                 >
-                  <div class="gf-menu-surface overflow-hidden">
+                  <div class="gf-menu-surface overflow-hidden" data-user-menu>
                     <div class="border-b border-line/70 px-3 py-2.5">
                       <div class="truncate text-sm font-semibold text-base-content">{{ layout.viewer.username }}</div>
                     </div>
-                    <div class="py-1">
+                    <div class="py-1" data-user-menu-group="personal">
                       <a :href="`/u/${layout.viewer.id}`" class="gf-menu-item">
                         <UserRound class="h-4 w-4 text-icon-muted" /> {{ t('shell.profile') }}
                       </a>
@@ -931,42 +931,40 @@ async function loadUserCard() {
                         <span class="min-w-0 flex-1">{{ t('shell.nav.messages') }}</span>
                         <span v-show="hasUnreadMessage" class="h-2 w-2 rounded-full bg-error" />
                       </a>
-                      <div class="sm:hidden">
-                        <div class="px-3 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-wide text-base-content/55">
-                          {{ t('shell.switchTheme') }}
-                        </div>
-                        <button
-                          v-for="option in themeOptions"
-                          :key="option.value"
-                          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors duration-150 hover:bg-base-200"
-                          :class="preference === option.value ? 'font-semibold text-primary' : 'text-base-content/75'"
-                          type="button"
-                          @click="selectTheme(option.value)"
-                        >
-                          <component :is="option.icon" class="h-4 w-4" />
-                          <span>{{ option.label }}</span>
-                        </button>
-                      </div>
-                      <div class="sm:hidden">
-                        <div class="px-3 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-wide text-base-content/55">
-                          {{ t('shell.switchLanguage') }}
-                        </div>
-                        <button
-                          v-for="item in supportedLocales"
-                          :key="item"
-                          class="block w-full px-3 py-1.5 text-left text-sm transition-colors duration-150 hover:bg-base-200"
-                          :class="locale === item ? 'font-semibold text-primary' : 'text-base-content/75'"
-                          type="button"
-                          @click="setLang(item)"
-                        >
-                          {{ t(`locale.${item}`) }}
-                        </button>
-                      </div>
                       <a href="/drafts" class="gf-menu-item">
                         <FileText class="h-4 w-4 text-icon-muted" /> {{ t('shell.nav.drafts') }}
                       </a>
                     </div>
-                    <div class="border-t border-line/70 py-1">
+                    <div class="border-t border-line/70 py-1 sm:hidden" data-user-menu-group="preferences">
+                      <div class="px-3 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-wide text-base-content/55">
+                        {{ t('shell.switchTheme') }}
+                      </div>
+                      <button
+                        v-for="option in themeOptions"
+                        :key="option.value"
+                        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors duration-150 hover:bg-base-200"
+                        :class="preference === option.value ? 'font-semibold text-primary' : 'text-base-content/75'"
+                        type="button"
+                        @click="selectTheme(option.value)"
+                      >
+                        <component :is="option.icon" class="h-4 w-4" />
+                        <span>{{ option.label }}</span>
+                      </button>
+                      <div class="px-3 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-wide text-base-content/55">
+                        {{ t('shell.switchLanguage') }}
+                      </div>
+                      <button
+                        v-for="item in supportedLocales"
+                        :key="item"
+                        class="block w-full px-3 py-1.5 text-left text-sm transition-colors duration-150 hover:bg-base-200"
+                        :class="locale === item ? 'font-semibold text-primary' : 'text-base-content/75'"
+                        type="button"
+                        @click="setLang(item)"
+                      >
+                        {{ t(`locale.${item}`) }}
+                      </button>
+                    </div>
+                    <div class="border-t border-line/70 py-1" data-user-menu-group="settings">
                       <a href="/settings" class="gf-menu-item">
                         <Settings class="h-4 w-4 text-icon-muted" /> {{ t('shell.settings') }}
                       </a>
