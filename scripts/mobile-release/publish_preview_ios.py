@@ -18,16 +18,28 @@ def check_groups(groups, selected):
     if (not selected or selected == GROUP_ID or len(matches) != 1
             or matches[0]['attributes'].get('isInternalGroup') is not True):
         raise ValueError('Preview needs a dedicated internal TestFlight group, distinct from production')
-    if any(g['id'] != selected and g['attributes'].get('hasAccessToAllBuilds') is not False for g in groups):
-        raise ValueError('Another TestFlight group has automatic/unknown all-build access; reconcile before uploading previews')
+    for group in groups:
+        if group['id'] == selected:
+            continue
+        attributes = group['attributes']
+        automatic = attributes.get('hasAccessToAllBuilds')
+        # External groups require explicit build assignment/review, and omit this internal flag.
+        # https://developer.apple.com/help/app-store-connect/test-a-beta-version/invite-external-testers/
+        if automatic is True or (attributes.get('isInternalGroup') is not False and automatic is not False):
+            raise ValueError('Another TestFlight group may automatically receive previews; reconcile before uploading')
+
+
+def preview_group():
+    group = os.environ.get('PRERELEASE_TESTFLIGHT_GROUP_ID', '')
+    check_groups(asc('testflight', 'groups', 'list', '--app', APP_ID, '--paginate')['data'], group)
+    return group
 
 
 def main():
     dart_defines()
     if os.environ.get('MOBILE_PREVIEW') != 'true':
         raise ValueError('This publisher accepts previews only')
-    group = os.environ.get('PRERELEASE_TESTFLIGHT_GROUP_ID', '')
-    check_groups(asc('testflight', 'groups', 'list', '--app', APP_ID, '--paginate')['data'], group)
+    group = preview_group()
     version, number = os.environ['MOBILE_VERSION'], os.environ['MOBILE_BUILD_NUMBER']
     result_path = Path(os.environ.get('RELEASE_RESULT_PATH', '.preview-ios.json'))
     def record(stage, **data):
@@ -49,7 +61,7 @@ def main():
     subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / 'release/cycle_control.py'),
                     'check-build'], check=True)
     # Recheck scope after processing; a group may have changed while waiting.
-    check_groups(asc('testflight', 'groups', 'list', '--app', APP_ID, '--paginate')['data'], group)
+    preview_group()
     asc('builds', 'update', '--build-id', build, '--uses-non-exempt-encryption=false')
     notes = (f"{os.environ['MOBILE_ENVIRONMENT'].upper()} testing only. Source {os.environ['SOURCE_SHA']}. "
              "Complete the release issue's device checklist. Current candidate and return-to-production instructions: "
@@ -71,4 +83,10 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    if sys.argv[1:] == ['--check-groups']:
+        preview_group()
+        print('Internal TestFlight audience checks passed.')
+    elif sys.argv[1:]:
+        raise SystemExit('Usage: publish_preview_ios.py [--check-groups]')
+    else:
+        main()

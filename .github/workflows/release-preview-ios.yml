@@ -55,6 +55,10 @@ jobs:
           private-key: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
           key-id: ${{ secrets.ASC_KEY_ID }}
           issuer-id: ${{ secrets.ASC_ISSUER_ID }}
+      - name: Check internal TestFlight audience before signing
+        env:
+          PRERELEASE_TESTFLIGHT_GROUP_ID: ${{ vars.PRERELEASE_TESTFLIGHT_GROUP_ID }}
+        run: python3 scripts/mobile-release/publish_preview_ios.py --check-groups
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
           flutter-version: "3.44.9"

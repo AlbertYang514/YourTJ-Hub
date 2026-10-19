@@ -171,8 +171,12 @@ so invalidation occurs before the database snapshot is reset again.
 Android preview assets are attached only to `preview-*` GitHub prereleases with `latest=false`.
 They never update `mobile-latest`, the formal mobile catalog or stable update notifications.
 TestFlight previews use a dedicated **internal** group distinct from the existing production group.
-Before uploading, the publisher rejects any other group with automatic or unknown all-build access.
-It does not change groups, production reviewer credentials or App Store submissions.
+Before signing and again before upload/distribution, the publisher rejects another group with
+explicit automatic all-build access, or an internal/unclassified group whose access flag is unknown.
+A known external group may omit this internal flag: external distribution requires explicit build
+assignment and review, as described in [Apple’s external testing guide](https://developer.apple.com/help/app-store-connect/test-a-beta-version/invite-external-testers/).
+Previews never assign builds to an external group or submit beta/App Store review. The publisher
+does not change groups or production reviewer credentials.
 
 The iOS result artifact records upload/processing/assignment/Apple availability separately.
 `available_for_testing` and a successful workflow mean the channels are ready to test, not that a
