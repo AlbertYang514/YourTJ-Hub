@@ -31,7 +31,11 @@ export default {
     grantsAdmin: {
       description: "按账号查看装饰库存、授予与撤销，并核查操作记录。",
       accountTitle: "选择账号",
-      accountHint: "输入用户 ID，加载后再执行操作。",
+      accountHint: "按用户名搜索后选择账号，或直接填数字用户 ID，加载后再执行操作。",
+      userSearch: "按用户名搜索",
+      userSearchPlaceholder: "输入用户名、昵称或邮箱",
+      userSearchHint: "选择搜索结果会自动填入下方用户 ID；已知数字 ID 时也可直接填写。",
+      userSearchEmpty: "没有匹配的用户。",
       userIdPlaceholder: "输入用户 ID",
       refresh: "刷新账号",
       noAccount: "加载账号后查看库存与操作记录。",

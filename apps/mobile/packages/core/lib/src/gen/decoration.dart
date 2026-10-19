@@ -1,7 +1,9 @@
 /// Server-owned decoration styles; clients accept only safe local frame paths.
 class DecorationStyle {
+  // Mirrors the contract's assetUrl pattern (PNG/WebP/GIF/SVG); an animated
+  // GIF or SVG-backed frame is played/rendered by the platform renderer.
   static final _assetPattern = RegExp(
-    r'^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp)$',
+    r'^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp|gif|svg)$',
   );
   const DecorationStyle({
     required this.code,

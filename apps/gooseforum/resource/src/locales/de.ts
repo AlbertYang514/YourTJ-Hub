@@ -31,7 +31,11 @@ export default {
     grantsAdmin: {
       description: "Inventar, Vergabe, Widerruf und Protokoll eines Kontos verwalten.",
       accountTitle: "Konto auswählen",
-      accountHint: "Benutzer-ID eingeben und Konto vor Änderungen laden.",
+      accountHint: "Nach Benutzername suchen und das Konto auswählen oder die numerische Benutzer-ID direkt eingeben; vor Änderungen laden.",
+      userSearch: "Nach Benutzername suchen",
+      userSearchPlaceholder: "Benutzername, Nickname oder E-Mail",
+      userSearchHint: "Ein ausgewähltes Ergebnis füllt die Benutzer-ID unten aus; eine bekannte numerische ID kann weiterhin direkt eingegeben werden.",
+      userSearchEmpty: "Kein passender Benutzer.",
       userIdPlaceholder: "Benutzer-ID eingeben",
       refresh: "Konto aktualisieren",
       noAccount: "Konto laden, um Inventar und Protokoll anzuzeigen.",

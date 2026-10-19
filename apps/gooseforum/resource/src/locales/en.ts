@@ -31,7 +31,11 @@ export default {
     grantsAdmin: {
       description: "Review account inventory, manage grants and revocations, and inspect the audit trail.",
       accountTitle: "Select account",
-      accountHint: "Enter a user ID and load the account before making changes.",
+      accountHint: "Search by username and pick the account, or enter a numeric user ID directly; load it before making changes.",
+      userSearch: "Search by username",
+      userSearchPlaceholder: "Enter a username, nickname or email",
+      userSearchHint: "Picking a result fills the user ID below; a known numeric ID can still be typed directly.",
+      userSearchEmpty: "No matching user.",
       userIdPlaceholder: "Enter user ID",
       refresh: "Refresh account",
       noAccount: "Load an account to view its inventory and audit trail.",

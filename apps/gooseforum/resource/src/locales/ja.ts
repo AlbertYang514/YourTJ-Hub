@@ -31,7 +31,11 @@ export default {
     grantsAdmin: {
       description: "ユーザーごとの装飾、付与・取り消し、操作履歴を確認します。",
       accountTitle: "アカウントを選択",
-      accountHint: "ユーザーIDを入力し、読み込んでから操作してください。",
+      accountHint: "ユーザー名で検索して選択するか、数字のユーザーIDを直接入力し、読み込んでから操作してください。",
+      userSearch: "ユーザー名で検索",
+      userSearchPlaceholder: "ユーザー名、ニックネーム、メールアドレス",
+      userSearchHint: "検索結果を選ぶと下のユーザーIDに入力されます。数字IDを直接入力しても構いません。",
+      userSearchEmpty: "一致するユーザーはいません。",
       userIdPlaceholder: "ユーザーIDを入力",
       refresh: "アカウントを更新",
       noAccount: "アカウントを読み込むと所有装飾と履歴を確認できます。",
