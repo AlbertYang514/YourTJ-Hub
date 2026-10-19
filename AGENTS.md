@@ -140,8 +140,10 @@ docs/        Docs center (product/architecture/development/operations)
 
 ## 4. Verification
 - Run only the checks relevant to the change locally; CI owns the full repository-wide gate matrix.
-  Before push, lefthook pre-push runs `go vet ./...` + `golangci-lint run` (incremental against
-  `origin/dev`, full fallback) + `pnpm typecheck` + the web i18n gate `pnpm check` (see `make hooks`).
+  Before push, lefthook pre-push runs `go vet ./...` + `golangci-lint` against the freshly fetched
+  PR base + `pnpm typecheck` + the web i18n gate `pnpm check` (see `make hooks`). Before opening a
+  backport PR, set `YOURTJ_LINT_BASE=YourTongji/YourTJ-Hub:main`; existing PR targets take precedence.
+  A missing or unfetchable base fails the hook rather than substituting dev or skipping lint.
 - Bug fixes start red: write the smallest failing test first, run it to confirm the failure, then
   implement and turn it green. Mechanical changes (rename, formatting, dependency bump, docs-only)
   are exempt; the regression test stays.
