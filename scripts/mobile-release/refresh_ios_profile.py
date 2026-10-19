@@ -23,16 +23,20 @@ DOMAINS = ['webcredentials:f.yourtj.de', 'webcredentials:dev.yourtj.de']
 
 def refresh(old, name):
     validate_profile(old, TEAM)
-    bundles = asc('bundle-ids', 'list', '--identifier', BUNDLE_ID, '--paginate')['data']
-    if len(bundles) != 1 or bundles[0]['attributes'].get('identifier') != BUNDLE_ID:
-        raise ValueError('Expected the existing Runner bundle ID')
+    # Apple's bundle IDs are case-insensitive; do not rely on experimental API filtering.
+    # https://developer.apple.com/help/glossary/bundle-id/
+    inventory = asc('bundle-ids', 'list', '--fields', 'identifier,seedId', '--paginate')['data']
+    bundles = [b for b in inventory if b['attributes'].get('identifier', '').lower() == BUNDLE_ID.lower()]
+    if len(bundles) != 1:
+        identifiers = [b['attributes'].get('identifier') for b in inventory]
+        raise ValueError(f'Expected one existing Runner bundle ID; found {identifiers}')
     bundle = bundles[0]
     if bundle['attributes'].get('seedId') != TEAM:
-        raise ValueError('Runner bundle belongs to another team')
+        raise ValueError(f'Runner bundle seed {bundle["attributes"].get("seedId")} differs from team {TEAM}')
     profiles = asc('profiles', 'list', '--profile-type', 'IOS_APP_STORE', '--paginate')['data']
-    matches = [p for p in profiles if p['attributes'].get('uuid') == old['UUID']]
+    matches = [p for p in profiles if p['attributes'].get('uuid', '').lower() == old['UUID'].lower()]
     if len(matches) != 1:
-        raise ValueError('Configured Runner profile is not uniquely present in Apple')
+        raise ValueError(f'Configured Runner profile {old["UUID"]} is not uniquely present in Apple')
     existing = asc('profiles', 'view', '--id', matches[0]['id'], '--include', 'bundleId,certificates')
     relations = existing['data']['relationships']
     if relations['bundleId']['data']['id'] != bundle['id']:

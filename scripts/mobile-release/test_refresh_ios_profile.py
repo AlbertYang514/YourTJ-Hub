@@ -45,6 +45,19 @@ class ProfileRefreshTest(unittest.TestCase):
             ('profiles', 'create', '--name', 'new profile', '--profile-type', 'IOS_APP_STORE',
              '--bundle', 'runner', '--certificate', 'existing-cert')])
 
+    def test_bundle_selection_handles_canonical_case_and_unrelated_results(self):
+        original = self.asc
+        def listing(*args):
+            if args[:2] == ('bundle-ids', 'list'):
+                return {'data': [{'id': 'widget', 'attributes': {
+                    'identifier': maintenance.BUNDLE_ID + '.ScheduleWidgets', 'seedId': maintenance.TEAM}},
+                    {'id': 'runner', 'attributes': {
+                    'identifier': maintenance.BUNDLE_ID.lower(), 'seedId': maintenance.TEAM}}]}
+            return original(*args)
+        with patch.object(maintenance, 'asc', side_effect=listing):
+            self.assertEqual(maintenance.refresh(self.old, 'new profile'), b'new profile')
+        self.assertTrue(any(c[:2] == ('profiles', 'create') for c in self.calls))
+
     def test_rerun_reuses_existing_capability_and_named_profile(self):
         self.capabilities = [{'attributes': {'capabilityType': 'ASSOCIATED_DOMAINS'}}]
         self.profiles.append({'id': 'new-profile', 'attributes': {'name': 'new profile'}})
