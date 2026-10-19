@@ -98,8 +98,11 @@ function formatAvatarUrl(src: string, url: URL): string {
 }
 .gf-avatar-frame {
   position: absolute;
-  inset: -3px;
-  border: 3px solid transparent;
+  /* 环厚按头像直径的 7.5% 等比缩放（40px 头像正好 3px）：
+     固定 3px 会在列表小头像上显得过粗（20px 头像=15%）、在大头像上细到看不见（108px=2.8%）。
+     padding 百分比按包含块宽度解析，配合 mask 的 padding-box ⊕ border-box 只留环带。 */
+  inset: -7.5%;
+  padding: 7.5%;
   border-radius: inherit;
   background: var(--decoration-light) border-box;
   mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
@@ -108,7 +111,7 @@ function formatAvatarUrl(src: string, url: URL): string {
 }
 :global([data-theme="gf-dark"] .gf-avatar-frame) { background-image: var(--decoration-dark); }
 @media (forced-colors: active) {
-  /* 强制色彩下图片框仍显示图片；仅纯色框回退为系统色描边（#1246） */
-  .gf-avatar-frame { background: none; border-color: CanvasText; mask: none; }
+  /* 强制色彩下图片框仍显示图片；纯色框退化为固定 3px 系统色描边（高对比度下不追求等比） */
+  .gf-avatar-frame { background: none; border: 3px solid CanvasText; padding: 0; mask: none; }
 }
 </style>

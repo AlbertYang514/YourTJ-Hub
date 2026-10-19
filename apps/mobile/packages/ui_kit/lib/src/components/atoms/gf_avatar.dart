@@ -181,10 +181,10 @@ class GfAvatarFrame extends StatelessWidget {
         (!uri.hasScheme || uri.scheme == 'https' || uri.scheme == 'http');
     if (!hasFrameAsset) {
       if (colors.length < 2) return child;
-      // Web `.gf-avatar-frame` is a 3px ring with `inset: -3px`, i.e. it sits
-      // outside the avatar box and leaves the portrait size untouched. The
-      // gradient disc is one box wider on each side; the opaque avatar covers
-      // its middle, so only the 3px annulus shows.
+      // Web `.gf-avatar-frame` 是 3px 环 + `inset: 7.5%`，即环画在头像盒子之外、
+      // 头像尺寸不变，且环厚随头像直径等比缩放（40px 头像 = 3px，20px = 1.5px，
+      // 96px = 7.2px）。固定 6px 外扩会让列表小头像上的环显得过粗、大头像上过细。
+      final double grow = size * 0.075;
       return SizedBox(
         width: size,
         height: size,
@@ -192,10 +192,10 @@ class GfAvatarFrame extends StatelessWidget {
           clipBehavior: Clip.none,
           children: <Widget>[
             Positioned(
-              left: -3,
-              top: -3,
-              width: size + 6,
-              height: size + 6,
+              left: -grow,
+              top: -grow,
+              width: size + grow * 2,
+              height: size + grow * 2,
               child: Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,

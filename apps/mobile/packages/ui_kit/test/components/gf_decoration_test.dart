@@ -148,11 +148,48 @@ void main() {
     final Rect box = tester.getRect(avatar);
     expect(box.size, const Size(40, 40));
     expect(tester.getRect(portrait).size, const Size(40, 40));
-    // Web `.gf-avatar-frame` is `inset: -3px` around the avatar box.
+    // Web `.gf-avatar-frame` 现在是 `inset: 7.5%`：40px 头像 → 3px 环。
     expect(tester.getRect(ring).size, const Size(46, 46));
     expect(tester.getRect(ring).center, box.center);
     expect(tester.getRect(portrait).center, box.center);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('colour frame ring thickness scales with the avatar size', (
+    tester,
+  ) async {
+    // 列表模式小头像（20/24px）与大头像（96px）必须保持同一比例，
+    // 否则会出现「列表里环过粗、详情页环看不见」（issue #1246）。
+    for (final double size in <double>[20, 24, 32, 40, 48, 96]) {
+      await tester.pumpWidget(
+        gfApp(
+          GfAvatar(
+            src: '',
+            size: size,
+            frameColors: const <Color>[Colors.orange, Colors.green],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final Rect avatar = tester.getRect(find.byType(GfAvatar));
+      final Rect ring = tester.getRect(
+        find
+            .byWidgetPredicate(
+              (widget) =>
+                  widget is Container &&
+                  (widget.decoration as BoxDecoration?)?.gradient != null,
+            )
+            .first,
+      );
+      expect(avatar.size, Size(size, size));
+      expect(ring.width, closeTo(size * 1.15, 0.01), reason: 'size=$size');
+      expect(
+        (ring.width - avatar.width) / 2,
+        closeTo(size * 0.075, 0.01),
+        reason: 'size=$size',
+      );
+      expect(ring.center, avatar.center, reason: 'size=$size');
+    }
   });
 
   testWidgets('frame artwork never falls back to a gradient ring', (

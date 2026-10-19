@@ -32,6 +32,11 @@ fields (palette for a gradient border, artwork and scale for an image frame). A 
 its palette only and draws no artwork; an image frame uses its artwork only, ignores the palette and
 draws no colored ring — not while the artwork loads, and not when it is unavailable or fails to
 decode; there is no fallback border. Both kinds preserve the avatar's layout and badge overlay.
+Both kinds also scale with the avatar: an image frame's diameter is always the configured scale
+times the avatar diameter, and a gradient border's thickness is a fixed 7.5% of the avatar diameter
+(3 px on a 40 px avatar). List rows use 20–24 px avatars and profile headers 108 px, so neither the
+border nor the artwork may be sized in fixed pixels — that produced a fat ring in lists and a
+hairline ring on the profile.
 Artwork can be scaled from 50% to 200% of the avatar diameter, centered on the portrait; the default
 is 125%. This saved setting is shared by Web and Flutter and applies to image artwork only; gradient
 borders ignore it. Site managers upload artwork in `/admin/decorations` and save its generated
