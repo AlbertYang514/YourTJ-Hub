@@ -24,9 +24,10 @@ jobs:
   begin:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # `cycle_control.py checks` re-runs release-freeze workflow runs, which needs actions: write.
     permissions:
       contents: write
-      actions: read
+      actions: write
       deployments: write
       pull-requests: read
       issues: read
