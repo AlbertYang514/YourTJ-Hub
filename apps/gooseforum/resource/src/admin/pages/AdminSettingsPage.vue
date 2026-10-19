@@ -929,7 +929,16 @@ async function save() {
   if (props.kind === 'posting' && !validatePostingExtensions()) return
   saving.value = true
   try {
-    if (props.kind === 'site-info') await saveSiteSettings(normalizeSite(siteForm))
+    if (props.kind === 'site-info') {
+      await saveSiteSettings(normalizeSite(siteForm))
+      // 保存路径会净化 externalLinks（issue #1244），回填落库后的值；回填失败
+      // 只影响表单显示，不改变已成功的保存结果。
+      try {
+        siteForm.externalLinks = normalizeSite(await getSiteSettings()).externalLinks
+      } catch {
+        /* 保留表单当前值 */
+      }
+    }
     else if (props.kind === 'mail') await saveMailSettings(mailPayload())
     else if (props.kind === 'security') await saveSecuritySettings(normalizeSecurity(securityForm))
     else if (props.kind === 'posting') await savePostingSettings(normalizePosting(postingForm))
@@ -1521,7 +1530,10 @@ onUnmounted(stopSyncPolling)
             <div class="flex items-center gap-2 border-b pb-2 text-lg font-medium"><FileText class="size-5 text-muted-foreground" />{{ adminText('k008b') }}</div>
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k008c') }}<Textarea v-model="siteForm.siteDescription" class="min-h-24" /></label>
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k008d') }}<Input v-model="siteForm.siteKeywords" placeholder="forum, community" /></label>
-            <label class="grid gap-2 text-sm font-medium">{{ adminText('k008e') }}<Textarea v-model="siteForm.externalLinks" class="min-h-28 font-mono text-xs" /></label>
+            <label class="grid gap-2 text-sm font-medium">{{ adminText('k008e') }}
+              <Textarea v-model="siteForm.externalLinks" class="min-h-28 font-mono text-xs" />
+              <span class="text-xs font-normal text-muted-foreground">{{ adminText('siteExternalLinksHint') }}</span>
+            </label>
           </section>
         </div>
         <section class="max-w-2xl space-y-4">

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/feedconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/headmarkup"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
@@ -824,6 +825,8 @@ func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
 	brandText := chrome.BrandText
 	brandImage := urlutil.Clean(urlutil.Image, chrome.BrandImage)
 
+	// 渲染防线（issue #1244）：站点设置里的整段 <head> 与重复
+	// viewport/title/description 不进入 SSR 模板，也不进入客户端 payload。
 	return LayoutPayload{
 		UmamiEnabled: !viewer.IsAuthenticated && setting.IsProduction() && hotdataserve.GetPrivacyPolicyConfigCache().Enabled,
 		Site: SitePayload{
@@ -3562,12 +3565,15 @@ func previewTopicAuthor(topic *topics.Entity, authors map[uint64]*TopicAuthorPay
 }
 
 // Authenticated composers and settings contain private persona choices. Never
-// send them to analytics, session replay or administrator-injected scripts.
-func publicLayoutScripts(authenticated bool, scripts string) string {
+// send them to analytics, session replay or administrator-injected markup.
+// Anonymous shells get the administrator markup after headmarkup.Sanitize:
+// saving normalizes the stored value too, but a stale row must not reach the
+// page on its own (issue #1244).
+func publicLayoutScripts(authenticated bool, markup string) string {
 	if authenticated {
 		return ""
 	}
-	return scripts
+	return headmarkup.Sanitize(markup)
 }
 
 func dailyTabLabel(lang string) string {

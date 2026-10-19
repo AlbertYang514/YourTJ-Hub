@@ -6014,7 +6014,10 @@ export interface paths {
          *     offending entry; nothing is persisted. A request that omits
          *     `trustedExternalDomains` (or sends null) keeps the stored list — or the
          *     built-in default when nothing has been saved — while an explicit empty
-         *     array clears it. JSON binding stays
+         *     array clears it. `externalLinks` is normalized before persistence (see
+         *     the field description in `AdminSiteSettingsConfig`): only `<head>`
+         *     elements survive, so shell-emitted document metadata is never stored.
+         *     JSON binding stays
          *     lenient: a missing/malformed body binds to zero values (empty URL
          *     fields, hence valid) and is saved as-is.
          */
@@ -11844,6 +11847,23 @@ export interface components {
             siteKeywords: string;
             siteUrl: string;
             siteEmail: string;
+            /**
+             * @description Custom head markup: only elements that may live inside `<head>` are
+             *     accepted. The same normalization runs when the value is stored and when
+             *     it is rendered: document structure tags (`<!DOCTYPE>`/`<html>`/`<head>`/
+             *     `<body>`), body content and loose text are dropped, together with the
+             *     document metadata the shell emits for the page — the `<title>`, the
+             *     charset (including `http-equiv="content-type"`) / viewport / description /
+             *     robots / color-scheme / theme-color metas, metas whose `name` or
+             *     `property` starts with `og:`, `twitter:` or `article:`, and links whose
+             *     `rel` token set includes `canonical`, `prev`, `next`, `manifest`, `icon`
+             *     or `apple-touch-icon` — so dirty values are cleaned on the next save
+             *     (issue #1244). Other custom meta/link/script/style/noscript elements are
+             *     kept; `description` and `robots` are rendered by a page only when that
+             *     page has its own value.
+             *     No URL or script whitelist is applied — trusted administrator content,
+             *     bounded by the page CSP.
+             */
             externalLinks: string;
             /**
              * @description Trusted external-domain whitelist (issue #1200): lower-cased
@@ -11871,7 +11891,9 @@ export interface components {
          *     request fails with HTTP 200 `code: 1`, messageCode `admin.url.invalid`
          *     and params `field` naming the first offending field; nothing is
          *     persisted. A missing/malformed body binds to zero values (empty URL
-         *     fields, hence valid) and is saved as-is.
+         *     fields, hence valid) and is saved as-is, except `externalLinks`, which is
+         *     normalized before persistence (see the field description in
+         *     `AdminSiteSettingsConfig`).
          *     `trustedExternalDomains` entries are normalized before persistence
          *     (trimmed, lower-cased, IDN converted to punycode, de-duplicated, blank
          *     entries dropped) under the trusted-domain policy (issue #1200): entries
