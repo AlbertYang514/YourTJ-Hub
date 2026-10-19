@@ -42,7 +42,9 @@ import Darwin
         }
         let url = URL(fileURLWithPath: path).standardizedFileURL
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].standardizedFileURL
-        guard url.path == support.appendingPathComponent("yourtj_private").path else {
+        // Dev previews keep their files separate when replacing a production install.
+        let privateDirectories = ["yourtj_private", "yourtj_private_dev"]
+        guard privateDirectories.contains(where: { url.path == support.appendingPathComponent($0).path }) else {
           result(FlutterError(code: "invalid_path", message: "Unsupported storage path", details: nil))
           return
         }
