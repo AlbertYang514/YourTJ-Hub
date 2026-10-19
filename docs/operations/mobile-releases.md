@@ -227,6 +227,9 @@ provisioning profile and metadata, never a private key or Apple authentication. 
 team and old/new UUID metadata, then base64-encode `Runner.mobileprovision` into the existing encrypted
 `mobile-release/IOS_PROFILE_BASE64` secret. Only after that update, rebuild the fixed preview SHA.
 This operation does not distribute an app or supply release review/QA approval.
+The same admin entry supports `operation=inspect-preview-groups`: it reports only group IDs,
+names, internal/automatic-access flags and the selected QA group, without reading testers or
+changing groups. Use it to diagnose a preview audience gate before authorizing a settings change.
 
 Provisioning overrides apply only to the Runner release target, not Pods/SwiftPM dependencies.
 Private inputs, temporary profiles and keychain changes are cleaned up even after build failure.
