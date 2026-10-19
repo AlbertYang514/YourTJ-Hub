@@ -72,6 +72,7 @@ sync_one() {
   sqlite3 "$src" ".backup '$TMP'" || { echo "sync-db: $label snapshot failed" >&2; rm -f "$TMP"; exit 1; }
   # Campus credentials and identity reservations never cross environments.
   if [ "$label" = "sqlite" ]; then
+    python3 "$SCRIPT_DIR/feed-privacy.py" --sqlite-copy "$TMP"
     for table in campus_identity_bindings campus_identity_reservations; do
       if [ "$(sqlite3 "$TMP" "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='$table';")" = "1" ]; then
         sqlite3 "$TMP" "DELETE FROM $table;"
@@ -79,17 +80,63 @@ sync_one() {
     done
     sqlite3 "$TMP" "VACUUM;"
   fi
+  if [ "$label" = "sqlite" ]; then
+    if [ "$(sqlite3 "$TMP" "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='agents';")" = "1" ]; then
+      sqlite3 "$TMP" "UPDATE agents SET enabled=0, token_hash='';"
+      for column in secret_ciphertext previous_secret_ciphertext webhook_authorization_ciphertext webhook_paused_reason; do
+        if sqlite3 "$TMP" "PRAGMA table_info(agents);" | cut -d '|' -f2 | grep -qx "$column"; then
+          sqlite3 "$TMP" "UPDATE agents SET $column='';"
+        fi
+      done
+      for column in events_enabled webhook_enabled; do
+        if sqlite3 "$TMP" "PRAGMA table_info(agents);" | cut -d '|' -f2 | grep -qx "$column"; then
+          sqlite3 "$TMP" "UPDATE agents SET $column=0;"
+        fi
+      done
+    fi
+    if [ "$(sqlite3 "$TMP" "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='task_queue';")" = "1" ]; then
+      sqlite3 "$TMP" "UPDATE task_queue SET status=3,last_error='snapshot_instance_isolation' WHERE type LIKE 'agent-interaction.%' OR type LIKE 'agent-webhook.%';"
+    fi
+    for table in agent_event_replay_states agent_publications agent_interaction_intents agent_events agent_webhook_deliveries agent_webhook_attempts agent_write_idempotency; do
+      if [ "$(sqlite3 "$TMP" "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='$table';")" = "1" ]; then
+        sqlite3 "$TMP" "DELETE FROM $table;"
+      fi
+    done
+  fi
   mkdir -p "$(dirname "$dst")"
   install -m 0644 "$TMP" "$dst"
   rm -f "$TMP"
   echo "sync-db: $label synced from main"
 }
 
+# 只清理已知命名的普通文件；同时间戳的 sqlite/file 属于一次同步。
+prune_dev_snapshots() {
+  python3 - "$ROOT/snapshots/dev-prev" <<'PYTHON'
+import pathlib
+import re
+import sys
+
+directory = pathlib.Path(sys.argv[1])
+if not directory.is_dir() or directory.is_symlink():
+    sys.exit(0)
+groups = {}
+for path in directory.iterdir():
+    match = re.fullmatch(r"(?:sqlite|file)-(\d{8}_\d{6})\.db", path.name)
+    if match and path.is_file() and not path.is_symlink():
+        groups.setdefault(match[1], []).append(path)
+for timestamp in sorted(groups, reverse=True)[5:]:
+    for path in groups[timestamp]:
+        path.unlink()
+PYTHON
+}
+
+SNAPSHOT_TIME="$(date +%Y%m%d_%H%M%S)"
+
 if [ "$MAIN_MODE" = "postgres" ] && [ "$DEV_MODE" = "postgres" ]; then
   echo "sync-db: PG mode ($MAIN_PG -> $DEV_PG)"
   if [ -f "$DEV_FILE_DB" ]; then
     mkdir -p "$ROOT/snapshots/dev-prev"
-    cp -f "$DEV_FILE_DB" "$ROOT/snapshots/dev-prev/file-$(date +%Y%m%d_%H%M%S).db"
+    cp -f "$DEV_FILE_DB" "$ROOT/snapshots/dev-prev/file-${SNAPSHOT_TIME}.db"
   fi
   # 参数化(review S3): dbname 经 psql -v 变量传递, :"devpg" 由 psql 做
   # SQL 标识符引用(内部引号转义), 消除 dbname 插值进 SQL 字符串的注入面。
@@ -108,24 +155,57 @@ SQL
   # 无法逃逸引号执行任意命令; 管道两侧的 $MAIN_PG/$DEV_PG 均由容器内
   # shell 从环境变量读取, 而非拼接进命令字符串。
   docker exec -e MAIN_PG="$MAIN_PG" -e DEV_PG="$DEV_PG" yourtj-postgres sh -c \
-    'pg_dump --exclude-table-data=public.campus_identity_bindings --exclude-table-data=public.campus_identity_reservations -U yourtj -d "$MAIN_PG" | psql -U yourtj -d "$DEV_PG"' >/dev/null
+    'pg_dump --exclude-table-data=public.feed_new_topic_outcome --exclude-table-data=public.feed_action_result --exclude-table-data=public.feed_actor_work --exclude-table-data=public.feed_period_progress --exclude-table-data=public.feed_owner --exclude-table-data=public.topic_view_fact --exclude-table-data=public.topic_action_credit --exclude-table-data=public.feed_serve_log --exclude-table-data=public.feed_page_observation --exclude-table-data=public.feed_event_log --exclude-table-data=public.feed_experiment_assignment --exclude-table-data=public.feed_user_daily --exclude-table-data=public.feed_candidate_sample --exclude-table-data=public.feed_rank_snapshot --exclude-table-data=public.feed_state --exclude-table-data=public.topic_rank_schedule --exclude-table-data=public.campus_identity_bindings --exclude-table-data=public.campus_identity_reservations -U yourtj -d "$MAIN_PG" | psql -U yourtj -d "$DEV_PG"' >/dev/null
+  # Copied production Agent credentials are disabled before dev can start.
+  docker exec -i yourtj-postgres psql -U yourtj -d "$DEV_PG" -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
+DO $isolate$
+DECLARE target_column text; target_table text;
+BEGIN
+  IF to_regclass('public.agents') IS NOT NULL THEN
+    UPDATE agents SET enabled=0, token_hash='';
+    FOREACH target_column IN ARRAY ARRAY['secret_ciphertext','previous_secret_ciphertext','webhook_authorization_ciphertext','webhook_paused_reason'] LOOP
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='agents' AND column_name=target_column) THEN
+        EXECUTE format('UPDATE agents SET %I = %L', target_column, '');
+      END IF;
+    END LOOP;
+    FOREACH target_column IN ARRAY ARRAY['events_enabled','webhook_enabled'] LOOP
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='agents' AND column_name=target_column) THEN
+        EXECUTE format('UPDATE agents SET %I = false', target_column);
+      END IF;
+    END LOOP;
+  END IF;
+  IF to_regclass('public.task_queue') IS NOT NULL THEN
+    UPDATE task_queue SET status=3,last_error='snapshot_instance_isolation' WHERE type LIKE 'agent-interaction.%' OR type LIKE 'agent-webhook.%';
+  END IF;
+  FOREACH target_table IN ARRAY ARRAY['agent_event_replay_states','agent_publications','agent_interaction_intents','agent_events','agent_webhook_deliveries','agent_webhook_attempts','agent_write_idempotency'] LOOP
+    IF to_regclass('public.' || target_table) IS NOT NULL THEN EXECUTE format('DELETE FROM %I', target_table); END IF;
+  END LOOP;
+END
+$isolate$;
+SQL
+  python3 "$SCRIPT_DIR/rotate-agent-epoch.py" "$ROOT/dev/storage/agent-state" --isolate
   echo "sync-db: dev PG db synced from main"
   sync_one "$MAIN_FILE_DB" "$DEV_FILE_DB" "file"
   chown -R 1000:1000 "$ROOT/dev/storage" 2>/dev/null || true
   echo "sync-db: dev file db synced from main"
+  prune_dev_snapshots
   exit 0
 fi
 
 # 保留 dev 旧库一份(排查用)
 if [ -f "$DEV_DB" ]; then
   mkdir -p "$ROOT/snapshots/dev-prev"
-  cp -f "$DEV_DB" "$ROOT/snapshots/dev-prev/sqlite-$(date +%Y%m%d_%H%M%S).db"
-  [ -f "$DEV_FILE_DB" ] && cp -f "$DEV_FILE_DB" "$ROOT/snapshots/dev-prev/file-$(date +%Y%m%d_%H%M%S).db"
+  PREV_DB="$ROOT/snapshots/dev-prev/sqlite-${SNAPSHOT_TIME}.db"
+  "$SCRIPT_DIR/snapshot-db.sh" "$DEV_DB" "$PREV_DB"
+  [ -f "$DEV_FILE_DB" ] && cp -f "$DEV_FILE_DB" "$ROOT/snapshots/dev-prev/file-${SNAPSHOT_TIME}.db"
 fi
 
 sync_one "$MAIN_DB" "$DEV_DB" "sqlite"
+python3 "$SCRIPT_DIR/rotate-agent-epoch.py" "$ROOT/dev/storage/agent-state" --isolate
 sync_one "$MAIN_FILE_DB" "$DEV_FILE_DB" "file"
 
 # 容器内 uid 1000 需要可写 storage
 chown -R 1000:1000 "$ROOT/dev/storage" 2>/dev/null || true
 echo "sync-db: dev dbs synced from main"
+
+prune_dev_snapshots
