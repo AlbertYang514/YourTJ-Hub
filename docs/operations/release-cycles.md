@@ -84,6 +84,12 @@ not deleted. To leave testing, use the normal App Store/Android entry; an Androi
 require uninstalling the preview, so preserve local-only data first. No automatic production install
 is attempted. Builds predating the notice require testers to follow the release page manually.
 
+Control saves and seals the transition before a separate `project` job refreshes merge checks and
+the public notice. If that job fails, use **Re-run failed jobs** to retry these projections without
+reapplying the transition. Both jobs remain under the dev instance lock. Do not rerun all jobs for
+an already sealed `start`, handoff or cancellation; **Control → refresh** also repairs projections
+from the latest state. An upload failure before sealing retains the same-dispatch recovery path.
+
 ## Start and build
 
 Select **main** for every release workflow. The workflows must exist on the repository default
@@ -160,8 +166,10 @@ supported by this preview entry: internal testing requires invited App Store Con
 The owner admits a blocker with **Release / Control → admit**, supplying the dev PR number and
 reason. Admission binds the current PR head; another push revokes it. Admission does not replace
 review or `ci-required`. Labels alone confer no permission. The controller rewrites the freeze check
-on every open dev PR when state changes and on PR head/label changes. Merge groups are blocked
-while frozen, including previously queued groups; admitted fixes use reviewed PR merges.
+on every open dev PR when state changes and on PR head/label changes. Starting a cycle requires an
+empty dev merge queue. State-wide refreshes also rewrite checks on outstanding merge-group SHAs,
+including previously green groups. Groups created during a freeze receive failing checks;
+admitted fixes use reviewed PR merges.
 
 After a blocker merges, select **advance** with the new full current dev SHA and a reason, then run
 the dev prerelease again. Old QA cannot authorize the changed source. Before recording `qa`, the
@@ -264,14 +272,14 @@ authenticated Apple discovery; the newest main commit or tag is not sufficient. 
 that base. A hotfix is not a release stabilization branch.
 
 Use **Control → hotfix** with the exact hotfix source, actual base SHA, tracking issue, targets and
-incident reason. The controller verifies ancestry and the selected channel's live baseline. It
+incident reason. The controller waits for in-flight formal publication, then verifies ancestry and
+every selected channel's live baseline before changing ownership. All selected channels must have
+the same nonempty actual base SHA; split different baselines into separate hotfixes. It
 pauses an occupying ordinary candidate, revokes that candidate's QA, and gives the hotfix exclusive
 dev and publication ownership. The hotfix follows the same preview, required regression, main PR,
 production rehearsal and Release PR approval path. Production publishes the hotfix source rather
 than unrelated main changes. Before publication, `advance` can select a reviewed revision on the
-hotfix line that still descends from its actual base; it need not equal dev. For multiple affected
-channels, the baseline priority is Web, Android, App Store, then TestFlight. Split genuinely different
-live baselines into separate hotfixes instead of pulling unrelated work into an emergency patch.
+hotfix line that still descends from its actual base; it need not equal dev.
 
 Successful formal publication moves a hotfix to `backflow`; it does not wait for Apple approval.
 Dev remains reserved for the required hotfix return. After production smoke, admit and merge the

@@ -181,6 +181,15 @@ def qa_builds(github, cycle, purpose):
     return previews
 
 
+def queued_dev_groups(github):
+    # Merge-group checks belong to these synthetic SHAs, not the constituent PR heads.
+    return github.pages('git/matching-refs/heads/gh-readonly-queue/dev/')
+
+
+def require_drained_queue(github):
+    require(not queued_dev_groups(github), 'Drain the dev merge queue before freezing a candidate')
+
+
 def refresh_checks(github, state, number=None):
     prs = [github.api(f'pulls/{number}')] if number else github.pages('pulls?state=open&base=dev')
     for pr in prs:
@@ -192,6 +201,12 @@ def refresh_checks(github, state, number=None):
             'conclusion': 'success' if allowed else 'failure', 'output': {
                 'title': 'Dev release freeze', 'summary': 'Normal review and CI still apply.' if allowed else
                 'Dev is frozen. Only an owner-admitted blocker at this exact PR head may merge.'}})
+    if number is None:
+        for sha in {group['object']['sha'] for group in queued_dev_groups(github)}:
+            github.api('check-runs', method='POST', data={
+                'name': 'release-freeze', 'head_sha': sha, 'status': 'completed',
+                'conclusion': 'success' if current(state) is None else 'failure', 'output': {
+                    'title': 'Dev release freeze', 'summary': 'Merge queue must drain before selecting a candidate.'}})
 
 
 def output(values):
@@ -272,6 +287,11 @@ def main():
     human(github, actor)
     human(github, os.environ.get('GITHUB_TRIGGERING_ACTOR', actor))
     action = 'build' if args.command == 'begin-build' else os.environ['ACTION']
+    if action in {'hotfix', 'abort'}:
+        require(os.environ.get('PRODUCTION_SERIALIZED') == 'true',
+                'Hotfix and abort must hold the production publication queue')
+    if action in {'start', 'hotfix'} or action == 'build' and cycle_id not in state['cycles']:
+        require_drained_queue(github)
     data = {'note': os.environ.get('NOTE', ''), 'source': os.environ.get('SOURCE_SHA', ''),
             'assignee': os.environ.get('ASSIGNEE', ''), 'base': os.environ.get('BASE_SHA', '')}
     for env, key in [('UNTIL', 'until'), ('ISSUE', 'issue'), ('PR', 'pr')]:
@@ -295,11 +315,12 @@ def main():
             issue = github.api(f"issues/{data['issue']}")
             require('pull_request' not in issue and issue['state'] == 'open', 'Use an open release tracking issue')
         if action == 'hotfix':
-            primary = next(c for c in ['web', 'android', 'ios-app-store', 'ios-testflight'] if c in data['channels'])
             apple = json.loads(Path('.apple-state.json').read_text()) if Path('.apple-state.json').exists() else None
-            deployed = baselines(github, [primary], reservations(), apple)[primary]['sourceSha']
-            require(deployed and deployed == data['base'], 'Hotfix base must be the actual distributed source')
-            git('merge-base', '--is-ancestor', deployed, data['source'])
+            deployed = baselines(github, data['channels'], reservations(), apple)
+            require(all(deployed[c].get('sourceSha') and deployed[c]['sourceSha'] == data['base']
+                        for c in data['channels']),
+                    'Every hotfix channel must share the actual distributed base; split different baselines into separate hotfixes')
+            git('merge-base', '--is-ancestor', data['base'], data['source'])
         if action == 'backflow':
             c = state['cycles'][cycle_id]
             git('merge-base', '--is-ancestor', c['source'], data['source'])
@@ -315,7 +336,6 @@ def main():
     if action == 'offer':
         human(github, data['assignee'])
     if action == 'abort':
-        require(os.environ.get('ABORT_SERIALIZED') == 'true', 'Abort must hold the production publication queue')
         git('fetch', 'origin', 'main', '--tags')
         c = state['cycles'][cycle_id]
         apple = json.loads(Path('.apple-state.json').read_text()) if Path('.apple-state.json').exists() else None

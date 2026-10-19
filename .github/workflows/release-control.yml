@@ -40,10 +40,10 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.action != 'refresh'
     runs-on: ubuntu-latest
     environment: mobile-release
-    # Abort waits for all formal publication side effects before reconciling.
+    # Hotfix and abort wait for formal publication before changing ownership/state.
     # Formal publication never acquires instance-mutate-dev, so no lock cycle.
     concurrency:
-      group: ${{ inputs.action == 'abort' && 'release-production' || format('release-control-{0}', github.run_id) }}
+      group: ${{ contains(fromJSON('["hotfix","abort"]'), inputs.action) && 'release-production' || format('release-control-{0}', github.run_id) }}
       cancel-in-progress: false
       queue: max
     steps:
@@ -85,8 +85,11 @@ jobs:
           UNTIL: ${{ inputs.until }}
           ASSIGNEE: ${{ inputs.assignee }}
           BASE_SHA: ${{ inputs.base }}
-          ABORT_SERIALIZED: ${{ inputs.action == 'abort' && 'true' || 'false' }}
+          PRODUCTION_SERIALIZED: ${{ contains(fromJSON('["hotfix","abort"]'), inputs.action) && 'true' || 'false' }}
         run: python3 scripts/release/cycle_control.py change
+      - name: Remove Apple authentication
+        if: always()
+        run: rm -rf .asc "$RUNNER_TEMP/release-asc"
       - name: Seal release state
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
@@ -95,16 +98,6 @@ jobs:
           include-hidden-files: true
           retention-days: 90
           if-no-files-found: error
-      - name: Re-evaluate every open dev PR, including previously green heads
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/release/cycle_control.py checks
-      - name: Remove Apple authentication
-        if: always()
-        run: rm -rf .asc "$RUNNER_TEMP/release-asc"
-      - name: Refresh the public candidate notice
-        env: {GH_TOKEN: '${{ github.token }}'}
-        run: python3 scripts/release/preview_status.py
   refresh:
     if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.action == 'refresh'
     runs-on: ubuntu-latest
@@ -124,7 +117,17 @@ jobs:
           include-hidden-files: true
           retention-days: 90
           if-no-files-found: error
-      - name: Re-evaluate every open dev PR, including previously green heads
+  project:
+    needs: [control, refresh]
+    if: ${{ !cancelled() && (needs.control.result == 'success' || needs.refresh.result == 'success') }}
+    runs-on: ubuntu-latest
+    # Retain the workflow-wide dev lock. Retrying this job cannot repeat a sealed transition.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Re-evaluate dev PRs and queued merge groups
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/release/cycle_control.py checks

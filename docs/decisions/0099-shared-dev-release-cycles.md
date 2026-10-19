@@ -47,7 +47,8 @@ reused by later mobile-only runs; every production target still requires its cor
 coverage. Rebuilding a fixed commit is supported, without requiring identical dev and production
 package bytes. Failed formal versions retain their original-artifact recovery contract.
 
-Abort waits for formal publishers, preserves partial and unknown channel facts, revokes QA and
+Hotfix admission and abort wait in the formal publication queue. Admission verifies every selected
+channel shares the actual base before taking ownership. Abort preserves partial and unknown channel facts, revokes QA and
 releases the cycle's dev freeze. Published/uncertain hotfixes retain backflow obligations that block
 new cycles and ordinary publication. Historical recovery requires an original reviewed, reserved
 release predating this controller; absence of cycle data is insufficient and cannot bypass an abort.
@@ -55,6 +56,9 @@ release predating this controller; absence of cycle data is insufficient and can
 Main runs the controller. Deployments provide the state pointer; an immutable Actions artifact
 binds its deployment ID to the trusted controller run, because editable metadata is not authorization.
 The controller renews that artifact periodically and fails closed if its seal is unavailable.
+Control projects merge checks and the public notice in a separate retryable job after sealing;
+retrying failed projections never replays an already applied transition. New freezes require the
+dev merge queue to drain, and state refreshes include synthetic merge-group SHAs.
 Successful formal runs seal the exact cycle/request binding. A completion callback dispatches main
 after the publication lock is released; the controller verifies that successful run, immutable seal
 and the request's latest receipts before ending the cycle. This keeps delayed callbacks from
