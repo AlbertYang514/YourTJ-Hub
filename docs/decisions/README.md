@@ -6,7 +6,7 @@ Every durable choice with meaningful alternatives â€” architecture or process â€
 
 The format is **MADR (Markdown Any Decision Records)** with a documented `Class:` extension. Names and structure follow the industry standard so existing MADR tooling keeps working; the extension is ignored by tools that do not know it.
 
-A decision record is a file named `NNNN-title.md` (4-digit zero-padded number, `-`, kebab-case title) directly inside this directory. Numbers are assigned sequentially; the number is the record's identity and never changes.
+A decision record is a file named `NNNN-title.md` (4-digit zero-padded number, `-`, kebab-case title) directly inside this directory. Numbers are unique identifiers; gaps are allowed for parallel reservations or records not merged into this branch. Check dev and open PRs before reserving a number. Once assigned, the number is the record's identity and never changes.
 
 ### Required sections
 
@@ -63,7 +63,7 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 
 ## Verifier
 
-`scripts/verify-decisions.mjs` enforces: file naming, unique sequential numbering, required sections, valid status values, valid `Class:` values when present, and `Superseded by NNNN` targets that exist. It exits non-zero on any violation. `scripts/run-gates.mjs` selects it from the manifest.
+`scripts/verify-decisions.mjs` enforces: file naming, unique numbering (gaps allowed), required sections, valid status values, valid `Class:` values when present, and `Superseded by NNNN` targets that exist. It exits non-zero on any violation. `scripts/run-gates.mjs` selects it from the manifest.
 
 ## Index
 

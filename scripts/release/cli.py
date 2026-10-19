@@ -72,9 +72,9 @@ def execute(args, github):
         if args.command == 'prerelease':
             from cycle import preview_artifacts
             preview_artifacts(args.artifacts, args.purpose)
-            require(not args.source_review_bypass_reason or args.purpose == 'dev'
+            require(not args.source_review_bypass_reason or args.source and args.purpose == 'dev'
                     and 0 < len(args.source_review_bypass_reason.strip()) <= 1000,
-                    'Source-review bypass is limited to dev previews and requires a reason (1-1000 characters)')
+                    'Source-review bypass requires an explicit source SHA, dev purpose and a reason (1-1000 characters)')
         if args.command == 'prerelease' and not args.cycle:
             require(args.source and args.issue and args.purpose == 'dev', 'A new prerelease needs source and tracking issue')
         workflow = 'release-prerelease.yml' if args.command == 'prerelease' else 'release-control.yml'

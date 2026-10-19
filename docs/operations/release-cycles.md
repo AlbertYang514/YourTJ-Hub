@@ -101,12 +101,15 @@ Normal branch review/CI remain mandatory.
 
 For an explicitly authorized emergency **dev preview**, a repository admin may supply
 `source_review_bypass_reason` (CLI: `--source-review-bypass-reason`). The sealed cycle records
-source SHA, cycle/run ID, initiating and rerunning actors, time and reason. Identity allocation and
+the explicitly dispatched source SHA (required even for an existing cycle), cycle/run ID, initiating
+and rerunning actors, time and reason. A queued request cannot adopt an advanced cycle source. Identity allocation and
 signing recheck that exact binding and both actors' live admin permission. A different SHA, cycle
 or run cannot reuse it; a new run requires a new explicit reason. Rerunning the same authorized
-run remains possible. Ordinary previews still require the exact human source review. This exception
+run is permitted only for its recorded triggering actor, while preserving the original audit. Another
+admin needs a new dispatch and the existing ownership rules still apply. Ordinary previews still require the exact human source review. This exception
 does not authorize production-configuration rehearsal, formal Release, QA, hotfix backflow or
-branch merges; their existing gates remain in force.
+branch merges; their existing gates remain in force. The rationale is recorded in
+[MADR 0100](../decisions/0100-admin-dev-preview-source-exception.md).
 
 Start **Release / Prerelease** with the full current dev SHA, an open tracking issue, production
 channels and purpose `dev`. Omit `cycle` to create a cycle; its ID is the initiating Actions run ID.
