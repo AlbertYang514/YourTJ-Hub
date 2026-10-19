@@ -59,7 +59,7 @@ def select(paths):
             if path.startswith("scripts/") and not path.startswith(("scripts/release/", "scripts/mobile-release/", "scripts/ci/", "scripts/test-", "scripts/verify-", "scripts/run-gates")):
                 add(*DOMAINS, reason=f"Unknown executable input: {path}")
             add("automation", reason=path)
-            if path.startswith("deploy/") or "/build-binary/" in path or "/push-image/" in path:
+            if path.startswith("deploy/") or "/build-binary/" in path or "/push-image/" in path or path == ".github/workflows/deploy-dev.yml":
                 add("backend", "frontend", "deploy", reason=path)
             if path in {".github/workflows/ci.yml", "scripts/ci/select_inputs.py"}:
                 add(*DOMAINS, reason=path)
