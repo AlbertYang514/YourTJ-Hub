@@ -149,7 +149,7 @@ def notes_banner(manifest, status):
             "CI and every publisher refuse a channel without reviewed notes.")
 
 
-def create_pr(manifest, folder, github, notes_status=None):
+def create_pr(manifest, folder, github, notes_status=None, cycle=None):
     candidate_id = manifest["candidateId"]
     pending = open_request(github, manifest["product"])
     if pending:
@@ -176,6 +176,10 @@ def create_pr(manifest, folder, github, notes_status=None):
             "A release maintainer must review the final head. For schema 2 mobile requests, edit changelog.json, attach evidence refs from evidence.json, then run `python3 scripts/release/workflow.py render-structured --candidate ID` to derive platform files; review TestFlight English separately. Verify platform scope, disclosures and server prerequisites, then approve and merge. Bots cannot approve. The publisher independently rechecks approval.\n\n"
             f"Baselines:\n```json\n{json.dumps(manifest['baselines'], indent=2)}\n```\n\n{previews}\n\n"
             "Evidence and uncertainties: `evidence.json`. Source, targets and note edits require fresh approval.")
+    if cycle:
+        body += (f"\n\nRelease tracking: #{cycle['issue']} · cycle `{cycle['id']}` · "
+                 f"owner at preparation: @{cycle['owner']}.\n"
+                 "The tracking issue owns device QA and channel follow-up; it is not release approval.")
     return github.api("pulls", method="POST", data={"title": f"chore: release {candidate_id}", "head": branch, "base": "main", "body": body})
 
 

@@ -1,5 +1,9 @@
 name: Deploy / dev
 on:
+  workflow_call:
+    inputs:
+      source: {type: string, required: true}
+      cycle: {type: string, required: true}
   workflow_run:
     workflows: ['CI / Verify']
     types: [completed]
@@ -7,6 +11,7 @@ on:
 permissions:
   contents: read
   actions: read
+  deployments: read
 # Configuration and database mutation must not be cancelled by a newer push.
 concurrency:
   group: instance-mutate-dev
@@ -21,14 +26,24 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: dev
+          ref: main
           persist-credentials: false
       - id: source
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/ci/deploy_gate.py
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
-        if: steps.source.outputs.eligible == 'true'
+          CYCLE_ID: ${{ inputs.cycle }}
+          SOURCE_SHA: ${{ inputs.source }}
+          BUILD_RUN: ${{ github.run_id }}
+        run: |
+          if [ -n "$CYCLE_ID" ]; then
+            python3 scripts/release/cycle_control.py check-dev
+            echo 'eligible=true' >> "$GITHUB_OUTPUT"
+            echo "sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          else
+            python3 scripts/ci/deploy_gate.py
+          fi
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        if: steps.source.outputs.eligible == 'true' && inputs.cycle == ''
         with:
           name: ci-plan
           run-id: ${{ github.event.workflow_run.id }}
@@ -36,11 +51,13 @@ jobs:
           path: .ci-plan
       - id: eligible
         if: steps.source.outputs.eligible == 'true'
+        env:
+          CYCLE_ID: ${{ inputs.cycle }}
         run: |
           python3 - <<'PY'
           import json,os
           from pathlib import Path
-          plan=json.loads(Path('.ci-plan/ci-plan.json').read_text())
+          plan={'deploy':{'run':True}} if os.environ['CYCLE_ID'] else json.loads(Path('.ci-plan/ci-plan.json').read_text())
           with open(os.environ['GITHUB_OUTPUT'],'a') as out:
               out.write('eligible='+str(plan['deploy']['run'] is True).lower()+'\n')
           PY
@@ -64,7 +81,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ needs.gate.outputs.sha }}
+          ref: main
           persist-credentials: false
       - uses: ./.github/actions/push-image
         with:
@@ -79,13 +96,15 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ needs.gate.outputs.sha }}
+          ref: main
           persist-credentials: false
       - name: Reject an obsolete candidate before configuration or database mutation
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_SHA: ${{ needs.gate.outputs.sha }}
-        run: test "$(gh api repos/YourTongji/YourTJ-Hub/git/ref/heads/dev --jq .object.sha)" = "$SOURCE_SHA"
+          CYCLE_ID: ${{ inputs.cycle }}
+          BUILD_RUN: ${{ github.run_id }}
+        run: python3 scripts/release/cycle_control.py check-dev
       # 渲染实例 config（dev 环境 secrets; dev GitHub 凭据留空 → 渲染 allow-empty）
       - name: Render dev config
         uses: ./.github/actions/render-config

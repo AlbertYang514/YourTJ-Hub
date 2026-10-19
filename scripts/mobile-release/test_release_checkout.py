@@ -13,7 +13,7 @@ class ReleaseCheckoutTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             checkout = Path(temporary) / '.release-tools/scripts/mobile-release'
             checkout.mkdir(parents=True)
-            for name in ('build_ios.py', 'test_android_push_consent.py', 'test_privacy_manifests.py'):
+            for name in ('build_ios.py', 'build_environment.py', 'test_android_push_consent.py', 'test_privacy_manifests.py'):
                 shutil.copyfile(tools / name, checkout / name)
             result = subprocess.run(
                 [sys.executable, '-m', 'unittest', 'discover', '-s', str(checkout), '-p', 'test_*.py'],

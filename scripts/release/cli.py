@@ -9,12 +9,18 @@ from model import ReleaseError, channels_for, validate_candidate, require
 from github import GitHub, git, run
 from controller import plan, candidate_path, load_candidate, trusted_request
 from state import latest_receipt
+from cycle_store import load as load_cycle
+from cycle import current
+from model import SHA
+
+CONTROL_ACTIONS = ['start', 'admit', 'advance', 'qa', 'production-qa', 'extend', 'offer',
+                   'accept', 'reassign', 'complete', 'cancel', 'abort', 'hotfix', 'backflow']
 
 
 def parser():
     root = argparse.ArgumentParser(description=__doc__)
     sub = root.add_subparsers(dest="command", required=True)
-    for name in ["status", "doctor", "plan", "prepare", "validate", "publish", "retry", "promote-ios"]:
+    for name in ["status", "doctor", "plan", "prepare", "validate", "publish", "retry", "promote-ios", 'cycle', 'prerelease', 'control']:
         cmd = sub.add_parser(name)
         cmd.add_argument("--json", action="store_true", help="stable schemaVersion=1 JSON output")
         if name in {"plan", "prepare", "doctor"}:
@@ -31,7 +37,21 @@ def parser():
         if name == "promote-ios":
             cmd.add_argument("--release", required=True, help="existing candidate ID")
             cmd.add_argument("--to", choices=["app-store"], default="app-store")
-        if name in {"prepare", "publish", "retry", "promote-ios"}:
+        if name in {'prerelease', 'control'}:
+            cmd.add_argument('--cycle', default='')
+            cmd.add_argument('--source', default='')
+            cmd.add_argument('--issue', default='')
+            cmd.add_argument('--channels', default='web,android,ios-testflight,ios-app-store')
+        if name == 'prerelease':
+            cmd.add_argument('--purpose', choices=['dev', 'production'], default='dev')
+            cmd.add_argument('--artifacts', default='', help='Comma-separated web,android,ios; default all supported for purpose')
+        if name == 'control':
+            cmd.add_argument('--action', choices=CONTROL_ACTIONS, required=True)
+            cmd.add_argument('--release-run', default='', help='Successful formal run ID for retrying automatic completion')
+            cmd.add_argument('--note', required=True)
+            for field in ['pr', 'until', 'assignee', 'base']:
+                cmd.add_argument('--' + field, default='')
+        if name in {"prepare", "publish", "retry", "promote-ios", 'prerelease', 'control'}:
             mode = cmd.add_mutually_exclusive_group()
             mode.add_argument("--apply", action="store_true", help="perform the user-authorized dispatch on main")
             mode.add_argument("--dry-run", action="store_true", help="show request; default, no remote writes")
@@ -39,6 +59,22 @@ def parser():
 
 
 def execute(args, github):
+    if args.command == 'cycle':
+        return {'releaseCycles': load_cycle(github)}
+    if args.command in {'prerelease', 'control'}:
+        fields = ['cycle', 'source', 'issue', 'channels']
+        fields += ['purpose', 'artifacts'] if args.command == 'prerelease' else ['action', 'note', 'pr', 'until', 'assignee', 'base', 'release_run']
+        inputs = {key: getattr(args, key) for key in fields}
+        require(not args.source or SHA.fullmatch(args.source), 'Use a full source SHA')
+        if args.command == 'control' and args.action == 'complete':
+            require(args.release_run.isdigit(), 'Completion needs a successful formal release run ID')
+        if args.command == 'prerelease':
+            from cycle import preview_artifacts
+            preview_artifacts(args.artifacts, args.purpose)
+        if args.command == 'prerelease' and not args.cycle:
+            require(args.source and args.issue and args.purpose == 'dev', 'A new prerelease needs source and tracking issue')
+        workflow = 'release-prerelease.yml' if args.command == 'prerelease' else 'release-control.yml'
+        return github.dispatch(workflow, inputs) if args.apply else {'dryRun': True, 'workflow': workflow, 'ref': 'main', 'inputs': inputs}
     if args.command == "doctor":
         run("gh", "auth", "status")
         repo = github.api(f"repos/{github.repository}")
@@ -48,7 +84,12 @@ def execute(args, github):
                 "nextActions": ["plan", "prepare --apply"]}
     if args.command == "plan":
         apple = json.loads(args.apple_state.read_text(encoding='utf-8')) if args.apple_state else None
-        return {"state": "draft", "manifest": plan(args.scope, args.bump, args.source, args.ios_destination, github, apple), "nextActions": ["prepare --apply"]}
+        source = args.source
+        if source == 'main':
+            active = current(load_cycle(github))
+            require(active, 'Select a release cycle before planning production')
+            source = active['source']
+        return {"state": "draft", "manifest": plan(args.scope, args.bump, source, args.ios_destination, github, apple), "nextActions": ["prepare --apply"]}
     if args.command == "prepare":
         channels_for(args.scope, args.ios_destination)
         inputs = {"scope": args.scope, "bump": args.bump, "source": args.source, "ios_destination": args.ios_destination}

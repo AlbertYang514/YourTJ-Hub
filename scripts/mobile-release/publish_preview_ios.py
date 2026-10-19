@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+"""Distribute a preview only to an explicitly selected internal QA group.
+
+Internal distribution avoids changing the production beta review account/queue.
+Auto-access groups are checked before upload, not merely after distribution.
+"""
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+from build_environment import dart_defines
+from publish_ios import asc, resource, find_build, wait_for_build, APP_ID, GROUP_ID
+
+
+def check_groups(groups, selected):
+    matches = [g for g in groups if g['id'] == selected]
+    if (not selected or selected == GROUP_ID or len(matches) != 1
+            or matches[0]['attributes'].get('isInternalGroup') is not True):
+        raise ValueError('Preview needs a dedicated internal TestFlight group, distinct from production')
+    if any(g['id'] != selected and g['attributes'].get('hasAccessToAllBuilds') is not False for g in groups):
+        raise ValueError('Another TestFlight group has automatic/unknown all-build access; reconcile before uploading previews')
+
+
+def main():
+    dart_defines()
+    if os.environ.get('MOBILE_PREVIEW') != 'true':
+        raise ValueError('This publisher accepts previews only')
+    group = os.environ.get('PRERELEASE_TESTFLIGHT_GROUP_ID', '')
+    check_groups(asc('testflight', 'groups', 'list', '--app', APP_ID, '--paginate')['data'], group)
+    version, number = os.environ['MOBILE_VERSION'], os.environ['MOBILE_BUILD_NUMBER']
+    result_path = Path(os.environ.get('RELEASE_RESULT_PATH', '.preview-ios.json'))
+    def record(stage, **data):
+        result_path.write_text(json.dumps({'stage': stage, 'version': version, 'buildNumber': number,
+            'source': os.environ['SOURCE_SHA'], 'environment': os.environ['MOBILE_ENVIRONMENT'], **data}) + '\n')
+    record('checking_upload')
+    if find_build(version, number) is None:
+        uploads = asc('builds', 'uploads', 'list', '--app', APP_ID, '--cf-bundle-short-version', version,
+                      '--cf-bundle-version', number, '--paginate')['data']
+        if uploads:
+            if not any(u['attributes'].get('uploadedDate') for u in uploads):
+                raise ValueError('Upload outcome uncertain; reconcile ASC before retrying')
+        else:
+            asc('builds', 'upload', '--app', APP_ID, '--ipa', os.environ['IOS_IPA_PATH'],
+                '--version', version, '--build-number', number)
+    record('processing')
+    build = wait_for_build(version, number)
+    record('processed', buildId=build)
+    subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / 'release/cycle_control.py'),
+                    'check-build'], check=True)
+    # Recheck scope after processing; a group may have changed while waiting.
+    check_groups(asc('testflight', 'groups', 'list', '--app', APP_ID, '--paginate')['data'], group)
+    asc('builds', 'update', '--build-id', build, '--uses-non-exempt-encryption=false')
+    notes = (f"{os.environ['MOBILE_ENVIRONMENT'].upper()} testing only. Source {os.environ['SOURCE_SHA']}. "
+             "Complete the release issue's device checklist. Current candidate and return-to-production instructions: "
+             "https://github.com/YourTongji/YourTJ-Hub/releases/tag/preview-status")
+    existing = [n for n in asc('builds', 'test-notes', 'list', '--build-id', build)['data']
+                if n.get('attributes', {}).get('locale') == 'en-US']
+    asc('builds', 'test-notes', 'update' if existing else 'create', '--build-id', build,
+        '--locale', 'en-US', '--whats-new', notes)
+    asc('builds', 'add-groups', '--build-id', build, '--group', group)
+    details = resource(asc('builds', 'build-beta-detail', 'view', '--build-id', build))
+    stage = details.get('attributes', {}).get('internalBuildState')
+    record('assigned', buildId=build, appleState=stage, group=group)
+    if stage != 'IN_BETA_TESTING':
+        raise ValueError(f'TestFlight assigned but not yet installable ({stage}); reconcile and retry')
+    record('available_for_testing', buildId=build, appleState=stage, group=group)
+    with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+        out.write(f"TestFlight internal QA: {version} ({number}), build `{build}`, {stage}.\n\n"
+                  "Availability is not a device QA pass. No App Store or external beta submission was made.\n")
+
+
+if __name__ == '__main__':
+    main()

@@ -35,6 +35,9 @@ jobs:
     env:
       CANDIDATE: ${{ inputs.candidate }}
       RELEASE_SOURCE_ROOT: ${{ github.workspace }}/.source
+      SOURCE_SHA: ${{ inputs.source }}
+      MOBILE_ENVIRONMENT: production
+      MOBILE_PREVIEW: 'false'
       MOBILE_VERSION: ${{ inputs.version }}
       MOBILE_BUILD_NUMBER: ${{ inputs.number }}
       IOS_TEAM_ID: 4HJTS3G3T2

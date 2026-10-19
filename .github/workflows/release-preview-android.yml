@@ -1,0 +1,116 @@
+name: Release / Preview Android
+on:
+  workflow_call:
+    inputs:
+      cycle: {type: string, required: true}
+      source: {type: string, required: true}
+      purpose: {type: string, required: true}
+      version: {type: string, required: true}
+      number: {type: string, required: true}
+      tag: {type: string, required: true}
+permissions:
+  contents: write
+  actions: read
+  deployments: read
+  pull-requests: read
+concurrency:
+  group: release-android
+  cancel-in-progress: false
+  queue: max
+jobs:
+  preview:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: mobile-release
+    timeout-minutes: 90
+    env:
+      CYCLE_ID: ${{ inputs.cycle }}
+      SOURCE_SHA: ${{ inputs.source }}
+      PURPOSE: ${{ inputs.purpose }}
+      PREVIEW_ARTIFACT: android
+      MOBILE_ENVIRONMENT: ${{ inputs.purpose }}
+      MOBILE_PREVIEW: 'true'
+      RELEASE_SOURCE_ROOT: ${{ github.workspace }}/.source
+      MOBILE_VERSION: ${{ inputs.version }}
+      MOBILE_BUILD_NUMBER: ${{ inputs.number }}
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Recheck preview authorization
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release/cycle_control.py check-build
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.source }}
+          path: .source
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: "3.44.9"
+          channel: stable
+          cache: true
+      - name: Prepare Android OEM push configuration
+        env:
+          ANDROID_PUSH_JSON: ${{ secrets.ANDROID_PUSH_JSON }}
+          HUAWEI_AGCONNECT_JSON: ${{ secrets.HUAWEI_AGCONNECT_JSON }}
+          FCM_GOOGLE_SERVICES_JSON: ${{ secrets.FCM_GOOGLE_SERVICES_JSON }}
+        run: python3 scripts/mobile-release/prepare_push.py
+      - name: Bootstrap
+        working-directory: .source/apps/mobile
+        run: dart pub get
+      - name: Install private Android signing inputs
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          python3 - <<'PY'
+          import os, base64
+          from pathlib import Path
+          os.umask(0o077)
+          values = {key: os.environ[key] for key in ['ANDROID_KEYSTORE_BASE64', 'ANDROID_KEYSTORE_PASSWORD', 'ANDROID_KEY_PASSWORD', 'ANDROID_KEY_ALIAS']}
+          if not all(values.values()): raise SystemExit('Missing Android release secrets')
+          key = Path(os.environ['RUNNER_TEMP']) / 'yourtj-release.jks'
+          key.write_bytes(base64.b64decode(values['ANDROID_KEYSTORE_BASE64'], validate=True))
+          def prop(value):
+              return value.replace('\\', '\\\\').replace('\n', '\\n').replace('\r', '\\r').replace('=', '\\=').replace(':', '\\:').replace(' ', '\\ ')
+          fields = {'storeFile': str(key), 'storePassword': values['ANDROID_KEYSTORE_PASSWORD'], 'keyPassword': values['ANDROID_KEY_PASSWORD'], 'keyAlias': values['ANDROID_KEY_ALIAS']}
+          Path('.source/apps/mobile/packages/forum_app/android/key.properties').write_text(''.join(k + '=' + prop(v) + '\n' for k, v in fields.items()))
+          PY
+      - name: Build signed APKs
+        working-directory: .source/apps/mobile/packages/forum_app
+        run: |
+          mapfile -t defines < <(python3 "$GITHUB_WORKSPACE/scripts/mobile-release/build_environment.py")
+          test "${#defines[@]}" -eq 6
+          flutter build apk --release --split-per-abi \
+            --build-name="$MOBILE_VERSION" --build-number="$MOBILE_BUILD_NUMBER" \
+            "${defines[@]}"
+      - name: Preserve signed APKs for recovery
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: preview-android-${{ inputs.version }}-${{ inputs.number }}
+          path: .source/apps/mobile/packages/forum_app/build/app/outputs/flutter-apk/*-release.apk
+          include-hidden-files: true
+          retention-days: 30
+          if-no-files-found: error
+      - name: Publish only the isolated testing download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/release/cycle_control.py check-build
+          python3 scripts/mobile-release/publish_android.py
+      - name: Remove private signing inputs
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/yourtj-release.jks" .source/apps/mobile/packages/forum_app/android/key.properties \
+            .source/apps/mobile/packages/forum_app/android/push.properties .source/apps/mobile/packages/forum_app/android/app/agconnect-services.json \
+            .source/apps/mobile/packages/forum_app/android/app/google-services.json

@@ -16,6 +16,15 @@ and [controller](../../scripts/release/controller.py). See [decision 0055](../de
 
 ## Entrypoints
 
+First complete the [release cycle and preview QA](release-cycles.md). Dev QA must approve the exact
+source; mobile publication also requires production-configuration QA. Web can supply the new API
+in its own release cycle before a new mobile cycle performs production rehearsal. Freeze/owner/hotfix
+checks supplement, and do not replace, the Release PR review below. The source default `main` selects the active cycle's SHA; it no longer means
+“build whichever commit main points to when preparation starts”.
+Preview artifact selection, admin owner reassignment and failure exit are defined in that runbook.
+An already approved/reserved release predating the controller has a restricted historical recovery
+path; new or aborted cycles cannot use it to bypass QA.
+
 Use **Release / Prepare** on branch **main**, or run from a repository checkout:
 
 ```sh
@@ -50,8 +59,10 @@ the preparation slot while collecting evidence and opening `codex/release/<candi
 Only same-repository PR heads can own a slot or reserve an identity; fork and deleted-repository
 heads are ignored. Only one undecided request per product (web/mobile) is admitted. Human and Apple
 review do not hold a runner lock. Server tags remain `vX.Y.Z`; mobile tags remain `mobile-vX.Y.Z`, with a shared increasing
-base build number. Native platform version codes retain their existing rules. Tags are created only
-after approval/source verification, and consumed build numbers are never recycled.
+base build number. Native platform version codes retain their existing rules. Formal version tags
+are created only after approval/source verification. Preparation and previews also reserve automatic
+`mobile-build-N` tags under a shared allocation lock; consumed numbers are never recycled, including
+failed previews. Those reservations do not consume a formal semantic version.
 
 The Release PR contains only `releases/requests/<id>/`:
 
@@ -222,6 +233,12 @@ assets and Apple state; an editable receipt alone is not proof. Git contains req
 notes; temporary Actions artifacts are not their only durable source.
 
 ## Recovery and completion
+
+Each successful formal Release request automatically ends its ordinary preview cycle and unfreezes
+dev. Apple publication/submission success is sufficient; TestFlight approval and App Store public
+availability remain separate channel facts. Later platforms use a new cycle and fresh QA. Hotfix
+cycles additionally require backflow. The trusted completion callback and its retry entry are defined
+in [release-cycle completion](release-cycles.md#enter-main-publish-and-finish).
 
 Use **Release / Recover** on main with the original candidate and an approved channel. It rechecks the
 original approval, restores the original build artifact, and cannot add targets. `android-alias` only
