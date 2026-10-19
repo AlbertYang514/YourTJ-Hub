@@ -1069,22 +1069,10 @@ func buildTrackedTopicPayloadsContext(ctx context.Context, userID uint64, topics
 }
 
 // IsSafeRedirect 仅允许站内相对路径，拒绝 javascript:、//host、\host、/\host 等危险值。
-// 浏览器按 WHATWG URL 规范会把 \ 归一化为 /，因此路径中任何位置的反斜杠都要拦截。
+// 规则实现在 urlconfig.IsSafeRedirect，供 service 层（OAuth 续跳）复用同一份校验。
 // 导出供 api 层 OAuth 回调透传 redirect 复用（issue #531，与登录页 props 同规则）。
 func IsSafeRedirect(value string) bool {
-	if value == "" {
-		return false
-	}
-	if !strings.HasPrefix(value, "/") {
-		return false
-	}
-	if strings.Contains(value, `\`) {
-		return false
-	}
-	if len(value) > 1 && value[1] == '/' {
-		return false
-	}
-	return true
+	return urlconfig.IsSafeRedirect(value)
 }
 
 func buildLoginPageProps(c *gin.Context) LoginPageProps {
