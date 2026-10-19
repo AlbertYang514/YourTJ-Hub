@@ -35,6 +35,29 @@ def preview_group():
     return group
 
 
+def assign_internal_group(build, group):
+    def membership():
+        result = asc('builds', 'groups', 'list', '--build-id', build)
+        if (result.get('appId') != APP_ID or result.get('buildId') != build
+                or result.get('complete') is not True or result.get('failures')):
+            raise ValueError('Cannot verify the complete preview build audience')
+        groups = result.get('groups', [])
+        if any(g.get('id') != group or g.get('type') != 'internal' for g in groups):
+            raise ValueError('Preview build has an unexpected testing audience')
+        return any(g.get('id') == group for g in groups)
+
+    if membership():
+        return
+    groups = asc('testflight', 'groups', 'list', '--app', APP_ID, '--paginate')['data']
+    check_groups(groups, group)
+    selected = next(g for g in groups if g['id'] == group)
+    # Apple rejects explicit assignment to internal groups with automatic all-build access.
+    if selected['attributes'].get('hasAccessToAllBuilds') is not True:
+        asc('builds', 'add-groups', '--build-id', build, '--group', group)
+    if not membership():
+        raise ValueError('Internal group has not received the preview; reconcile and retry')
+
+
 def main():
     dart_defines()
     if os.environ.get('MOBILE_PREVIEW') != 'true':
@@ -46,7 +69,12 @@ def main():
         result_path.write_text(json.dumps({'stage': stage, 'version': version, 'buildNumber': number,
             'source': os.environ['SOURCE_SHA'], 'environment': os.environ['MOBILE_ENVIRONMENT'], **data}) + '\n')
     record('checking_upload')
-    if find_build(version, number) is None:
+    existing = find_build(version, number)
+    expected = os.environ.get('IOS_EXPECTED_BUILD_ID')
+    if os.environ.get('IOS_EXISTING_BUILD_ONLY') == 'true' and (
+            not existing or not expected or existing['id'] != expected):
+        raise ValueError('Preview recovery requires the exact existing Apple build; never re-upload')
+    if existing is None:
         uploads = asc('builds', 'uploads', 'list', '--app', APP_ID, '--cf-bundle-short-version', version,
                       '--cf-bundle-version', number, '--paginate')['data']
         if uploads:
@@ -57,6 +85,8 @@ def main():
                 '--version', version, '--build-number', number)
     record('processing')
     build = wait_for_build(version, number)
+    if expected and build != expected:
+        raise ValueError('Apple build differs from the original preview receipt')
     record('processed', buildId=build)
     subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / 'release/cycle_control.py'),
                     'check-build'], check=True)
@@ -70,7 +100,7 @@ def main():
                 if n.get('attributes', {}).get('locale') == 'en-US']
     asc('builds', 'test-notes', 'update' if existing else 'create', '--build-id', build,
         '--locale', 'en-US', '--whats-new', notes)
-    asc('builds', 'add-groups', '--build-id', build, '--group', group)
+    assign_internal_group(build, group)
     details = resource(asc('builds', 'build-beta-detail', 'view', '--build-id', build))
     stage = details.get('attributes', {}).get('internalBuildState')
     record('assigned', buildId=build, appleState=stage, group=group)

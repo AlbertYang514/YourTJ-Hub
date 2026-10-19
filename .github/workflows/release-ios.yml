@@ -7,6 +7,9 @@ on:
         type: choice
         required: true
         options: [refresh-profile, inspect-preview-groups]
+      build_id:
+        description: 'Optional Apple build ID for read-only audience/availability inspection'
+        type: string
   workflow_call:
     inputs:
       candidate: {type: string, required: true}
@@ -75,15 +78,22 @@ jobs:
         if: inputs.operation == 'inspect-preview-groups'
         env:
           PRERELEASE_TESTFLIGHT_GROUP_ID: ${{ vars.PRERELEASE_TESTFLIGHT_GROUP_ID }}
+          INSPECT_BUILD_ID: ${{ inputs.build_id }}
         run: |
           python3 - <<'PYTHON'
           import os, sys, json
           sys.path.insert(0, 'scripts/mobile-release')
-          from publish_ios import asc, APP_ID
+          from publish_ios import asc, resource, APP_ID
           fields = ['name', 'isInternalGroup', 'hasAccessToAllBuilds', 'publicLinkEnabled']
           groups = asc('testflight', 'groups', 'list', '--app', APP_ID, '--paginate')['data']
           print(json.dumps({'selected': os.environ['PRERELEASE_TESTFLIGHT_GROUP_ID'],
               'groups': [{'id': g['id'], **{k: g['attributes'].get(k) for k in fields}} for g in groups]}, indent=2))
+          if os.environ.get('INSPECT_BUILD_ID'):
+              build = os.environ['INSPECT_BUILD_ID']
+              audience = asc('builds', 'groups', 'list', '--build-id', build)
+              if audience.get('appId') != APP_ID: raise SystemExit('Build belongs to another app')
+              details = resource(asc('builds', 'build-beta-detail', 'view', '--build-id', build))
+              print(json.dumps({'audience': audience, 'availability': details.get('attributes', {})}, indent=2))
           PYTHON
       - name: Remove Apple authentication and generated profile
         if: always()
