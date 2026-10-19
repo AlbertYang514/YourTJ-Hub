@@ -17,7 +17,7 @@ def human(github, actor, *, admin=False):
     permission = github.api(f'collaborators/{actor}/permission')
     require(permission.get('permission') in {'admin', 'maintain', 'write'}
             and permission.get('user', {}).get('type') == 'User', 'A human maintainer must initiate this action')
-    require(not admin or permission['permission'] == 'admin', 'Only a repository admin may reassign ownership')
+    require(not admin or permission['permission'] == 'admin', 'Only a repository admin may perform this action')
 
 
 def fetch_source(source):
@@ -73,6 +73,29 @@ def reviewed_preview_source(github, source):
                and who in eligible and who != pr['user']['login'] for who, r in latest.items()):
             return
     require(False, 'Preview source needs an eligible human review of its exact PR head before signing')
+
+
+def record_preview_bypass(github, cycle, *, run, purpose, actor, triggering_actor, reason, now):
+    reason = reason.strip()
+    require(purpose == 'dev' and 0 < len(reason) <= 1000,
+            'Source-review bypass needs a reason (1-1000 characters) and is limited to dev previews')
+    human(github, actor, admin=True)
+    human(github, triggering_actor, admin=True)
+    cycle.setdefault('previewReviewBypasses', {})[run] = {
+        'cycle': cycle['id'], 'source': cycle['source'], 'run': run, 'purpose': purpose,
+        'actor': actor, 'triggeringActor': triggering_actor, 'reason': reason, 'at': now}
+
+
+def authorize_preview_source(github, cycle, purpose, run):
+    grant = cycle.get('previewReviewBypasses', {}).get(run)
+    if not grant:
+        return reviewed_preview_source(github, cycle['source'])
+    require(purpose == 'dev' and grant['purpose'] == purpose and grant['cycle'] == cycle['id']
+            and grant['source'] == cycle['source'] and grant['run'] == run
+            and grant['actor'] == os.environ['GITHUB_ACTOR'] and grant['reason'].strip(),
+            'Source-review bypass does not authorize this preview source/cycle/run')
+    human(github, grant['actor'], admin=True)
+    human(github, os.environ.get('GITHUB_TRIGGERING_ACTOR', grant['actor']), admin=True)
 
 
 def production_gate(github, source, channels, manifest=None, binding=None, promotion=False):
@@ -281,7 +304,7 @@ def main():
                 and c.get('previews', {}).get(purpose, {}).get(artifact) == os.environ['GITHUB_RUN_ID'], 'Build was cancelled or superseded')
         from cycle import live
         live(c, int(time.time()))
-        reviewed_preview_source(github, c['source'])
+        authorize_preview_source(github, c, purpose, os.environ['GITHUB_RUN_ID'])
         return
     actor = os.environ['GITHUB_ACTOR']
     human(github, actor)
@@ -374,6 +397,11 @@ def main():
         if c['kind'] != 'hotfix':
             require(github.api('git/ref/heads/dev')['object']['sha'] == c['source'], 'Dev moved; QA must restart')
     state = transition(state, action, actor, int(time.time()), cycle=cycle_id, **data)
+    bypass_reason = os.environ.get('SOURCE_REVIEW_BYPASS_REASON', '')
+    if action == 'build' and bypass_reason:
+        record_preview_bypass(github, state['cycles'][cycle_id], run=data['run'], purpose=data['purpose'],
+                              actor=actor, triggering_actor=os.environ.get('GITHUB_TRIGGERING_ACTOR', actor),
+                              reason=bypass_reason, now=int(time.time()))
     save(github, state)
     c = state['cycles'][cycle_id]
     output({'source': c['source'], 'cycle': cycle_id, 'owner': c['owner']})
@@ -384,6 +412,9 @@ def main():
         out.write(f"Release cycle `{cycle_id}` · owner @{c['owner']} · issue #{c['issue']}\n\n"
                   f"Source `{c['source']}` · {c['phase']} · frozen: {c['frozen']}\n\n"
                   "A successful upload is not device QA. The owner records the device checklist before approval.\n")
+        if action == 'build' and bypass_reason:
+            out.write('\nAdmin source-review bypass (dev preview only):\n\n```json\n' +
+                      json.dumps(c['previewReviewBypasses'][data['run']], ensure_ascii=False) + '\n```\n')
 
 
 if __name__ == '__main__':
