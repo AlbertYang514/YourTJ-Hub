@@ -4007,4 +4007,18 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get settingsPasskeyUnavailable => 'このサーバーではパスキーが有効になっていません。';
+
+  @override
+  String get previewUpdateInstructions =>
+      'テスト版です。更新にはリリース記録の Android リンクまたは指定された TestFlight グループを使用してください。';
+
+  @override
+  String get previewStale =>
+      'このプレビューは現在の候補ではありません。リリース状況から現在のテスト版または正式版をご確認ください。';
+
+  @override
+  String get previewStatusUnknown => 'プレビューの状態を確認できません。テスト前にリリース担当者へ確認してください。';
+
+  @override
+  String get previewStatusLink => 'プレビュー状況';
 }

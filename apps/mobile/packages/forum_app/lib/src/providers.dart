@@ -17,7 +17,7 @@ import 'storage/storage_providers.dart';
 /// 会话令牌存储:生产用 auth 包 SecureTokenStorage(flutter_secure_storage)。
 /// 测试可通过 override 注入内存实现。
 final tokenStorageProvider = Provider<TokenStorage>(
-  (ref) => SecureTokenStorage(),
+  (ref) => SecureTokenStorage(namespace: AppConfig.sessionNamespace),
 );
 
 /// 会话失效事件计数(401):每次未授权响应 +1。

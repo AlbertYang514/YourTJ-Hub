@@ -7475,6 +7475,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Passkeys are not enabled on this server.'**
   String get settingsPasskeyUnavailable;
+
+  /// No description provided for @previewUpdateInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'This is a testing build. Get updates from the release issue’s Android link or the assigned TestFlight group.'**
+  String get previewUpdateInstructions;
+
+  /// No description provided for @previewStale.
+  ///
+  /// In en, this message translates to:
+  /// **'This preview is no longer the current candidate. Check the release status for the current build or return to production.'**
+  String get previewStale;
+
+  /// No description provided for @previewStatusUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot verify this preview’s status. Check with the release owner before testing.'**
+  String get previewStatusUnknown;
+
+  /// No description provided for @previewStatusLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview status'**
+  String get previewStatusLink;
 }
 
 class _AppLocalizationsDelegate

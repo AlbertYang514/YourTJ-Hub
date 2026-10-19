@@ -8,6 +8,34 @@ import 'package:flutter/foundation.dart';
 ///             --dart-define=YOURTJ_OIDC_CLIENT_ID=yourtj-mobile
 /// ```
 abstract final class AppConfig {
+  static const environment = String.fromEnvironment(
+    'YOURTJ_ENVIRONMENT',
+    defaultValue: 'production',
+  );
+  static const sourceSha = String.fromEnvironment('YOURTJ_SOURCE_SHA');
+  static const preview = bool.fromEnvironment('YOURTJ_PREVIEW');
+  static bool get isDev => environment == 'dev';
+  static String get sessionNamespace => isDev ? 'https://dev.yourtj.de' : '';
+  static String get previewLabel =>
+      '${isDev ? 'DEV' : 'PROD TEST'} ${sourceSha.length >= 7 ? sourceSha.substring(0, 7) : 'local'}';
+
+  static void validate() {
+    if (environment != 'dev' && environment != 'production') {
+      throw StateError('Unknown build environment');
+    }
+    if (isDev &&
+        (!preview ||
+            apiBaseUrl != 'https://dev.yourtj.de' ||
+            oidcIssuer != 'https://dev.yourtj.de/api/oauth')) {
+      throw StateError(
+        'Dev builds require dev API, OIDC and preview distribution',
+      );
+    }
+    if (!isDev && apiBaseUrl == 'https://dev.yourtj.de') {
+      throw StateError('Dev API requires the dev environment');
+    }
+  }
+
   static const String _issuer = String.fromEnvironment(
     'YOURTJ_OIDC_ISSUER',
     defaultValue: 'http://localhost:5234/api/oauth',

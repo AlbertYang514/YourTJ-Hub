@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3/sqlite3.dart';
+import '../app_config.dart';
 
 const _keys = FlutterSecureStorage(
   iOptions: IOSOptions(
@@ -21,7 +22,11 @@ const _keys = FlutterSecureStorage(
 /// bridge explicitly excludes this directory (and future WAL files) from backup.
 Future<Directory> privateStorageDirectory() async {
   final support = await getApplicationSupportDirectory();
-  final directory = Directory.fromUri(support.uri.resolve('yourtj_private/'));
+  final directory = Directory.fromUri(
+    support.uri.resolve(
+      AppConfig.isDev ? 'yourtj_private_dev/' : 'yourtj_private/',
+    ),
+  );
   await directory.create(recursive: true);
   if (Platform.isIOS) {
     await const MethodChannel(
@@ -50,7 +55,8 @@ QueryExecutor openPrivateDatabase({
 }) => LazyDatabase(() async {
   final directory = await privateStorageDirectory();
   final file = File('${directory.path}/$name.sqlite');
-  final keyName = 'yourtj.database.$name.key.v1';
+  final keyName =
+      'yourtj.database.${AppConfig.isDev ? 'dev.' : ''}$name.key.v1';
   var key = await _keys.read(key: keyName);
   if (key == null) {
     if (await file.exists()) {
@@ -73,7 +79,7 @@ QueryExecutor openPrivateDatabase({
     throw StateError('Invalid local encryption key');
   }
   final secret = key;
-  final legacy = legacyName == null
+  final legacy = legacyName == null || AppConfig.isDev
       ? null
       : File(
           '${(await getApplicationDocumentsDirectory()).path}/$legacyName.sqlite',

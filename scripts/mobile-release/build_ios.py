@@ -17,6 +17,7 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+from build_environment import dart_defines
 import zipfile
 
 ROOT = Path(os.environ.get("RELEASE_SOURCE_ROOT", Path(__file__).resolve().parents[2]))
@@ -143,9 +144,7 @@ def main():
     subprocess.run([
         flutter, "build", "ios", "--config-only", "--release", "--no-codesign",
         f"--build-name={version}", f"--build-number={number}",
-        "--dart-define=YOURTJ_API_BASE_URL=https://f.yourtj.de",
-        "--dart-define=YOURTJ_OIDC_ISSUER=https://f.yourtj.de/api/oauth",
-        "--dart-define=YOURTJ_OIDC_CLIENT_ID=yourtj-mobile",
+        *dart_defines(),
     ], cwd=APP, check=True)
     signing = APP / "ios/Flutter/ReleaseSigning.xcconfig"
     widget_signing = APP / "ios/Flutter/WidgetReleaseSigning.xcconfig"

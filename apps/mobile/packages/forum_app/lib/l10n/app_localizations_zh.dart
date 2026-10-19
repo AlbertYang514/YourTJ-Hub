@@ -3958,4 +3958,17 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsPasskeyUnavailable => '此服务器尚未启用通行密钥。';
+
+  @override
+  String get previewUpdateInstructions =>
+      '这是测试版本，请通过本次发布记录中的 Android 下载链接或指定 TestFlight 测试组更新。';
+
+  @override
+  String get previewStale => '此预发版本已不是当前候选。请查看发布状态，获取当前测试版本或返回正式版。';
+
+  @override
+  String get previewStatusUnknown => '暂时无法确认此预发版本的状态，测试前请与发布负责人核对。';
+
+  @override
+  String get previewStatusLink => '预发状态';
 }

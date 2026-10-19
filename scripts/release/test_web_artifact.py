@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import platform
 from pathlib import Path
 import subprocess
 import tempfile
@@ -38,7 +39,8 @@ class WebArtifactTests(unittest.TestCase):
 
     def test_stages_original_bytes_from_goreleaser_inventory(self):
         binary = self.dist / 'unix_linux_amd64_v1/yourtj-hub'
-        self.assertEqual(subprocess.check_output([str(binary)], text=True).strip(), '1.0.50 ' + self.sha)
+        if platform.system() == 'Linux' and platform.machine() in {'x86_64', 'amd64'}:
+            self.assertEqual(subprocess.check_output([str(binary)], text=True).strip(), '1.0.50 ' + self.sha)
         self.assertNotIn('-ldflags', subprocess.check_output(['go', 'version', '-m', str(binary)], text=True))
         result = stage(self.dist, self.root / 'bin', self.sha, '1.0.50')
         self.assertEqual((self.root / 'bin/yourtj-hub').read_bytes(), self.original)

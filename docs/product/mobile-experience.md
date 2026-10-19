@@ -1398,6 +1398,17 @@ The approved permission/privacy/failure boundaries for optional analytics are re
 
 ## Distribution and updates
 
+- `Current`: controlled preview builds display `DEV <short SHA>` or `PROD TEST <short SHA>` and
+  suppress stable update prompts. Dev previews connect to `dev.yourtj.de`, with separate session,
+  preference and local database storage. They use the existing app IDs and replace installed apps.
+  Preview platforms can be selected per run. Installed previews warn when their source is no longer
+  the active candidate, their platform is no longer selected or the freeze expires; offline/missing
+  status is shown as unverified. A status link identifies the current candidate and normal production
+  download entries. Same-source rebuilds remain eligible. This notice never certifies QA, blocks app
+  use, switches sites or automatically installs a formal release.
+  `Partial`: signed installation and environment-switch behavior require candidate-specific device
+  checks through the [release-cycle checklist](../operations/release-cycles.md#freeze-fixes-and-qa).
+
 - `Current`: iPhone/iPad distribution is live on the
   [App Store](https://apps.apple.com/cn/app/yourtj/id6809457637), and Android has a public
   [ARM64 APK](https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-latest/YourTJ-arm64-v8a.apk)
