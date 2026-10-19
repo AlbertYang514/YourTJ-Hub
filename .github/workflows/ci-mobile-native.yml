@@ -130,6 +130,7 @@ jobs:
         working-directory: apps/mobile/packages/forum_app
         run: |
           simulator_id=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; runtimes=json.load(sys.stdin)["devices"]; print(next(d["udid"] for runtime,devices in sorted(runtimes.items(), reverse=True) if ".iOS-" in runtime for d in devices if d["isAvailable"] and d["name"].startswith("iPhone")))')
+          xcrun simctl bootstatus "$simulator_id" -b
           flutter test integration_test/storage_bootstrap_test.dart --no-pub -d "$simulator_id" \
             --dart-define=YOURTJ_ENVIRONMENT=dev \
             --dart-define=YOURTJ_PREVIEW=true \
