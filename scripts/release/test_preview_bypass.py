@@ -38,6 +38,18 @@ class PreviewBypassTests(unittest.TestCase):
                 with self.subTest(mutation=mutation, purpose=purpose, run=run), self.assertRaises(ReleaseError):
                     cycle_control.authorize_preview_source(self.remote, self.cycle | mutation, purpose, run)
 
+    def test_rerun_cannot_rebind_an_existing_exception_after_source_advance(self):
+        self.record()
+        original = dict(self.cycle['previewReviewBypasses']['50'])
+        self.record(now=120)
+        with self.subTest('same source keeps original audit'):
+            self.assertEqual(self.cycle['previewReviewBypasses']['50'], original)
+        self.cycle['previewReviewBypasses']['50'] = dict(original)
+        self.cycle['source'] = 'b'*40
+        with self.subTest('source advance cannot rebind'), self.assertRaises(ReleaseError):
+            self.record(now=130)
+        self.assertEqual(self.cycle['previewReviewBypasses']['50'], original)
+
     def test_override_requires_admin_initiator_and_admin_rerun_actor(self):
         for actor in ('alice', 'bob'):
             with self.subTest(actor=actor):
