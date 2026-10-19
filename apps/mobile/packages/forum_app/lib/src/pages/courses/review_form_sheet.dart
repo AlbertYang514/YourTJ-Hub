@@ -316,7 +316,6 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
                       onInsertImage: _insertImage,
                       insertingImage: _uploadingImage,
                       onHeading: () => _chooseHeading(l10n),
-                      headingButtonKey: _headingMenuKey,
                       onInsertLink: _insertLink,
                     ),
                   ),
@@ -515,7 +514,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
       url: _anonymous ? '' : (publisher?.avatarUrl ?? ''),
       colors: colors,
     );
-    final Widget toggle = Switch.adaptive(
+    final Widget toggle = Switch(
       value: _anonymous,
       onChanged: _submitting
           ? null
@@ -925,8 +924,6 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
     _ => l10n.courseReviewTemplateBlankDescription,
   };
 
-  final _headingMenuKey = GlobalKey();
-
   Future<void> _chooseHeading(AppLocalizations l10n) async {
     final level =
         _editorController
@@ -936,7 +933,6 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
             as int?;
     final selected = await showGfActionSheet<Attribute>(
       context,
-      anchorContext: _headingMenuKey.currentContext,
       initialValue: switch (level) {
         1 => Attribute.h1,
         2 => Attribute.h2,
