@@ -131,6 +131,8 @@ regression, or build `web` first and add `ios` separately.
 iOS archive/export logs are retained for 30 days in `preview-ios-build-logs-<attempt>`,
 even when signing or archive fails. Inspect those diagnostics before retrying; a log artifact
 does not mean an IPA was built or uploaded to Apple. Signed IPA recovery artifacts remain separate.
+Publisher unit tests isolate their result files in temporary directories; only the actual publisher
+may write the workflow’s Apple status artifact. A failed build before publication has no Apple receipt.
 
 Each artifact retains its latest distribution run for this source. Successful Web/Android work can
 be reused when another platform fails; QA verifies each required artifact's validation/distribution
