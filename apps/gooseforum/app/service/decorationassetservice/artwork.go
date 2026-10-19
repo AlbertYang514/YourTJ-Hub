@@ -68,6 +68,11 @@ func prepareArtwork(ctx context.Context, data []byte, filename string, frame boo
 	return data, filename, nil
 }
 
+// Both clients contain artwork in a square, so mildly rectangular exports need no stretching.
+func nearSquare(width, height float64) bool {
+	return min(width, height) >= max(width, height)*0.85
+}
+
 func validateRaster(data []byte, contentType string, frame bool) error {
 	if contentType != "image/png" && contentType != "image/webp" && contentType != "image/gif" {
 		return ErrInvalid
@@ -76,7 +81,7 @@ func validateRaster(data []byte, contentType string, frame bool) error {
 		return ErrInvalid
 	}
 	config, _, err := image.DecodeConfig(bytes.NewReader(data))
-	if err != nil || config.Width < 1 || config.Height < 1 || config.Width > 4096 || config.Height > 4096 || (frame && config.Width != config.Height) {
+	if err != nil || config.Width < 1 || config.Height < 1 || config.Width > 4096 || config.Height > 4096 || (frame && !nearSquare(float64(config.Width), float64(config.Height))) {
 		return ErrInvalid
 	}
 	if contentType == "image/png" && frame {
@@ -98,18 +103,24 @@ func validateRaster(data []byte, contentType string, frame bool) error {
 	if err != nil {
 		return ErrInvalid
 	}
-	if frame && !transparentCenter(img) {
+	if frame && !usableOpening(img) {
 		return ErrInvalid
 	}
 	return nil
 }
 
-func transparentCenter(img image.Image) bool {
+// Check the whole circular opening: directional samples can miss opaque pixels between rays.
+func usableOpening(img image.Image) bool {
 	b := img.Bounds()
-	for y := b.Min.Y + b.Dy()*35/100; y < b.Min.Y+max(1, b.Dy()*65/100); y++ {
-		for x := b.Min.X + b.Dx()*35/100; x < b.Min.X+max(1, b.Dx()*65/100); x++ {
-			_, _, _, a := img.At(x, y).RGBA()
-			if a > 257 {
+	radius := float64(min(b.Dx(), b.Dy())) * minArtworkOpeningRatio / 2
+	cx, cy := float64(b.Min.X+b.Dx()/2), float64(b.Min.Y+b.Dy()/2)
+	for y := max(b.Min.Y, int(math.Ceil(cy-radius))); y <= min(b.Max.Y-1, int(math.Floor(cy+radius))); y++ {
+		for x := max(b.Min.X, int(math.Ceil(cx-radius))); x <= min(b.Max.X-1, int(math.Floor(cx+radius))); x++ {
+			dx, dy := float64(x)-cx, float64(y)-cy
+			if dx*dx+dy*dy >= radius*radius {
+				continue
+			}
+			if _, _, _, a := img.At(x, y).RGBA(); a > 257 {
 				return false
 			}
 		}
@@ -186,7 +197,7 @@ func validateGIF(data []byte, frame bool) error {
 		return ErrInvalid
 	}
 	return visitGIF(animation, func(img image.Image) error {
-		if frame && !transparentCenter(img) {
+		if frame && !usableOpening(img) {
 			return ErrInvalid
 		}
 		return nil
@@ -315,7 +326,7 @@ func renderSVG(ctx context.Context, data []byte, frame bool) ([]byte, error) {
 	}
 	defer func() { _ = tree.Close() }()
 	w, h, err := tree.GetSize()
-	if err != nil || math.IsNaN(float64(w)) || math.IsNaN(float64(h)) || w < 1 || h < 1 || w > 4096 || h > 4096 || (frame && w != h) {
+	if err != nil || math.IsNaN(float64(w)) || math.IsNaN(float64(h)) || w < 1 || h < 1 || w > 4096 || h > 4096 || (frame && !nearSquare(float64(w), float64(h))) {
 		return nil, ErrInvalid
 	}
 	edge := float32(512)

@@ -7,4 +7,6 @@ const (
 	MaxArtworkBytes          = 8 << 20
 	animatedArtworkMaxFrames = 300
 	animatedArtworkMaxPixels = 48 << 20
+	// Minimum transparent opening diameter relative to the shorter canvas side.
+	minArtworkOpeningRatio = 0.30
 )

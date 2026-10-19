@@ -125,11 +125,12 @@ export interface paths {
         /**
          * Upload avatar-frame artwork (SiteManager)
          * @description Accepts SVG, PNG, WebP or GIF up to 8 MB (administrator artwork cap; other upload paths keep the 4 MB hard limit).
-         *     The decoded image must be square with a transparent central opening in every composited frame.
+         *     The shorter decoded side must be at least 85% of the longer side. Every pixel inside the centered circular opening
+         *     (diameter 30% of the shorter side) must have at most 1/255 opacity in every composited frame.
          *     SVG is rasterized to PNG; GIF bytes and animation are preserved. External SVG resources, scripts and text are rejected; convert text to paths.
-         *     Images are limited to 4096 px per side. GIF is limited to 300 frames and 16 million total composited canvas pixels.
+         *     Images are limited to 4096 px per side. GIF is limited to 300 frames and 48 million total composited canvas pixels.
          *     Upload returns a new, never-reused /static/decorations/<uuid> path that
-         *     works on existing clients. Unsaved previews expire after 24 hours;
+         *     keeps the existing path shape; older clients accept only PNG/WebP definitions. Unsaved previews expire after 24 hours;
          *     saving a definition makes the asset durable. Replacing artwork requires
          *     a new upload and definition save. Only SiteManager may call this endpoint.
          */
@@ -16343,7 +16344,7 @@ export interface operations {
                 "multipart/form-data": {
                     /**
                      * Format: binary
-                     * @description Square SVG/PNG/WebP/GIF with a transparent center in every frame.
+                     * @description Square or near-square SVG/PNG/WebP/GIF with a transparent circular center in every frame.
                      */
                     file: string;
                 };

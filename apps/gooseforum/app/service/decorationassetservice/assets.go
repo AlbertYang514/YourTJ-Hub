@@ -17,7 +17,7 @@ import (
 
 var ErrInvalid = errors.New("invalid decoration asset")
 
-// ValidateArtwork requires the central 30% to stay transparent in every frame.
+// ValidateArtwork requires a centered transparent circle spanning 30% of the shorter side in every frame.
 func ValidateArtwork(data []byte, contentType string) error {
 	return validateRaster(data, contentType, true)
 }

@@ -45,7 +45,7 @@ covers the portrait.
 ## Installation and configuration
 
 In `/admin/decorations`, pick the solid-color frame style to ship a gradient border from colors alone, or
-pick the image style and upload a square SVG/PNG/WebP/GIF with a transparent center. The upload returns a
+pick the image style and upload a square or near-square SVG/PNG/WebP/GIF with a transparent center. The upload returns a
 unique `/static/decorations/<uuid>.<ext>` URL and fills the draft path; save the `avatarFrame`
 definition to keep that asset. Unsaved uploads expire after 24 hours. To replace artwork, upload a
 new file and save the definition with its new URL; never reuse a filename because `/static` has a
@@ -63,9 +63,16 @@ case and draws no artwork. Preview the configured style in the admin page, then 
 it to a test account and verify the profile, feed, chat, and badge overlay before enabling it for
 users.
 
-Uploads retain the transparent central opening check: the central 30% of the canvas may have
-at most 1/255 opacity. Every displayed, composited GIF frame is checked, including partial
-frames and disposal operations. Dimensions are limited to 4096 px per side; GIFs are limited
+Uploads require every pixel inside the centered circular opening to have at most 1/255 opacity.
+The minimum opening diameter is 30% of the shorter canvas side; the recommended artwork keeps
+78–82%. This minimum rejects filled centers but does not guarantee an unobscured portrait.
+The artwork diameter is `assetScale ×` the avatar diameter. For square artwork, the opening
+fraction times `assetScale` must reach 1 to expose the whole avatar; a 30% opening cannot do so
+even at the maximum 200% scale. Check the actual coverage in the live preview before enabling it.
+The shorter canvas side must be at least 85% of the longer side. Web and Flutter fit the artwork
+inside a square without stretching it; strongly non-square exports are rejected. Every displayed,
+composited GIF frame is checked, including partial frames and disposal operations.
+Dimensions are limited to 4096 px per side; GIFs are limited
 to 300 frames and 48 million total composited canvas pixels. Animated PNG is not accepted for frames.
 Administrator artwork (avatar frames and badge assets) may be up to 8 MB per file; every other
 upload path keeps the 4 MB hard limit. A 512 × 512 animated frame therefore fits roughly up to
