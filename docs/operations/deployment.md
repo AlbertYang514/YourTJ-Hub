@@ -295,6 +295,10 @@ Dev 同步成功后，`snapshots/dev-prev` 仅保留最近 5 个时间戳组的�
   manual `init-server.sh` re-run. `pgdsn.sh` is a runtime dependency (`source`d by
   `backup-db.sh` / `sync-db-from-main.sh`); keep it in the scp/install list whenever deploying
   script updates.
+  Dev uploads also include `rotate-agent-epoch.py`, `snapshot-db.sh`, `feed-privacy.py`
+  and `feed-raw-tables.json`: copied Agent credentials are disabled, feed observations are
+  scrubbed, and previous-dev snapshots remain usable without preinstalled helpers. The trusted
+  `main` checkout must contain this complete script bundle before the dev workflow uses it.
 
 ## GitHub Actions Environments secrets
 
