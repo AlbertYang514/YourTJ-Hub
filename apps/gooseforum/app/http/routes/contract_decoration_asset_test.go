@@ -28,6 +28,74 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/resource"
 )
 
+// animatedFrameGIF 生成方形、中心透明的多帧 GIF（边框不透明、中心留空）。
+func animatedFrameGIF(t *testing.T, frames int) []byte {
+	t.Helper()
+	palette := color.Palette{color.NRGBA{}, color.NRGBA{R: 200, G: 120, B: 60, A: 255}}
+	images := make([]*image.Paletted, 0, frames)
+	for i := 0; i < frames; i++ {
+		frame := image.NewPaletted(image.Rect(0, 0, 24, 24), palette)
+		for y := 0; y < 24; y++ {
+			for x := 0; x < 24; x++ {
+				if y < 3 || y > 20 || x < 3 || x > 20 {
+					frame.SetColorIndex(x, y, 1)
+				}
+			}
+		}
+		images = append(images, frame)
+	}
+	var out bytes.Buffer
+	if err := gif.EncodeAll(&out, &gif.GIF{Image: images, Delay: make([]int, frames), Config: image.Config{ColorModel: palette, Width: 24, Height: 24}}); err != nil {
+		t.Fatal(err)
+	}
+	return out.Bytes()
+}
+
+// largeAnimatedFrameGIF 生成真实的大体积 GIF：512×512、中心透明、宽环带用 255 色确定性伪随机注水，
+// 因此几乎不可压缩、容易超过 4MB；帧数按目标字节数递增，保持在 48M 合成像素预算内。
+func largeAnimatedFrameGIF(t *testing.T, wantBytes int) []byte {
+	t.Helper()
+	palette := make(color.Palette, 256)
+	palette[0] = color.NRGBA{}
+	seed := uint32(987654321)
+	for i := 1; i < 256; i++ {
+		seed = seed*1664525 + 1013904223
+		palette[i] = color.NRGBA{R: uint8(seed >> 24), G: uint8(seed >> 16), B: uint8(seed >> 8), A: 255}
+	}
+	const edge = 512
+	build := func(frames int) []byte {
+		images := make([]*image.Paletted, 0, frames)
+		n := seed
+		for i := 0; i < frames; i++ {
+			frame := image.NewPaletted(image.Rect(0, 0, edge, edge), palette)
+			for y := 0; y < edge; y++ {
+				for x := 0; x < edge; x++ {
+					dx, dy := x-edge/2, y-edge/2
+					d2 := dx*dx + dy*dy
+					if d2 < 130*130 || d2 > 250*250 {
+						continue
+					}
+					n = n*1664525 + 1013904223
+					frame.SetColorIndex(x, y, uint8(n>>24))
+				}
+			}
+			images = append(images, frame)
+		}
+		var out bytes.Buffer
+		if err := gif.EncodeAll(&out, &gif.GIF{Image: images, Delay: make([]int, frames), LoopCount: 0, Config: image.Config{ColorModel: palette, Width: edge, Height: edge}}); err != nil {
+			t.Fatal(err)
+		}
+		return out.Bytes()
+	}
+	frames := 16
+	data := build(frames)
+	for len(data) < wantBytes && frames < 80 {
+		frames += 8
+		data = build(frames)
+	}
+	return data
+}
+
 func decorationAssetRequest(t *testing.T, router http.Handler, token, filename string, data []byte) *httptest.ResponseRecorder {
 	t.Helper()
 	var body bytes.Buffer
@@ -123,6 +191,27 @@ func TestDecorationAssetUploadStaticAndLifecycle(t *testing.T) {
 			t.Fatal("HEAD wrote body")
 		}
 	}
+	// 管理员图稿单独放宽到 8MB：4MB 出头但仍在 8MB 内的 GIF 必须能上传（帖子图片仍是 4MB）。
+	padded := largeAnimatedFrameGIF(t, 5*1024*1024)
+	if len(padded) <= 4*1024*1024 || len(padded) > 8*1024*1024 {
+		t.Fatalf("fixture size out of range: %d", len(padded))
+	}
+	large := decorationAssetRequest(t, router, contractSessionToken(t, manager), "large.gif", padded)
+	if large.Code != http.StatusOK {
+		t.Fatalf("large gif upload (%d bytes): %d %s", len(padded), large.Code, large.Body.String())
+	}
+	if err := json.Unmarshal(large.Body.Bytes(), &uploaded); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = filedata.DeleteByName(strings.TrimPrefix(uploaded.Result.URL, "/static/")) })
+
+	// 超过 8MB 时必须是「文件过大」，不能因为 MaxBytesReader 截断而报成「缺少上传文件」。
+	oversize := append(animatedFrameGIF(t, 3), make([]byte, 9*1024*1024)...)
+	tooLarge := decorationAssetRequest(t, router, contractSessionToken(t, manager), "oversize.gif", oversize)
+	if tooLarge.Code != http.StatusBadRequest || !strings.Contains(tooLarge.Body.String(), "upload.file.tooLarge") {
+		t.Fatalf("oversize gif: %d %s", tooLarge.Code, tooLarge.Body.String())
+	}
+
 	missing := httptest.NewRecorder()
 	router.ServeHTTP(missing, httptest.NewRequest(http.MethodGet, "/static/decorations/missing.png", nil))
 	if missing.Code != 404 || missing.Header().Get("Cache-Control") != "no-store" {

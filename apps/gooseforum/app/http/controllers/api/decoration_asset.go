@@ -26,9 +26,20 @@ func uploadManagedArtwork(c *gin.Context, badge bool) {
 		c.JSON(failure.Status, failure.Data)
 		return
 	}
+	// 管理员上传的头像框/徽章允许动图，因此单独放宽到 8MB（帖子图片仍守 4MB）：
+	// 字节上限与存储层保持一致，否则大尺寸 GIF 会先被 MaxBytesReader 截断，
+	// 并把"文件过大"误报成"缺少上传文件"。
+	if policy.MaxSize < decorationassetservice.MaxArtworkBytes {
+		policy.MaxSize = decorationassetservice.MaxArtworkBytes
+	}
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, policy.MaxSize+1024*1024)
 	file, err := c.FormFile("file")
 	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageUploadFileTooLarge, component.MessageParams{"maxSizeKb": policy.MaxSize / 1024}))
+			return
+		}
 		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageUploadFileMissing, nil))
 		return
 	}

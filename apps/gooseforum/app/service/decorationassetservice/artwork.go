@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	resvg "github.com/kanrichan/resvg-go"
 	"github.com/tetratelabs/wazero"
 )
@@ -38,7 +37,7 @@ func ContentType(filename string) (string, bool) {
 
 func prepareArtwork(ctx context.Context, data []byte, filename string, frame bool) ([]byte, string, error) {
 	contentType, ok := ContentType(filename)
-	if !ok || len(data) == 0 || len(data) > filedata.MaxFileSize {
+	if !ok || len(data) == 0 || len(data) > MaxArtworkBytes {
 		return nil, "", ErrInvalid
 	}
 	if contentType == "image/svg+xml" {
@@ -46,7 +45,7 @@ func prepareArtwork(ctx context.Context, data []byte, filename string, frame boo
 		if err != nil {
 			return nil, "", err
 		}
-		if len(rendered) > filedata.MaxFileSize {
+		if len(rendered) > MaxArtworkBytes {
 			return nil, "", ErrInvalid
 		}
 		data = rendered
@@ -61,7 +60,7 @@ func prepareArtwork(ctx context.Context, data []byte, filename string, frame boo
 		if err != nil {
 			return nil, "", err
 		}
-		if len(normalized) > filedata.MaxFileSize {
+		if len(normalized) > MaxArtworkBytes {
 			return nil, "", ErrInvalid
 		}
 		return normalized, name, nil
@@ -161,7 +160,7 @@ func gifBudget(data []byte) bool {
 			pos += 9
 			frames++
 			pixels += w * h
-			if frames > 300 || pixels > 16*1024*1024 || frames*canvasPixels > 16*1024*1024 {
+			if frames > animatedArtworkMaxFrames || pixels > animatedArtworkMaxPixels || frames*canvasPixels > animatedArtworkMaxPixels {
 				return false
 			}
 			if packed&128 != 0 {

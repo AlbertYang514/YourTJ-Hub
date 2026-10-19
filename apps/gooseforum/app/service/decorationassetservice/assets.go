@@ -44,7 +44,7 @@ func uploadAsset(ctx context.Context, actorID uint64, data []byte, filename, pre
 	if prefix == "badges" {
 		storagePrefix = "badges/normalized"
 	}
-	file, err := filedata.SaveFileFromUpload(actorID, data, strings.ToLower(path.Base(filename)), storagePrefix)
+	file, err := filedata.SaveFileFromUploadWithLimit(actorID, data, strings.ToLower(path.Base(filename)), storagePrefix, MaxArtworkBytes)
 	if err != nil {
 		return "", err
 	}

@@ -66,7 +66,10 @@ users.
 Uploads retain the transparent central opening check: the central 30% of the canvas may have
 at most 1/255 opacity. Every displayed, composited GIF frame is checked, including partial
 frames and disposal operations. Dimensions are limited to 4096 px per side; GIFs are limited
-to 300 frames and 16 million total composited canvas pixels. Animated PNG is not accepted for frames.
+to 300 frames and 48 million total composited canvas pixels. Animated PNG is not accepted for frames.
+Administrator artwork (avatar frames and badge assets) may be up to 8 MB per file; every other
+upload path keeps the 4 MB hard limit. A 512 × 512 animated frame therefore fits roughly up to
+180 frames before the composited-pixel budget applies.
 Static SVG uses the embedded resvg WebAssembly renderer, without a separate process or system
 binary. Scripts, external resources, embedded images, external CSS imports and SVG text are rejected;
 use self-contained vector shapes and convert text to paths. Rendering has bounded memory,

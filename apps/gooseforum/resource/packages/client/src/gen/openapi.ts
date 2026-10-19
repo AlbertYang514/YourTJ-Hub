@@ -95,7 +95,7 @@ export interface paths {
         put?: never;
         /**
          * Upload badge artwork (SiteManager)
-         * @description Accepts SVG, PNG, WebP or GIF no larger than the existing hard 4 MB upload limit.
+         * @description Accepts SVG, PNG, WebP or GIF up to 8 MB (administrator artwork cap; other upload paths keep the 4 MB hard limit).
          *     Static images are normalized to PNG; GIF animation, delays and loop count are preserved.
          *     Artwork is uniformly centered and scaled to the system-badge ink radius of 10/24, using
          *     visible alpha bounds (one shared viewport across all GIF frames). No square or transparent-center requirement.
@@ -124,7 +124,7 @@ export interface paths {
         put?: never;
         /**
          * Upload avatar-frame artwork (SiteManager)
-         * @description Accepts SVG, PNG, WebP or GIF no larger than the existing hard 4 MB upload limit.
+         * @description Accepts SVG, PNG, WebP or GIF up to 8 MB (administrator artwork cap; other upload paths keep the 4 MB hard limit).
          *     The decoded image must be square with a transparent central opening in every composited frame.
          *     SVG is rasterized to PNG; GIF bytes and animation are preserved. External SVG resources, scripts and text are rejected; convert text to paths.
          *     Images are limited to 4096 px per side. GIF is limited to 300 frames and 16 million total composited canvas pixels.

@@ -135,7 +135,9 @@ func TestThinBadgeStaysVisible(t *testing.T) {
 
 func TestPartialGIFFramesCannotExceedCompositingBudget(t *testing.T) {
 	palette := color.Palette{color.Transparent, color.White}
-	images := make([]*image.Paletted, 20)
+	// 帧数由合成像素预算推导：1×1 的加密帧也要能撞破 frames × canvas 预算（issue 回归点）。
+	frames := animatedArtworkMaxPixels/(1024*1024) + 1
+	images := make([]*image.Paletted, frames)
 	for i := range images {
 		images[i] = image.NewPaletted(image.Rect(0, 0, 1, 1), palette)
 	}
