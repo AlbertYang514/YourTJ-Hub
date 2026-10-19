@@ -27,9 +27,8 @@ const frameLayout = computed(() => {
 const hasFrame = computed(() => Object.keys(frameVariables.value).length > 0)
 
 const frameImageFailed = ref(false)
-const frameImageLoaded = ref(false)
 const frameAsset = computed(() => hasFrame.value && isSafeDecorationAssetUrl(props.frame?.assetUrl) ? props.frame.assetUrl : '')
-watch(frameAsset, () => { frameImageFailed.value = false; frameImageLoaded.value = false })
+watch(frameAsset, () => { frameImageFailed.value = false })
 
 const systemArtwork = computed(() => !!props.badge && isSystemBadgeArtwork(props.badge))
 
@@ -69,9 +68,10 @@ function formatAvatarUrl(src: string, url: URL): string {
 
 <template>
   <span v-if="badge || hasFrame" v-bind="$attrs" class="group/avatar relative inline-block shrink-0" :style="frameLayout">
-    <span v-if="hasFrame && (!frameAsset || !frameImageLoaded || frameImageFailed)" class="gf-avatar-frame" aria-hidden="true" />
+    <!-- 图片框与颜色框互斥：有合法图片时只画图片，加载中/失败都不回退配色边框（#1246） -->
+    <span v-if="hasFrame && !frameAsset" class="gf-avatar-frame" aria-hidden="true" />
     <img :src="resolvedSrc" :alt="alt" width="96" height="96" decoding="async" class="h-full w-full rounded-[inherit] object-cover" :class="imgClass">
-    <img v-if="frameAsset && !frameImageFailed" :src="frameAsset" alt="" aria-hidden="true" class="gf-avatar-frame-image" decoding="async" @load="frameImageLoaded = true" @error="frameImageFailed = true" />
+    <img v-if="frameAsset && !frameImageFailed" :src="frameAsset" alt="" aria-hidden="true" class="gf-avatar-frame-image" decoding="async" @error="frameImageFailed = true" />
     <span
       v-if="badge"
       :class="['absolute -bottom-1.5 -right-1.5 z-10 flex h-[30%] min-h-3.5 w-[30%] min-w-3.5 items-center justify-center rounded-full shadow-md shadow-black/10 ring-2 transition-transform duration-150 ease-out hover:scale-110', badgeClass(badge.color, badge.level), { 'p-[2px]': !systemArtwork }]"
@@ -108,7 +108,7 @@ function formatAvatarUrl(src: string, url: URL): string {
 }
 :global([data-theme="gf-dark"] .gf-avatar-frame) { background-image: var(--decoration-dark); }
 @media (forced-colors: active) {
-  .gf-avatar-frame-image { display: none; }
+  /* 强制色彩下图片框仍显示图片；仅纯色框回退为系统色描边（#1246） */
   .gf-avatar-frame { background: none; border-color: CanvasText; mask: none; }
 }
 </style>

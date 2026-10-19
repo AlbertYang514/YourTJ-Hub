@@ -169,41 +169,67 @@ class GfAvatarFrame extends StatelessWidget {
   final double assetScale;
   @override
   Widget build(BuildContext context) {
-    final fallback = colors.length < 2
-        ? child
-        : Container(
-            width: size,
-            height: size,
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(colors: colors),
-            ),
-            child: ClipOval(child: child),
-          );
     final uri = Uri.tryParse(assetUrl);
-    if (uri == null ||
-        !RegExp(
+    final hasFrameAsset =
+        uri != null &&
+        RegExp(
           r'^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp)$',
-        ).hasMatch(uri.path) ||
-        uri.hasQuery ||
-        uri.hasFragment ||
-        uri.userInfo.isNotEmpty ||
-        (uri.hasScheme && uri.scheme != 'https' && uri.scheme != 'http')) {
-      return fallback;
+        ).hasMatch(uri.path) &&
+        !uri.hasQuery &&
+        !uri.hasFragment &&
+        uri.userInfo.isEmpty &&
+        (!uri.hasScheme || uri.scheme == 'https' || uri.scheme == 'http');
+    if (!hasFrameAsset) {
+      if (colors.length < 2) return child;
+      // Web `.gf-avatar-frame` is a 3px ring with `inset: -3px`, i.e. it sits
+      // outside the avatar box and leaves the portrait size untouched. The
+      // gradient disc is one box wider on each side; the opaque avatar covers
+      // its middle, so only the 3px annulus shows.
+      return SizedBox(
+        width: size,
+        height: size,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            Positioned(
+              left: -3,
+              top: -3,
+              width: size + 6,
+              height: size + 6,
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  // CSS `linear-gradient(120deg, …)` runs toward
+                  // (sin 120°, -cos 120°) = (0.866, 0.5) — right and down — over
+                  // the corner-to-corner span (0.866 + 0.5) of a square box:
+                  // ±0.866*1.366 / ±0.5*1.366 in Flutter's -1..1 alignment.
+                  gradient: LinearGradient(
+                    begin: const Alignment(-1.183, -0.683),
+                    end: const Alignment(1.183, 0.683),
+                    colors: colors,
+                  ),
+                ),
+              ),
+            ),
+            child,
+          ],
+        ),
+      );
     }
     final scale = assetScale.isFinite && assetScale >= 0.5 && assetScale <= 2
         ? assetScale
         : 1.25;
     final edge = size * scale;
     final pixels = (edge * MediaQuery.devicePixelRatioOf(context)).ceil();
+    // A safe frame asset owns the frame: nothing gradient is built underneath,
+    // so loading, decode failure and load failure can never leak a colour ring.
     return SizedBox(
       width: size,
       height: size,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          fallback,
+          child,
           Positioned(
             left: -(edge - size) / 2,
             top: -(edge - size) / 2,

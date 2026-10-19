@@ -33,8 +33,10 @@ const kindFilter = ref('all')
 const statusFilter = ref('all')
 const fresh = (): DecorationStyle => ({ code: '', name: '', kind: 'avatarFrame', lightColors: ['#166534', '#0D9488'], darkColors: ['#86EFAC', '#2DD4BF'], assetUrl: '', assetScale: 1.25, isEnabled: true, sortOrder: 100 })
 const form = reactive(fresh())
-// 头像框二选一：纯色边框只用配色，图片头像框需要图片（配色作为加载失败回退）。
+// 头像框二选一：纯色边框只用配色，图片头像框只用图片。服务端契约仍要求 lightColors/darkColors 为 1–2 个合法
+// 颜色，所以图片模式隐藏配色字段但继续提交表单中的默认值（#1246）。
 const frameMode = ref('solid')
+const paletteVisible = computed(() => form.kind === 'nicknameStyle' || frameMode.value === 'solid')
 const scalePercent = computed({
   get: () => Number(form.assetScale ?? 1.25) * 100,
   set: (percent: number) => { form.assetScale = percent / 100 },
@@ -58,7 +60,7 @@ const errors = computed(() => {
   const result: Record<string, string> = {}
   if (!/^[a-z][a-z0-9_-]{0,63}$/.test(form.code)) result.code = t('decoration.configAdmin.codeHint')
   if (!form.name.trim() || Array.from(form.name.trim()).length > 80) result.name = t('decoration.configAdmin.nameInvalid')
-  for (const palette of palettes) {
+  for (const palette of paletteVisible.value ? palettes : []) {
     const colors = form[palette]
     if (colors.length < 1 || colors.length > 2 || colors.some(color => !/^#[0-9a-f]{6}$/i.test(color))) result[palette] = t('decoration.configAdmin.colorInvalid')
     else if (form.kind === 'nicknameStyle') {
@@ -178,7 +180,7 @@ onMounted(load)
                 </div>
                 <div class="space-y-2"><label for="decoration-kind" class="text-sm font-medium">{{ t('decoration.kind') }}</label><AdminSelect id="decoration-kind" v-model="form.kind" :options="kindOptions" :disabled="editing || saving" class="w-full" /></div>
               </section>
-              <section class="space-y-3 border-t pt-4">
+              <section v-if="paletteVisible" class="space-y-3 border-t pt-4">
                 <h3 class="text-sm font-semibold">{{ t(form.kind === 'avatarFrame' ? 'decoration.configAdmin.framePalette' : 'decoration.configAdmin.nicknamePalette') }}</h3>
                 <p class="text-xs text-muted-foreground">{{ t(form.kind === 'avatarFrame' ? 'decoration.configAdmin.framePaletteHint' : 'decoration.configAdmin.nicknamePaletteHint') }}</p>
                 <fieldset v-for="palette in palettes" :key="palette" :disabled="saving" class="space-y-2">

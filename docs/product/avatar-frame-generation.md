@@ -51,12 +51,14 @@ definition to keep that asset. Unsaved uploads expire after 24 hours. To replace
 new file and save the definition with its new URL; never reuse a filename because `/static` has a
 long browser cache. SiteManager can upload and use artwork without an approval step. Existing
 embedded assets under `apps/gooseforum/resource/static/decorations/` remain usable by entering their
-paths manually. Set light and dark fallback colors and adjust the artwork scale in the live preview:
-the setting is the artwork diameter as a percentage of the avatar diameter (50%–200%, default 125%). It scales
-around the avatar center and is saved for both Web and Flutter. The server accepts only same-origin PNG/WebP paths in this directory; external URLs,
-query strings, and traversal paths are rejected.
+paths manually. Set the light and dark palette colors of a gradient border, or adjust the image
+frame's artwork scale in the live preview: the setting is the artwork diameter as a percentage of
+the avatar diameter (50%–200%, default 125%). It scales around the avatar center and is saved for
+both Web and Flutter; a gradient border ignores it. The server accepts only same-origin PNG/WebP
+paths in this directory; external URLs, query strings, and traversal paths are rejected.
 
-Keep the fallback colors even when the artwork loads successfully. Web and Flutter use them when an
-image is unavailable or fails to decode. Preview the configured style in the admin page, then grant
+An image frame uses the artwork alone: it ignores the palette and draws no colored ring while the
+image loads, nor when the image is unavailable or fails to decode. A gradient border is the mirror
+case and draws no artwork. Preview the configured style in the admin page, then grant
 it to a test account and verify the profile, feed, chat, and badge overlay before enabling it for
 users.
