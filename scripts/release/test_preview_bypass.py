@@ -19,7 +19,7 @@ class PreviewBypassTests(unittest.TestCase):
         self.cycle = {'id': '42', 'source': SHA}
 
     def record(self, **kwargs):
-        values = dict(run='50', purpose='dev', actor='alice', triggering_actor='alice',
+        values = dict(source=SHA, run='50', purpose='dev', actor='alice', triggering_actor='alice',
                       reason='Maintainer explicitly authorized this preview', now=100)
         cycle_control.record_preview_bypass(self.remote, self.cycle, **(values | kwargs))
 
@@ -50,6 +50,17 @@ class PreviewBypassTests(unittest.TestCase):
             self.record(now=130)
         self.assertEqual(self.cycle['previewReviewBypasses']['50'], original)
 
+    def test_queued_request_cannot_adopt_a_different_cycle_source(self):
+        self.cycle['source'] = 'b'*40
+        with self.assertRaises(ReleaseError):
+            self.record()
+        self.assertNotIn('previewReviewBypasses', self.cycle)
+
+    def test_partial_rerun_requires_the_recorded_triggering_actor(self):
+        self.record()
+        with patch.dict(os.environ, GITHUB_ACTOR='alice', GITHUB_TRIGGERING_ACTOR='bob'), self.assertRaises(ReleaseError):
+            cycle_control.authorize_preview_source(self.remote, self.cycle, 'dev', '50')
+
     def test_override_requires_admin_initiator_and_admin_rerun_actor(self):
         for actor in ('alice', 'bob'):
             with self.subTest(actor=actor):
@@ -66,7 +77,7 @@ class PreviewBypassTests(unittest.TestCase):
             cycle_control.authorize_preview_source(self.remote, self.cycle, 'dev', '50')
 
     def test_missing_reason_or_production_rehearsal_cannot_create_override(self):
-        for values in ({'reason': ' '}, {'reason': 'x'*1001}, {'purpose': 'production'}):
+        for values in ({'reason': ' '}, {'reason': 'x'*1001}, {'purpose': 'production'}, {'source': ''}):
             with self.subTest(values=values), self.assertRaises(ReleaseError):
                 self.record(**values)
 
@@ -84,6 +95,8 @@ class PreviewBypassTests(unittest.TestCase):
         self.remote.dispatch.assert_not_called()
         with self.assertRaises(ReleaseError):
             execute(parser().parse_args(args + ['--cycle', '42', '--purpose', 'production']), self.remote)
+        with self.assertRaises(ReleaseError):
+            execute(parser().parse_args(['prerelease', '--cycle', '42', '--source-review-bypass-reason', 'Explicit']), self.remote)
 
     def test_controller_seals_the_override_and_signing_rechecks_it(self):
         state = transition(empty_state(), 'start', 'alice', 100, cycle='42', source=SHA,

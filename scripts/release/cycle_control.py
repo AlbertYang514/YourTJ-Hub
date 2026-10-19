@@ -75,10 +75,12 @@ def reviewed_preview_source(github, source):
     require(False, 'Preview source needs an eligible human review of its exact PR head before signing')
 
 
-def record_preview_bypass(github, cycle, *, run, purpose, actor, triggering_actor, reason, now):
+def record_preview_bypass(github, cycle, *, source, run, purpose, actor, triggering_actor, reason, now):
     reason = reason.strip()
     require(purpose == 'dev' and 0 < len(reason) <= 1000,
             'Source-review bypass needs a reason (1-1000 characters) and is limited to dev previews')
+    require(SHA.fullmatch(source or '') and source == cycle['source'],
+            'Source-review bypass must name the exact dispatched source; the cycle source changed or is missing')
     human(github, actor, admin=True)
     human(github, triggering_actor, admin=True)
     previous = cycle.get('previewReviewBypasses', {}).get(run)
@@ -86,7 +88,7 @@ def record_preview_bypass(github, cycle, *, run, purpose, actor, triggering_acto
         # A rerun keeps its original authority even if the owner advanced the cycle meanwhile.
         require(all(previous[key] == value for key, value in {
             'cycle': cycle['id'], 'source': cycle['source'], 'run': run, 'purpose': purpose,
-            'actor': actor, 'reason': reason}.items()),
+            'actor': actor, 'triggeringActor': triggering_actor, 'reason': reason}.items()),
             'An existing source-review bypass cannot be rebound; dispatch a new preview run')
         return
     cycle.setdefault('previewReviewBypasses', {})[run] = {
@@ -100,8 +102,10 @@ def authorize_preview_source(github, cycle, purpose, run):
         return reviewed_preview_source(github, cycle['source'])
     require(purpose == 'dev' and grant['purpose'] == purpose and grant['cycle'] == cycle['id']
             and grant['source'] == cycle['source'] and grant['run'] == run
-            and grant['actor'] == os.environ['GITHUB_ACTOR'] and grant['reason'].strip(),
-            'Source-review bypass does not authorize this preview source/cycle/run')
+            and grant['actor'] == os.environ['GITHUB_ACTOR']
+            and grant['triggeringActor'] == os.environ.get('GITHUB_TRIGGERING_ACTOR', grant['actor'])
+            and grant['reason'].strip(),
+            'Source-review bypass does not authorize this preview source/cycle/run/actor')
     human(github, grant['actor'], admin=True)
     human(github, os.environ.get('GITHUB_TRIGGERING_ACTOR', grant['actor']), admin=True)
 
@@ -407,7 +411,7 @@ def main():
     state = transition(state, action, actor, int(time.time()), cycle=cycle_id, **data)
     bypass_reason = os.environ.get('SOURCE_REVIEW_BYPASS_REASON', '')
     if action == 'build' and bypass_reason:
-        record_preview_bypass(github, state['cycles'][cycle_id], run=data['run'], purpose=data['purpose'],
+        record_preview_bypass(github, state['cycles'][cycle_id], source=data['source'], run=data['run'], purpose=data['purpose'],
                               actor=actor, triggering_actor=os.environ.get('GITHUB_TRIGGERING_ACTOR', actor),
                               reason=bypass_reason, now=int(time.time()))
     save(github, state)

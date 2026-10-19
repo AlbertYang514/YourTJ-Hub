@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       cycle: {description: 'Existing cycle ID; empty starts a new dev freeze', type: string}
-      source: {description: 'Full current dev SHA for a new cycle', type: string}
+      source: {description: 'Full current dev SHA; also required for any source-review bypass, including an existing cycle', type: string}
       issue: {description: 'Release tracking issue for a new cycle', type: string}
       channels: {description: 'Production scope for a new cycle', type: string, default: 'web,android,ios-testflight,ios-app-store'}
       artifacts: {description: 'Preview artifacts: web,android,ios; empty = all for purpose. Production rehearsal: android,ios only.', type: string}
