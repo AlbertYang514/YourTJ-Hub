@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decorationVariables, hasNicknameContrast } from '../src/site/utils/decoration-style'
+import { decorationVariables, hasNicknameContrast, isSafeDecorationAssetUrl } from '../src/site/utils/decoration-style'
 import type { DecorationStyle } from '@gooseforum/client'
 const style: DecorationStyle = { code: 'tea', name: 'Tea', kind: 'nicknameStyle', lightColors: ['#166534'], darkColors: ['#86efac'], isEnabled: true, sortOrder: 1 }
 describe('decoration rendering boundary', () => {
@@ -16,4 +16,9 @@ describe('decoration rendering boundary', () => {
     expect(hasNicknameContrast(['#000000', '#ffffff'], [255, 255, 255])).toBe(false)
     expect(hasNicknameContrast(['red'], [255, 255, 255])).toBe(false)
   })
+})
+
+it('accepts all artwork formats without widening trusted decoration paths', () => {
+  for (const ext of ['png', 'webp', 'gif', 'svg']) expect(isSafeDecorationAssetUrl(`/static/decorations/frame.${ext}`)).toBe(true)
+  for (const url of ['https://example.com/frame.gif', '/static/decorations/../frame.svg', '/static/decorations/frame.gif?x=1', '/static/decorations/frame.html']) expect(isSafeDecorationAssetUrl(url)).toBe(false)
 })

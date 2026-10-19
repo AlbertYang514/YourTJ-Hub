@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
+	"image/color"
+	"image/gif"
 	"image/png"
+	"io/fs"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +21,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/decorationassetservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
@@ -196,4 +200,163 @@ func TestDecorationAssetUploadStaticAndLifecycle(t *testing.T) {
 		t.Fatalf("abandoned cleanup: %d %v", removed, err)
 	}
 	conn.Where("target_type = ?", fileUsage.TargetDecorationAsset).Delete(&fileUsage.Entity{})
+}
+
+func TestBadgeAssetFormatsReferencesAndLegacyLinks(t *testing.T) {
+	conn, router := setupDecorationHTTP(t)
+	if err := conn.AutoMigrate(&badges.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db4fileconnect.Connect().AutoMigrate(&filedata.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Where("code LIKE ?", "asset-badge-%").Delete(&badges.Entity{}) })
+	static, err := resource.GetStaticFS()
+	if err != nil {
+		t.Fatal(err)
+	}
+	router.StaticFS("static", http.FS(decorationStaticFS{embedded: static}))
+	admin := router.Group("/api/admin", middleware.CSRFProtection, middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.CheckPermission(permission.SiteManager))
+	admin.POST("badge-asset", api.UploadBadgeAsset)
+	admin.POST("badge-save", UpButterReq(api.SaveBadge))
+	admin.POST("badge-delete", UpButterReq(api.DeleteBadge))
+	manager := createContractSiteManager(t, conn)
+	token := contractSessionToken(t, manager)
+	// Reuse the multipart helper with a small routing adapter; permissions and parsing stay real.
+	upload := func(filename string, data []byte, session string) *httptest.ResponseRecorder {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.URL.Path = "/api/admin/badge-asset"
+			router.ServeHTTP(w, r)
+		})
+		return decorationAssetRequest(t, handler, session, filename, data)
+	}
+	ordinary := createHTTPContractUser(t, conn, contractTestID())
+	if rec := upload("badge.svg", []byte(`<svg xmlns="http://www.w3.org/2000/svg" width="20" height="15"><rect width="20" height="15"/></svg>`), contractSessionToken(t, ordinary)); rec.Code != http.StatusForbidden {
+		t.Fatal(rec.Code)
+	}
+	images := []struct {
+		name        string
+		data        []byte
+		contentType string
+	}{
+		{"badge.svg", []byte(`<svg xmlns="http://www.w3.org/2000/svg" width="20" height="15"><rect width="20" height="15" fill="red"/></svg>`), "image/png"},
+	}
+	webp, err := fs.ReadFile(static, "pic/default-avatar.webp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pngData bytes.Buffer
+	badgePNG := image.NewNRGBA(image.Rect(0, 0, 20, 15))
+	badgePNG.SetNRGBA(7, 5, color.NRGBA{R: 255, A: 255})
+	if err := png.Encode(&pngData, badgePNG); err != nil {
+		t.Fatal(err)
+	}
+	images = append(images, struct {
+		name        string
+		data        []byte
+		contentType string
+	}{"badge.webp", webp, "image/png"}, struct {
+		name        string
+		data        []byte
+		contentType string
+	}{"badge.png", pngData.Bytes(), "image/png"})
+	var gifData bytes.Buffer
+	if err := gif.EncodeAll(&gifData, &gif.GIF{Image: []*image.Paletted{image.NewPaletted(image.Rect(0, 0, 20, 15), color.Palette{color.White}), image.NewPaletted(image.Rect(0, 0, 20, 15), color.Palette{color.Black})}, Delay: []int{2, 2}}); err != nil {
+		t.Fatal(err)
+	}
+	images = append(images, struct {
+		name        string
+		data        []byte
+		contentType string
+	}{"badge.gif", gifData.Bytes(), "image/gif"})
+	for i, item := range images {
+		rec := upload(item.name, item.data, token)
+		if rec.Code != 200 {
+			t.Fatalf("upload %s: %d %s", item.name, rec.Code, rec.Body.String())
+		}
+		var body struct {
+			Result struct {
+				URL string `json:"url"`
+			} `json:"result"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		assetURL := body.Result.URL
+		if !strings.HasPrefix(assetURL, "/static/badges/normalized/") {
+			t.Fatal(assetURL)
+		}
+		public := httptest.NewRecorder()
+		router.ServeHTTP(public, httptest.NewRequest(http.MethodGet, assetURL, nil))
+		if public.Code != 200 || !strings.HasPrefix(public.Header().Get("Content-Type"), item.contentType) {
+			t.Fatalf("static %d %v", public.Code, public.Header())
+		}
+		if item.contentType == "image/gif" {
+			animated, err := gif.DecodeAll(bytes.NewReader(public.Body.Bytes()))
+			if err != nil || len(animated.Image) != 2 || animated.Delay[0] != 2 || animated.Delay[1] != 2 {
+				t.Fatal("normalized GIF lost playback")
+			}
+		}
+		save := serveAuthSecurityJSON(router, "POST", "/api/admin/badge-save", fmt.Sprintf(`{"code":"asset-badge-%d","name":"Asset","type":"custom","iconUrl":%q,"isEnabled":true}`, i, assetURL), token)
+		if got := decodeContractEnvelope(t, save); got.Code != 0 {
+			t.Fatalf("save: %s", save.Body.String())
+		}
+		var usage fileUsage.Entity
+		if err := conn.Where("file_name = ?", strings.TrimPrefix(assetURL, "/static/")).First(&usage).Error; err != nil {
+			t.Fatal(err)
+		}
+		if usage.ExpiresAt != nil {
+			t.Fatal("saved badge expires")
+		}
+		removed, err := decorationassetservice.CleanupAssets(t.Context(), time.Now().Add(25*time.Hour), 100)
+		if err != nil || removed != 0 {
+			t.Fatalf("saved asset GC: %d %v", removed, err)
+		}
+		for _, legacy := range []string{"/static/badges/contributor.svg", "https://cdn.example.com/badge.gif"} {
+			rec := serveAuthSecurityJSON(router, "POST", "/api/admin/badge-save", fmt.Sprintf(`{"code":"asset-badge-%d","name":"Asset","type":"custom","iconUrl":%q}`, i, legacy), token)
+			if got := decodeContractEnvelope(t, rec); got.Code != 0 {
+				t.Fatal(rec.Body.String())
+			}
+		}
+		removed, err = decorationassetservice.CleanupAssets(t.Context(), time.Now(), 100)
+		if err != nil || removed != 1 {
+			t.Fatalf("replaced asset GC: %d %v", removed, err)
+		}
+	}
+	// Shared uploads stay live until the final badge is deleted.
+	rec := upload("shared.gif", gifData.Bytes(), token)
+	var shared struct {
+		Result struct {
+			URL string `json:"url"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &shared); err != nil || rec.Code != 200 {
+		t.Fatal("shared upload failed")
+	}
+	for _, code := range []string{"asset-badge-shared-a", "asset-badge-shared-b"} {
+		rec := serveAuthSecurityJSON(router, "POST", "/api/admin/badge-save", fmt.Sprintf(`{"code":%q,"name":"Shared","type":"custom","iconUrl":%q}`, code, shared.Result.URL), token)
+		if decodeContractEnvelope(t, rec).Code != 0 {
+			t.Fatal(rec.Body.String())
+		}
+	}
+	for i, code := range []string{"asset-badge-shared-a", "asset-badge-shared-b"} {
+		rec := serveAuthSecurityJSON(router, "POST", "/api/admin/badge-delete", fmt.Sprintf(`{"code":%q}`, code), token)
+		if decodeContractEnvelope(t, rec).Code != 0 {
+			t.Fatal(rec.Body.String())
+		}
+		removed, err := decorationassetservice.CleanupAssets(t.Context(), time.Now(), 100)
+		if err != nil || removed != i {
+			t.Fatalf("shared asset cleanup: %d %v, expected %d", removed, err, i)
+		}
+	}
+	rec = serveAuthSecurityJSON(router, "POST", "/api/admin/badge-save", `{"code":"asset-badge-forged","name":"Forged","type":"custom","iconUrl":"/static/badges/11111111-1111-1111-1111-111111111111.png"}`, token)
+	if decodeContractEnvelope(t, rec).Code == 0 {
+		t.Fatal("saved nonexistent upload")
+	}
+	var forgedCount int64
+	conn.Model(&badges.Entity{}).Where("code = ?", "asset-badge-forged").Count(&forgedCount)
+	if forgedCount != 0 {
+		t.Fatal("failed asset binding was not rolled back")
+	}
+
 }

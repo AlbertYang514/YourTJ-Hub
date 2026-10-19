@@ -304,7 +304,7 @@ func SaveBadge(req component.BetterRequest[BadgeSaveReq]) component.Response {
 	entity.IsEnabled = params.IsEnabled
 	entity.IsWearable = params.IsWearable
 	entity.SortOrder = params.SortOrder
-	if err := badges.Save(&entity); err != nil {
+	if err := badgeservice.SaveDefinition(req.GinContext.Request.Context(), &entity); err != nil {
 		return component.FailResponseCode(component.MessageAdminBadgeSaveFailed, nil)
 	}
 	badgeservice.InvalidateDefinitions()
@@ -325,7 +325,7 @@ func DeleteBadge(req component.BetterRequest[BadgeDeleteReq]) component.Response
 	if badge.Type == badges.TypeSystem {
 		return component.FailResponseCode(component.MessageAdminBadgeSystemDeleteBlock, nil)
 	}
-	if err := badges.DeleteByCode(code); err != nil {
+	if err := badgeservice.DeleteDefinition(req.GinContext.Request.Context(), code); err != nil {
 		return component.FailResponseCode(component.MessageAdminBadgeDeleteFailed, nil)
 	}
 	badgeservice.InvalidateDefinitions()

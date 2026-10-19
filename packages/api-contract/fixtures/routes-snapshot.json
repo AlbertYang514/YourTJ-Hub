@@ -789,6 +789,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/badge-asset"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/badge-delete"
   },
   {

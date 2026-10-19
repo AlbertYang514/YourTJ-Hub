@@ -13,6 +13,7 @@ const (
 	TargetUploadOwner     = "upload_owner"
 	TargetSticker         = "sticker"
 	TargetDecorationAsset = "decoration_asset"
+	TargetBadgeAsset      = "badge_asset"
 )
 
 const (

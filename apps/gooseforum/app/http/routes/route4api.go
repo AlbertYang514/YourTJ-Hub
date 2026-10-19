@@ -497,6 +497,7 @@ func apiRoute(ginApp *gin.Engine) {
 
 	adminApi.GET("decorations", middleware.CheckPermission(permission.SiteManager), UpButterReq(api.DecorationList))
 	adminApi.POST("decoration-save", middleware.CheckPermission(permission.SiteManager), UpLimitedJsonReq(4096, api.SaveDecoration))
+	adminApi.POST("badge-asset", middleware.CheckPermission(permission.SiteManager), api.UploadBadgeAsset)
 	adminApi.POST("decoration-asset", middleware.CheckPermission(permission.SiteManager), api.UploadDecorationAsset)
 	adminApi.GET("user-decorations", middleware.CheckPermission(permission.UserManager), UpQueryReq(api.UserDecorations))
 	adminApi.POST("decoration-grant", middleware.CheckPermission(permission.UserManager), UpLimitedJsonReq(4096, api.GrantDecoration))

@@ -26,6 +26,7 @@ require (
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/jellydator/ttlcache/v3 v3.4.1
 	github.com/jkboxomine/goldmark-headingid v0.0.0-20200109122657-8b6c16c18388
+	github.com/kanrichan/resvg-go v0.0.2-0.20260124063605-1b2ace355216
 	github.com/markbates/goth v1.82.0
 	github.com/meilisearch/meilisearch-go v0.36.3
 	github.com/minio/minio-go/v7 v7.4.1
@@ -39,6 +40,7 @@ require (
 	github.com/spf13/cast v1.10.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
+	github.com/tetratelabs/wazero v1.11.0
 	github.com/wneessen/go-mail v0.8.1
 	github.com/yuin/goldmark v1.8.6
 	github.com/zitadel/oidc/v3 v3.51.14

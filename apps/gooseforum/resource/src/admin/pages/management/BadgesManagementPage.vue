@@ -1,8 +1,10 @@
 <script setup lang="ts">import { adminText } from '@/admin/runtime/i18n-text'
 
+import { useI18n } from 'vue-i18n'
+import BadgeStylePreview from '@/admin/components/BadgeStylePreview.vue'
 import AdminSelect from '@/admin/components/AdminSelect.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Edit3, Plus, RefreshCw, Trash2 } from '@lucide/vue'
+import { Edit3, Plus, RefreshCw, Trash2, Loader2, Upload } from '@lucide/vue'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
 import AdminConfirmDialog from '@/admin/components/AdminConfirmDialog.vue'
 import { BasicPage } from '@/admin/components/global-layout'
@@ -19,13 +21,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/admin/components/ui/dialog'
-import { deleteBadge, getBadges, saveBadge } from '@/admin/runtime/api'
+import { deleteBadge, getBadges, saveBadge, uploadBadgeAsset } from '@/admin/runtime/api'
 import { adminToast } from '@/admin/runtime/toast'
 import type { AdminBadge, AdminPayload, ManageHomeProps } from '@/admin/types'
 
 defineProps<{
   payload: AdminPayload<ManageHomeProps>
 }>()
+
+const { t } = useI18n()
+const uploading = ref(false)
+const uploadError = ref('')
+const uploadInput = ref<HTMLInputElement>()
 
 const emptyBadge: AdminBadge = {
   code: '',
@@ -108,16 +115,41 @@ async function loadBadges() {
 }
 
 function openCreate() {
+  uploadError.value = ''
   Object.assign(form, { ...emptyBadge })
   editing.value = { ...emptyBadge }
 }
 
 function openEdit(badge: AdminBadge) {
+  uploadError.value = ''
   Object.assign(form, { ...emptyBadge, ...badge })
   editing.value = badge
 }
 
+function closeEditor(open: boolean) {
+  if (!open && !saving.value && !uploading.value) editing.value = null
+}
+
+async function uploadAsset(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file || uploading.value || saving.value) return
+  uploading.value = true
+  uploadError.value = ''
+  try {
+    const result = await uploadBadgeAsset(file)
+    form.iconUrl = result.url
+    form.iconType = 'asset'
+  } catch (err) {
+    uploadError.value = err instanceof Error ? err.message : t('badgeAdmin.uploadFailed')
+  } finally {
+    uploading.value = false
+    input.value = ''
+  }
+}
+
 async function submitBadge() {
+  if (saving.value || uploading.value) return
   if (!form.name.trim()) {
     adminToast.warning(adminText('k0035'))
     return
@@ -212,13 +244,15 @@ onMounted(() => {
         </div>
       </div>
 
-      <Dialog :open="editing !== null" @update:open="(open) => !open && (editing = null)">
-        <DialogContent class="sm:max-w-2xl">
+      <Dialog :open="editing !== null" @update:open="closeEditor">
+        <DialogContent class="max-h-[92dvh] grid-rows-[auto_minmax(0,1fr)] overflow-hidden sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>{{ form.code ? adminText('k005e') : adminText('k005a') }}</DialogTitle>
             <DialogDescription>{{ adminText('k00bb') }}</DialogDescription>
           </DialogHeader>
-          <form class="grid max-h-[68vh] gap-4 overflow-y-auto pr-2 sm:grid-cols-2" @submit.prevent="submitBadge">
+          <form class="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-6" :aria-busy="saving || uploading" @submit.prevent="submitBadge">
+            <div class="grid min-h-0 gap-8 overflow-y-auto md:grid-cols-[minmax(0,1fr)_minmax(17rem,.85fr)]">
+            <fieldset :disabled="saving || uploading" class="grid min-w-0 content-start gap-4 sm:grid-cols-2">
             <label class="grid gap-2 text-sm font-medium">
               {{ adminText('k00bc') }}
               <Input v-model="form.code" :disabled="Boolean(editing?.code)" :placeholder="adminText('k005k')" />
@@ -231,10 +265,17 @@ onMounted(() => {
               {{ adminText('k00ag') }}
               <Textarea v-model="form.description" />
             </label>
-            <label class="grid gap-2 text-sm font-medium">
-              {{ adminText('k00bd') }}
-              <Input v-model="form.iconUrl" />
-            </label>
+            <section class="space-y-3 sm:col-span-2">
+              <label for="badge-artwork" class="block text-sm font-medium">{{ adminText('k00bd') }}</label>
+              <Input id="badge-artwork" v-model="form.iconUrl" class="text-base sm:text-sm" aria-describedby="badge-artwork-hint" placeholder="/static/badges/contributor.svg" />
+              <div class="flex flex-wrap items-center gap-3">
+                <Button type="button" variant="outline" :disabled="saving || uploading" @click="uploadInput?.click()"><Loader2 v-if="uploading" class="size-4 animate-spin" /><Upload v-else class="size-4" />{{ t(uploading ? 'decoration.uploading' : 'badgeAdmin.uploadAsset') }}</Button>
+                <span class="text-xs text-muted-foreground">SVG · PNG · WebP · GIF</span>
+              </div>
+              <input ref="uploadInput" type="file" accept="image/svg+xml,image/png,image/webp,image/gif" class="sr-only" tabindex="-1" :disabled="saving || uploading" :aria-label="t('badgeAdmin.uploadAsset')" @change="uploadAsset" />
+              <p id="badge-artwork-hint" class="text-sm leading-relaxed text-muted-foreground">{{ t('badgeAdmin.assetHint') }}</p>
+              <p v-if="uploadError" role="alert" class="text-sm leading-relaxed text-destructive">{{ uploadError }}</p>
+            </section>
             <label class="grid gap-2 text-sm font-medium">
               {{ adminText('k00ad') }}
               <AdminSelect v-model="form.color" :options="colorOptions.map((color) => ({ value: color, label: color }))" class="w-full" />
@@ -258,21 +299,27 @@ onMounted(() => {
             </label>
             <div class="grid gap-2 text-sm font-medium">
               {{ adminText('k00bh') }}
-              <div class="flex h-9 items-center justify-between rounded-md border bg-background px-3">
+              <div class="flex min-h-9 items-center justify-between gap-3 rounded-md border bg-background px-3 py-2">
                 <span class="text-sm text-muted-foreground">{{ adminText('k00bi') }}</span>
                 <Switch v-model="form.isEnabled" />
               </div>
             </div>
             <div class="grid gap-2 text-sm font-medium">
               {{ adminText('k00d7') }}
-              <div class="flex h-9 items-center justify-between rounded-md border bg-background px-3">
+              <div class="flex min-h-9 items-center justify-between gap-3 rounded-md border bg-background px-3 py-2">
                 <span class="text-sm text-muted-foreground">{{ adminText('k00d8') }}</span>
                 <Switch v-model="form.isWearable" />
               </div>
             </div>
-            <DialogFooter class="sm:col-span-2">
-              <Button variant="outline" type="button" @click="editing = null">{{ adminText('k009q') }}</Button>
-              <Button type="submit" :disabled="saving">{{ saving ? adminText('k005f') : adminText('k005g') }}</Button>
+            </fieldset>
+            <aside class="order-first min-w-0 space-y-3 md:order-last md:sticky md:top-0 md:self-start">
+              <h3 class="text-sm font-semibold">{{ t('decoration.configAdmin.preview') }}</h3>
+              <BadgeStylePreview :badge="form" />
+            </aside>
+            </div>
+            <DialogFooter class="bg-background">
+              <Button variant="outline" type="button" @click="closeEditor(false)" :disabled="saving || uploading">{{ adminText('k009q') }}</Button>
+              <Button type="submit" :disabled="saving || uploading">{{ saving ? adminText('k005f') : adminText('k005g') }}</Button>
             </DialogFooter>
           </form>
         </DialogContent>

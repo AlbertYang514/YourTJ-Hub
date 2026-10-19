@@ -20,7 +20,7 @@ type Style = decoration.Definition
 
 var codePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
 var colorPattern = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
-var decorationAssetPattern = regexp.MustCompile(`^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp)$`)
+var decorationAssetPattern = regexp.MustCompile(`^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp|gif|svg)$`)
 
 func ValidateStyle(style Style) error {
 	if math.IsNaN(style.AssetScale) || math.IsInf(style.AssetScale, 0) || (style.AssetScale != 0 && (style.AssetScale < 0.5 || style.AssetScale > 2)) {

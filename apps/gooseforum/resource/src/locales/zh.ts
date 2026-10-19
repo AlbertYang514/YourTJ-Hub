@@ -137,7 +137,7 @@ export default {
     darkColors: "深色主题颜色",
     colorsHint: "使用 1–2 个逗号分隔的 #RRGGBB 颜色。昵称渐变须满足对比度要求。",
     assetUrl: "头像框图片路径",
-    assetHint: "上传方形、中心透明的 PNG/WebP 后保存定义即可使用；也可手填已有的 /static/decorations/ 路径。更换图片请重新上传。",
+    assetHint: "支持 SVG、PNG、WebP、GIF，须为方形且中心透明；GIF 的每一帧都会校验。SVG 会转换为 PNG。也可使用已有 /static/decorations/ 路径。",
     uploadAsset: "上传头像框图片",
     uploading: "上传中…",
     uploadFailed: "头像框图片上传失败",
@@ -564,6 +564,14 @@ export default {
     edit: "编辑备注",
     label: "私有备注",
     hint: "仅自己可见，最多 64 个字符；留空保存即可清除。",
+  },
+  badgeAdmin: {
+    previewName: "徽章名称",
+    previewUnavailable: "图片暂时无法加载，请检查路径或重新上传。",
+    previewHint: "预览头像佩戴与资料页展示效果。",
+    uploadAsset: "上传徽章图片",
+    uploadFailed: "徽章图片上传失败",
+    assetHint: "上传图片会自动居中并适配徽章尺寸，GIF 保留动画；也可输入现有路径或图片链接。",
   },
   badgeDisplay: {
     title: "资料卡展示徽章",

@@ -39,7 +39,9 @@ border nor the artwork may be sized in fixed pixels — that produced a fat ring
 hairline ring on the profile.
 Artwork can be scaled from 50% to 200% of the avatar diameter, centered on the portrait; the default
 is 125%. This saved setting is shared by Web and Flutter and applies to image artwork only; gradient
-borders ignore it. Site managers upload artwork in `/admin/decorations` and save its generated
+borders ignore it. SVG, PNG, WebP and GIF uploads are supported. GIF animation is preserved and every composited
+frame must keep the central opening transparent. SVG is rendered to PNG before validation and
+storage. Site managers upload artwork in `/admin/decorations` and save its generated
 `/static/decorations/` path without rebuilding the app. Existing embedded artwork under
 `apps/gooseforum/resource/static/decorations/` remains valid. External URLs and unsafe paths are
 rejected. See the [avatar-frame artwork generation spec](avatar-frame-generation.md).

@@ -1,67 +1,50 @@
 package decorationassetservice
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"image"
 	"io/fs"
 	"path"
-	"regexp"
 	"strings"
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/decoration"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
-var uploadedAssetName = regexp.MustCompile(`^decorations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(png|webp)$`)
 var ErrInvalid = errors.New("invalid decoration asset")
 
-// ValidateArtwork checks the actual image pixels before any bytes enter storage.
+// ValidateArtwork requires the central 30% to stay transparent in every frame.
 func ValidateArtwork(data []byte, contentType string) error {
-	if contentType != "image/png" && contentType != "image/webp" {
-		return ErrInvalid
-	}
-	if err := imagepolicy.ValidateContent(bytes.NewReader(data), contentType); err != nil {
-		return ErrInvalid
-	}
-	config, _, err := image.DecodeConfig(bytes.NewReader(data))
-	if err != nil || config.Width != config.Height || config.Width < 1 || config.Width > 4096 {
-		return ErrInvalid
-	}
-	img, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil {
-		return ErrInvalid
-	}
-	b := img.Bounds()
-	for y := b.Min.Y + b.Dy()*35/100; y < b.Min.Y+b.Dy()*65/100; y++ {
-		for x := b.Min.X + b.Dx()*35/100; x < b.Min.X+b.Dx()*65/100; x++ {
-			_, _, _, alpha := img.At(x, y).RGBA()
-			if alpha > 257 {
-				return ErrInvalid
-			}
-		}
-	}
-	return nil
+	return validateRaster(data, contentType, true)
 }
 
 // UploadAsset gives an unsaved draft 24 hours to use its preview URL. A saved
 // definition clears the expiry; CleanupAssets reclaims abandoned/replaced files.
 func UploadAsset(ctx context.Context, actorID uint64, data []byte, filename string) (string, error) {
+	return uploadAsset(ctx, actorID, data, filename, "decorations")
+}
+
+func UploadBadgeAsset(ctx context.Context, actorID uint64, data []byte, filename string) (string, error) {
+	return uploadAsset(ctx, actorID, data, filename, "badges")
+}
+
+func uploadAsset(ctx context.Context, actorID uint64, data []byte, filename, prefix string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	contentType, ok := imagepolicy.ContentTypeForFilename(filename)
-	if !ok || ValidateArtwork(data, contentType) != nil {
-		return "", ErrInvalid
+	data, filename, err := prepareArtwork(ctx, data, filename, prefix == "decorations")
+	if err != nil {
+		return "", err
 	}
-	file, err := filedata.SaveFileFromUpload(actorID, data, strings.ToLower(path.Base(filename)), "decorations")
+	storagePrefix := prefix
+	if prefix == "badges" {
+		storagePrefix = "badges/normalized"
+	}
+	file, err := filedata.SaveFileFromUpload(actorID, data, strings.ToLower(path.Base(filename)), storagePrefix)
 	if err != nil {
 		return "", err
 	}
@@ -70,7 +53,7 @@ func UploadAsset(ctx context.Context, actorID uint64, data []byte, filename stri
 		return "", err
 	}
 	expires := time.Now().Add(24 * time.Hour)
-	err = db.ConnectContext(ctx).Create(&fileUsage.Entity{FileName: file.Name, TargetType: fileUsage.TargetDecorationAsset, TargetId: file.Id, UsageType: fileUsage.UsageDecorationAsset, UserId: actorID, Status: fileUsage.UsageStatusActive, ExpiresAt: &expires}).Error
+	err = db.ConnectContext(ctx).Create(&fileUsage.Entity{FileName: file.Name, TargetType: assetTarget(prefix), TargetId: file.Id, UsageType: assetTarget(prefix), UserId: actorID, Status: fileUsage.UsageStatusActive, ExpiresAt: &expires}).Error
 	if err != nil {
 		_ = filedata.DeleteByName(file.Name)
 		return "", err
@@ -81,11 +64,11 @@ func UploadAsset(ctx context.Context, actorID uint64, data []byte, filename stri
 // ReadAsset serves only generated names with a live reference. Embedded assets
 // are resolved separately by the static mount.
 func ReadAsset(name string) ([]byte, time.Time, error) {
-	if !uploadedAssetName.MatchString(name) {
+	if !fileUsage.IsManagedAssetName(name) {
 		return nil, time.Time{}, fs.ErrNotExist
 	}
 	var usage fileUsage.Entity
-	err := db.Connect().Where("file_name = ? AND target_type = ? AND status = ? AND (expires_at IS NULL OR expires_at > ?)", name, fileUsage.TargetDecorationAsset, fileUsage.UsageStatusActive, time.Now()).First(&usage).Error
+	err := db.Connect().Where("file_name = ? AND target_type = ? AND status = ? AND (expires_at IS NULL OR expires_at > ?)", name, assetTarget(strings.SplitN(name, "/", 2)[0]), fileUsage.UsageStatusActive, time.Now()).First(&usage).Error
 	if err != nil {
 		return nil, time.Time{}, fs.ErrNotExist
 	}
@@ -100,7 +83,7 @@ func ReadAsset(name string) ([]byte, time.Time, error) {
 // the existing reference row as the GC queue and never deletes a live definition.
 func CleanupAssets(ctx context.Context, before time.Time, limit int) (int, error) {
 	var expired []fileUsage.Entity
-	if err := db.ConnectContext(ctx).Where("target_type = ? AND expires_at IS NOT NULL AND expires_at <= ?", fileUsage.TargetDecorationAsset, before).Limit(limit).Find(&expired).Error; err != nil {
+	if err := db.ConnectContext(ctx).Where("target_type IN ? AND expires_at IS NOT NULL AND expires_at <= ?", []string{fileUsage.TargetDecorationAsset, fileUsage.TargetBadgeAsset}, before).Limit(limit).Find(&expired).Error; err != nil {
 		return 0, err
 	}
 	removed := 0
@@ -114,7 +97,7 @@ func CleanupAssets(ctx context.Context, before time.Time, limit int) (int, error
 				return err
 			}
 			var count int64
-			if err := tx.Model(&decoration.Definition{}).Where("asset_url = ?", "/static/"+usage.FileName).Count(&count).Error; err != nil {
+			if err := fileUsage.ManagedAssetReferenceCount(tx, usage.FileName, &count); err != nil {
 				return err
 			}
 			if count != 0 {
@@ -138,4 +121,11 @@ func CleanupAssets(ctx context.Context, before time.Time, limit int) (int, error
 		removed++
 	}
 	return removed, nil
+}
+
+func assetTarget(prefix string) string {
+	if prefix == "badges" {
+		return fileUsage.TargetBadgeAsset
+	}
+	return fileUsage.TargetDecorationAsset
 }

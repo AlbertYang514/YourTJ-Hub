@@ -157,8 +157,10 @@ uploadDecorationAsset:
     summary: Upload avatar-frame artwork (SiteManager)
     operationId: uploadDecorationAsset
     description: |
-      Accepts a PNG or WebP no larger than the existing hard 4 MB upload limit.
-      The decoded image must be square with a transparent central opening.
+      Accepts SVG, PNG, WebP or GIF no larger than the existing hard 4 MB upload limit.
+      The decoded image must be square with a transparent central opening in every composited frame.
+      SVG is rasterized to PNG; GIF bytes and animation are preserved. External SVG resources, scripts and text are rejected; convert text to paths.
+      Images are limited to 4096 px per side. GIF is limited to 300 frames and 16 million total composited canvas pixels.
       Upload returns a new, never-reused /static/decorations/<uuid> path that
       works on existing clients. Unsaved previews expire after 24 hours;
       saving a definition makes the asset durable. Replacing artwork requires
@@ -177,7 +179,7 @@ uploadDecorationAsset:
               file:
                 type: string
                 format: binary
-                description: Square PNG/WebP with a transparent center.
+                description: Square SVG/PNG/WebP/GIF with a transparent center in every frame.
     responses:
       '200':
         description: Upload stored and preview path returned.
@@ -188,6 +190,68 @@ uploadDecorationAsset:
             examples:
               success:
                 externalValue: ../fixtures/decoration-asset-upload-success.json
+      '400':
+        description: Missing, unsupported, invalid, or oversized image.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              missing:
+                externalValue: ../fixtures/admin-img-upload-file-missing.json
+      '401':
+        description: Missing or invalid session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Account not writable, missing SiteManager permission, or CSRF rejected.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+uploadBadgeAsset:
+  post:
+    tags: [Admin]
+    summary: Upload badge artwork (SiteManager)
+    operationId: uploadBadgeAsset
+    description: |
+      Accepts SVG, PNG, WebP or GIF no larger than the existing hard 4 MB upload limit.
+      Static images are normalized to PNG; GIF animation, delays and loop count are preserved.
+      Artwork is uniformly centered and scaled to the system-badge ink radius of 10/24, using
+      visible alpha bounds (one shared viewport across all GIF frames). No square or transparent-center requirement.
+      External SVG resources, scripts and text are rejected; convert text to paths.
+      Images are limited to 4096 px per side. GIF is limited to 300 frames and 16 million total composited canvas pixels.
+      Upload returns a new, never-reused /static/badges/normalized/<uuid> path that
+      works on existing clients. Unsaved previews expire after 24 hours;
+      saving a definition makes the asset durable. Replacing artwork requires
+      a new upload and definition save. Only SiteManager may call this endpoint.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [file]
+            properties:
+              file:
+                type: string
+                format: binary
+                description: SVG, PNG, WebP or animated GIF.
+    responses:
+      '200':
+        description: Upload stored and preview path returned.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/BadgeAssetUploadResponse
+            examples:
+              success:
+                externalValue: ../fixtures/badge-asset-upload-success.json
       '400':
         description: Missing, unsupported, invalid, or oversized image.
         content:

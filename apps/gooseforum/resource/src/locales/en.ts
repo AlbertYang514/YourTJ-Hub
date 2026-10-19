@@ -137,7 +137,7 @@ export default {
     darkColors: "Dark theme colors",
     colorsHint: "Use 1–2 comma-separated #RRGGBB colors. Name gradients must meet contrast requirements.",
     assetUrl: "Frame image path",
-    assetHint: "Upload a square PNG/WebP with a transparent center, then save the definition. Existing /static/decorations/ paths can also be entered. Upload again to replace an image.",
+    assetHint: "SVG, PNG, WebP or GIF. Use a square image with a transparent center; every GIF frame is checked. SVG is converted to PNG. Existing /static/decorations/ paths also work.",
     uploadAsset: "Upload frame image",
     uploading: "Uploading…",
     uploadFailed: "Could not upload frame image",
@@ -564,6 +564,14 @@ export default {
     edit: "Edit note",
     label: "Private note",
     hint: "Only you can see this. Up to 64 characters; save empty to clear.",
+  },
+  badgeAdmin: {
+    previewName: "Badge name",
+    previewUnavailable: "The image could not load. Check the path or upload it again.",
+    previewHint: "Preview the avatar badge and profile appearance.",
+    uploadAsset: "Upload badge image",
+    uploadFailed: "Badge image upload failed",
+    assetHint: "Uploaded artwork is centered and sized to match system badges. GIF stays animated. Existing paths and image links also work.",
   },
   badgeDisplay: {
     title: "Profile badges",

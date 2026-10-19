@@ -137,7 +137,7 @@ export default {
     darkColors: "Farben für dunkles Design",
     colorsHint: "1–2 durch Kommas getrennte #RRGGBB-Farben. Namensverläufe müssen ausreichenden Kontrast haben.",
     assetUrl: "Rahmenbildpfad",
-    assetHint: "Quadratisches PNG/WebP mit transparenter Mitte hochladen und dann die Definition speichern. Bestehende /static/decorations/-Pfade können eingegeben werden. Zum Ersetzen erneut hochladen.",
+    assetHint: "SVG, PNG, WebP oder GIF. Quadratisch mit transparenter Mitte; jeder GIF-Frame wird geprüft. SVG wird zu PNG konvertiert. Vorhandene /static/decorations/-Pfade sind weiterhin gültig.",
     uploadAsset: "Rahmenbild hochladen",
     uploading: "Wird hochgeladen…",
     uploadFailed: "Rahmenbild konnte nicht hochgeladen werden",
@@ -564,6 +564,14 @@ export default {
     edit: "Notiz bearbeiten",
     label: "Private Notiz",
     hint: "Nur für dich sichtbar. Bis zu 64 Zeichen; leer speichern zum Entfernen.",
+  },
+  badgeAdmin: {
+    previewName: "Abzeichenname",
+    previewUnavailable: "Das Bild konnte nicht geladen werden. Pfad prüfen oder erneut hochladen.",
+    previewHint: "Vorschau am Avatar und im Profil.",
+    uploadAsset: "Abzeichenbild hochladen",
+    uploadFailed: "Abzeichenbild konnte nicht hochgeladen werden",
+    assetHint: "Hochgeladene Bilder werden zentriert und an die Systemabzeichen angepasst. GIF bleibt animiert. Vorhandene Pfade und Bildlinks funktionieren weiterhin.",
   },
   badgeDisplay: {
     title: "Profilabzeichen",

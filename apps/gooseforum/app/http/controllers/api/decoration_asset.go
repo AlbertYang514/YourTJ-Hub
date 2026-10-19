@@ -3,8 +3,8 @@ package api
 import (
 	"errors"
 	"io"
+	"mime"
 	"net/http"
-	"path"
 	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
@@ -13,6 +13,12 @@ import (
 )
 
 func UploadDecorationAsset(c *gin.Context) {
+	uploadManagedArtwork(c, false)
+}
+
+func UploadBadgeAsset(c *gin.Context) { uploadManagedArtwork(c, true) }
+
+func uploadManagedArtwork(c *gin.Context, badge bool) {
 	c.Header("Cache-Control", "no-store")
 	userID := c.GetUint64("userId")
 	policy, failure := resolveImageUploadPolicy(userID)
@@ -26,8 +32,8 @@ func UploadDecorationAsset(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageUploadFileMissing, nil))
 		return
 	}
-	ext := strings.ToLower(path.Ext(file.Filename))
-	if ext != ".png" && ext != ".webp" {
+	expectedType, ok := decorationassetservice.ContentType(file.Filename)
+	if !ok {
 		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageUploadUnsupportedExt, nil))
 		return
 	}
@@ -35,10 +41,16 @@ func UploadDecorationAsset(c *gin.Context) {
 	if reportedType == "application/octet-stream" {
 		reportedType = ""
 	}
-	_, failure = policy.Validate(file.Filename, file.Size, reportedType)
-	if failure != nil {
-		c.JSON(failure.Status, failure.Data)
+	if strings.TrimSpace(file.Filename) == "" || file.Size <= 0 || file.Size > policy.MaxSize {
+		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageUploadFileTooLarge, nil))
 		return
+	}
+	if reportedType != "" {
+		parsed, _, err := mime.ParseMediaType(reportedType)
+		if err != nil || !strings.EqualFold(parsed, expectedType) {
+			c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageUploadInvalidImage, nil))
+			return
+		}
 	}
 	src, err := file.Open()
 	if err != nil {
@@ -55,7 +67,11 @@ func UploadDecorationAsset(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageUploadFileTooLarge, nil))
 		return
 	}
-	url, err := decorationassetservice.UploadAsset(c.Request.Context(), userID, data, file.Filename)
+	upload := decorationassetservice.UploadAsset
+	if badge {
+		upload = decorationassetservice.UploadBadgeAsset
+	}
+	url, err := upload(c.Request.Context(), userID, data, file.Filename)
 	if err != nil {
 		if errors.Is(err, decorationassetservice.ErrInvalid) {
 			c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageUploadInvalidImage, nil))

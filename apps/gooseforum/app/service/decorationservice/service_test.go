@@ -82,7 +82,7 @@ func TestDecorationStylesRejectUnsafeAndUnreadableColors(t *testing.T) {
 	if ValidateStyle(s) == nil {
 		t.Fatal("invalid code accepted")
 	}
-	for _, asset := range []string{"https://example.com/frame.png", "/static/other.png", "/static/decorations/../other.png", "/static/decorations/frame.svg", "data:image/svg+xml,<svg/>"} {
+	for _, asset := range []string{"https://example.com/frame.png", "/static/other.png", "/static/decorations/../other.png", "/static/decorations/frame.html", "data:image/svg+xml,<svg/>"} {
 		s := testStyle("frame", AvatarFrame)
 		s.AssetURL = asset
 		if ValidateStyle(s) == nil {
@@ -90,9 +90,11 @@ func TestDecorationStylesRejectUnsafeAndUnreadableColors(t *testing.T) {
 		}
 	}
 	s = testStyle("frame", AvatarFrame)
-	s.AssetURL = "/static/decorations/custom-frame.webp"
-	if err := ValidateStyle(s); err != nil {
-		t.Fatalf("valid frame asset rejected: %v", err)
+	for _, ext := range []string{"png", "webp", "gif", "svg"} {
+		s.AssetURL = "/static/decorations/custom-frame." + ext
+		if err := ValidateStyle(s); err != nil {
+			t.Fatalf("valid %s frame rejected: %v", ext, err)
+		}
 	}
 	s = testStyle("name", NicknameStyle)
 	s.AssetURL = "/static/decorations/custom-frame.png"

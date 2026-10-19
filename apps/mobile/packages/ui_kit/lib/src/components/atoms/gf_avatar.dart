@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../theme/gf_theme.dart';
 import '../gf_symbol.dart';
+import '../gf_network_svg.dart';
 import '../gf_media_image.dart';
 
 /// Circular user avatar matching the web app's avatar usage
@@ -173,7 +174,7 @@ class GfAvatarFrame extends StatelessWidget {
     final hasFrameAsset =
         uri != null &&
         RegExp(
-          r'^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp)$',
+          r'^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp|gif|svg)$',
         ).hasMatch(uri.path) &&
         !uri.hasQuery &&
         !uri.hasFragment &&
@@ -236,20 +237,24 @@ class GfAvatarFrame extends StatelessWidget {
             width: edge,
             height: edge,
             child: IgnorePointer(
-              child: Image(
-                image: GfMediaScope.imageProvider(
-                  context,
-                  assetUrl,
-                  width: pixels,
-                  height: pixels,
-                  policy: ResizeImagePolicy.fit,
-                ),
-                fit: BoxFit.contain,
-                excludeFromSemantics: true,
-                frameBuilder: (_, child, frame, loaded) =>
-                    loaded || frame != null ? child : const SizedBox.shrink(),
-                errorBuilder: (_, _, _) => const SizedBox.shrink(),
-              ),
+              child: uri.path.endsWith('.svg')
+                  ? GfNetworkSvg(assetUrl, fallback: const SizedBox.shrink())
+                  : Image(
+                      image: GfMediaScope.imageProvider(
+                        context,
+                        assetUrl,
+                        width: pixels,
+                        height: pixels,
+                        policy: ResizeImagePolicy.fit,
+                      ),
+                      fit: BoxFit.contain,
+                      excludeFromSemantics: true,
+                      frameBuilder: (_, child, frame, loaded) =>
+                          loaded || frame != null
+                          ? child
+                          : const SizedBox.shrink(),
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    ),
             ),
           ),
         ],

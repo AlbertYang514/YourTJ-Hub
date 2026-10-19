@@ -18,6 +18,8 @@ func TestVersionedBadgeIconURL(t *testing.T) {
 		{input: "/static/badges/robot.svg?v=1&foo=1", want: "/static/badges/robot.svg?foo=1&v=" + badgeAssetVersion},
 		{input: "/static/badges/robot.svg#detail", want: "/static/badges/robot.svg?v=" + badgeAssetVersion + "#detail"},
 		{input: "", want: ""},
+		{input: "/static/badges/normalized/12345678-1234-1234-1234-123456789abc.png", want: "/static/badges/normalized/12345678-1234-1234-1234-123456789abc.png"},
+		{input: "/static/badges/12345678-1234-1234-1234-123456789abc.gif", want: "/static/badges/12345678-1234-1234-1234-123456789abc.gif"},
 		{input: "/file/img/2026/10/custom.png", want: "/file/img/2026/10/custom.png"},
 		{input: "https://cdn.example.com/static/badges/a.svg", want: "https://cdn.example.com/static/badges/a.svg"},
 	}

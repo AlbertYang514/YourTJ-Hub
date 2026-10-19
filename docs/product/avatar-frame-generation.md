@@ -18,8 +18,8 @@ visible through its center. It is a visual reference, not a default frame or cat
 
 ## Canvas and composition
 
-- Deliver a square RGBA PNG with a transparent background. Transparent WebP is also accepted by the
-  renderer. Use a 1024 × 1024 canvas unless the source generator requires another square size.
+- Deliver a square RGBA PNG with a transparent background. Transparent WebP, animated GIF and static SVG uploads are also accepted. SVG is
+  rendered to PNG before storage; convert SVG text to paths and keep it self-contained. Use a 1024 × 1024 canvas unless the source generator requires another square size.
 - Draw a centered circular overlay. Keep the outer ring inside about 92% of the canvas and leave an
   avatar opening about 78–82% of the canvas diameter.
 - The entire inner opening and the area outside the frame must remain alpha-transparent. Do not fill
@@ -45,7 +45,7 @@ covers the portrait.
 ## Installation and configuration
 
 In `/admin/decorations`, pick the solid-color frame style to ship a gradient border from colors alone, or
-pick the image style and upload a square PNG/WebP with a transparent center. The upload returns a
+pick the image style and upload a square SVG/PNG/WebP/GIF with a transparent center. The upload returns a
 unique `/static/decorations/<uuid>.<ext>` URL and fills the draft path; save the `avatarFrame`
 definition to keep that asset. Unsaved uploads expire after 24 hours. To replace artwork, upload a
 new file and save the definition with its new URL; never reuse a filename because `/static` has a
@@ -54,7 +54,7 @@ embedded assets under `apps/gooseforum/resource/static/decorations/` remain usab
 paths manually. Set the light and dark palette colors of a gradient border, or adjust the image
 frame's artwork scale in the live preview: the setting is the artwork diameter as a percentage of
 the avatar diameter (50%–200%, default 125%). It scales around the avatar center and is saved for
-both Web and Flutter; a gradient border ignores it. The server accepts only same-origin PNG/WebP
+both Web and Flutter; a gradient border ignores it. The server accepts only same-origin SVG/PNG/WebP/GIF
 paths in this directory; external URLs, query strings, and traversal paths are rejected.
 
 An image frame uses the artwork alone: it ignores the palette and draws no colored ring while the
@@ -62,3 +62,13 @@ image loads, nor when the image is unavailable or fails to decode. A gradient bo
 case and draws no artwork. Preview the configured style in the admin page, then grant
 it to a test account and verify the profile, feed, chat, and badge overlay before enabling it for
 users.
+
+Uploads retain the transparent central opening check: the central 30% of the canvas may have
+at most 1/255 opacity. Every displayed, composited GIF frame is checked, including partial
+frames and disposal operations. Dimensions are limited to 4096 px per side; GIFs are limited
+to 300 frames and 16 million total composited canvas pixels. Animated PNG is not accepted for frames.
+Static SVG uses the embedded resvg WebAssembly renderer, without a separate process or system
+binary. Scripts, external resources, embedded images, external CSS imports and SVG text are rejected;
+use self-contained vector shapes and convert text to paths. Rendering has bounded memory,
+concurrency and request time. Frame SVGs render at 1024 px and badge SVGs at 512 px on the longest side. The stored PNG is
+exactly the artwork that passed validation.

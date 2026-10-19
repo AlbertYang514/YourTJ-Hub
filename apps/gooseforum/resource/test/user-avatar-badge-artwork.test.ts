@@ -23,7 +23,7 @@ function chip(iconUrl: string) {
 // 往往铺满画布，保持原来的 2px 内边距 + 填满，不能跟着放大到压住圆环。
 describe('UserAvatar badge artwork framing', () => {
   test('system artwork fills 88% of the chip without padding', () => {
-    for (const url of ['/static/badges/robot.svg?v=2', '/static/badges/robot.svg', '']) {
+    for (const url of ['/static/badges/robot.svg?v=2', '/static/badges/robot.svg', '/static/badges/normalized/12345678-1234-1234-1234-123456789abc.png', '']) {
       const { chip: c, icon } = chip(url)
       expect(c).not.toContain('p-[2px]')
       expect(icon).toEqual(expect.arrayContaining(['h-[88%]', 'w-[88%]']))

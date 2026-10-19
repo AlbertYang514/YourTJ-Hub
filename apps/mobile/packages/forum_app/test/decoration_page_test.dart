@@ -55,6 +55,28 @@ class Decorations extends UserRepository {
 }
 
 void main() {
+  test(
+    'frame assets accept four formats within the existing trusted directory',
+    () {
+      for (final ext in ['png', 'webp', 'gif', 'svg']) {
+        final frame = DecorationStyle(
+          code: 'frame',
+          name: 'Frame',
+          kind: 'avatarFrame',
+          lightColors: const ['#123456'],
+          darkColors: const ['#abcdef'],
+          assetUrl: '/static/decorations/frame.$ext',
+          isEnabled: true,
+          sortOrder: 1,
+        );
+        expect(
+          decorationFrameAssetUrl(frame),
+          endsWith('/static/decorations/frame.$ext'),
+        );
+      }
+    },
+  );
+
   testWidgets(
     'single-stop styles display solid avatar frame and nickname in both themes',
     (tester) async {

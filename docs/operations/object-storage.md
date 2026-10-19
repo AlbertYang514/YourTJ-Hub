@@ -167,3 +167,15 @@ VPC 内解析（解析结果形如 `100.100.2.136` / `100.100.2.138` 等 100.100
 - **发布与归属记录非事务**：`complete` 的 `MarkFileReady` 与控制器里的 `AddUploadOwner`
   是两次独立写，崩溃窗口可能产生「已 ready 但无 owner 记录」的行（对象可读但归属审计
   缺失）；概率极低，归属记录失败时服务端会同时删除对象与元数据行作为回滚。
+
+### Managed badge artwork
+
+SiteManager badge uploads use `/api/admin/badge-asset` and immutable
+`/static/badges/normalized/<uuid>.<ext>` URLs. They share the decoration asset storage and reference
+cleanup flow, with `badge_asset` usage rows and 24-hour unsaved-preview expiry. Existing
+embedded badge URLs and external links keep their previous behavior. SVG uploads are converted
+to PNG in-process by the embedded WebAssembly renderer; no external SVG renderer is required.
+Regular user uploads continue to reject SVG. Badge PNG/WebP/SVG inputs are optically
+normalized to transparent PNG; GIF is re-encoded with one animation-wide viewport, preserving
+frame timing and loop count. Avatar-frame GIFs retain their original bytes. Legacy badge URLs
+remain valid and retain their existing framing; their cached bytes are never overwritten.

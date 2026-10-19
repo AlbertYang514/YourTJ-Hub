@@ -137,7 +137,7 @@ export default {
     darkColors: "ダークテーマの色",
     colorsHint: "カンマ区切りで 1〜2 個の #RRGGBB 色を指定してください。名前の色はコントラスト要件を満たす必要があります。",
     assetUrl: "フレーム画像パス",
-    assetHint: "正方形で中央が透明な PNG/WebP をアップロードし、定義を保存してください。既存の /static/decorations/ パスも入力できます。差し替え時は再アップロードしてください。",
+    assetHint: "SVG・PNG・WebP・GIF に対応。正方形で中央が透明な画像が必要です。GIF は全フレームを検証し、SVG は PNG に変換します。既存の /static/decorations/ パスも使用できます。",
     uploadAsset: "フレーム画像をアップロード",
     uploading: "アップロード中…",
     uploadFailed: "フレーム画像をアップロードできませんでした",
@@ -564,6 +564,14 @@ export default {
     edit: "メモを編集",
     label: "非公開メモ",
     hint: "自分だけに表示されます。64文字以内。空欄で保存すると削除されます。",
+  },
+  badgeAdmin: {
+    previewName: "バッジ名",
+    previewUnavailable: "画像を読み込めません。パスを確認するか再アップロードしてください。",
+    previewHint: "アバター着用時とプロフィールの表示を確認できます。",
+    uploadAsset: "バッジ画像をアップロード",
+    uploadFailed: "バッジ画像のアップロードに失敗しました",
+    assetHint: "アップロード画像は既存バッジに合わせて自動で中央配置・サイズ調整されます。GIF のアニメーションは保持され、既存パスや画像リンクも使用できます。",
   },
   badgeDisplay: {
     title: "プロフィールのバッジ",
