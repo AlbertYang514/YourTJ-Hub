@@ -299,6 +299,8 @@ Dev 同步成功后，`snapshots/dev-prev` 仅保留最近 5 个时间戳组的�
   and `feed-raw-tables.json`: copied Agent credentials are disabled, feed observations are
   scrubbed, and previous-dev snapshots remain usable without preinstalled helpers. The trusted
   `main` checkout must contain this complete script bundle before the dev workflow uses it.
+  Changes to `deploy-dev.yml` select backend/frontend checks and a dev deployment, so workflow
+  repairs are exercised after merge even when application source is unchanged.
 
 ## GitHub Actions Environments secrets
 
