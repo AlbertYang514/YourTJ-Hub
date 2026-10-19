@@ -83,16 +83,17 @@ func SaveStyle(ctx context.Context, actorID uint64, style Style) (Style, error) 
 		return Style{}, ErrInvalid
 	}
 	err := db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
-		current, err := catalog(tx)
-		if err != nil {
+		var previous decoration.Definition
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("code = ?", style.Code).Take(&previous).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
-		for _, s := range current {
-			if s.Code == style.Code && s.Kind != style.Kind {
-				return ErrInvalid
-			}
+		if previous.Code != "" && previous.Kind != style.Kind {
+			return ErrInvalid
 		}
 		if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "code"}}, DoUpdates: clause.AssignmentColumns([]string{"name", "kind", "light_colors", "dark_colors", "is_enabled", "sort_order", "asset_url", "asset_scale"})}).Create(&style).Error; err != nil {
+			return err
+		}
+		if err := updateAssetReferencesTx(tx, previous.AssetURL, style.AssetURL); err != nil {
 			return err
 		}
 		details, _ := json.Marshal(style)

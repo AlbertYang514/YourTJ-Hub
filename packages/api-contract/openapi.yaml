@@ -62,6 +62,8 @@ paths:
     $ref: ./paths/decorations.yaml#/listDecorations
   /api/admin/decoration-save:
     $ref: ./paths/decorations.yaml#/saveDecoration
+  /api/admin/decoration-asset:
+    $ref: ./paths/decorations.yaml#/uploadDecorationAsset
   /api/admin/user-decorations:
     $ref: ./paths/decorations.yaml#/getUserDecorations
   /api/admin/decoration-grant:
@@ -1777,6 +1779,8 @@ components:
       $ref: ./components/schemas.yaml#/AdminImgUploadResult
     AdminImgUploadResponse:
       $ref: ./components/schemas.yaml#/AdminImgUploadResponse
+    DecorationAssetUploadResponse:
+      $ref: ./components/schemas.yaml#/DecorationAssetUploadResponse
     AdminCreateExportTaskRequest:
       $ref: ./components/schemas.yaml#/AdminCreateExportTaskRequest
     AdminExportTaskListResponse:

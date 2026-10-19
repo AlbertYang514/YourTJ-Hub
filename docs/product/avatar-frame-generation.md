@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-13
+> Last verified: 2026-10-19
 
 This specification applies to optional avatar-frame artwork configured by site managers. The
 decoration catalog starts empty; generated art does not become a product option until an
@@ -44,12 +44,15 @@ covers the portrait.
 
 ## Installation and configuration
 
-Use a short lowercase ASCII filename such as `campus-garden-v1.png` and place it in
-`apps/gooseforum/resource/static/decorations/`. Add the asset through the normal reviewed source
-change so the single Go binary embeds it. In `/admin/decorations`, create an `avatarFrame` style,
-set the light and dark fallback colors, and enter `/static/decorations/<filename>` as its optional
-asset path. Adjust the artwork scale in the live preview to fit the portrait opening: the setting
-is the artwork diameter as a percentage of the avatar diameter (50%–200%, default 125%). It scales
+In `/admin/decorations`, pick the solid-color frame style to ship a gradient border from colors alone, or
+pick the image style and upload a square PNG/WebP with a transparent center. The upload returns a
+unique `/static/decorations/<uuid>.<ext>` URL and fills the draft path; save the `avatarFrame`
+definition to keep that asset. Unsaved uploads expire after 24 hours. To replace artwork, upload a
+new file and save the definition with its new URL; never reuse a filename because `/static` has a
+long browser cache. SiteManager can upload and use artwork without an approval step. Existing
+embedded assets under `apps/gooseforum/resource/static/decorations/` remain usable by entering their
+paths manually. Set light and dark fallback colors and adjust the artwork scale in the live preview:
+the setting is the artwork diameter as a percentage of the avatar diameter (50%–200%, default 125%). It scales
 around the avatar center and is saved for both Web and Flutter. The server accepts only same-origin PNG/WebP paths in this directory; external URLs,
 query strings, and traversal paths are rejected.
 

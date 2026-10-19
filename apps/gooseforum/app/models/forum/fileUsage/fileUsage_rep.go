@@ -139,6 +139,7 @@ func HasActiveReferences(fileName string) bool {
 	builder().
 		Where(queryopt.Eq("file_name", fileName)).
 		Where(queryopt.Eq("status", UsageStatusActive)).
+		Where("expires_at IS NULL OR expires_at > ?", time.Now()).
 		Where(queryopt.Ne("usage_type", UsageUploadOwner)).
 		Count(&count)
 	return count > 0

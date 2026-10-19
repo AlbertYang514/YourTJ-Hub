@@ -151,6 +151,64 @@ listDecorations:
             examples:
               failure:
                 externalValue: ../fixtures/permission-denied.json
+uploadDecorationAsset:
+  post:
+    tags: [Admin]
+    summary: Upload avatar-frame artwork (SiteManager)
+    operationId: uploadDecorationAsset
+    description: |
+      Accepts a PNG or WebP no larger than the existing hard 4 MB upload limit.
+      The decoded image must be square with a transparent central opening.
+      Upload returns a new, never-reused /static/decorations/<uuid> path that
+      works on existing clients. Unsaved previews expire after 24 hours;
+      saving a definition makes the asset durable. Replacing artwork requires
+      a new upload and definition save. Only SiteManager may call this endpoint.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [file]
+            properties:
+              file:
+                type: string
+                format: binary
+                description: Square PNG/WebP with a transparent center.
+    responses:
+      '200':
+        description: Upload stored and preview path returned.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/DecorationAssetUploadResponse
+            examples:
+              success:
+                externalValue: ../fixtures/decoration-asset-upload-success.json
+      '400':
+        description: Missing, unsupported, invalid, or oversized image.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              missing:
+                externalValue: ../fixtures/admin-img-upload-file-missing.json
+      '401':
+        description: Missing or invalid session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Account not writable, missing SiteManager permission, or CSRF rejected.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
 saveDecoration:
   post:
     tags:

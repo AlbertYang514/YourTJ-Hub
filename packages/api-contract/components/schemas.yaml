@@ -9676,6 +9676,26 @@ AdminImgUploadResponse:
               const: upload.success
     - $ref: '#/ApiFailure'
 
+DecorationAssetUploadResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result, messageCode]
+          properties:
+            result:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  pattern: '^/static/decorations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[.](png|webp)$'
+              additionalProperties: false
+            messageCode:
+              type: string
+              const: upload.success
+    - $ref: '#/ApiFailure'
+
 AdminCreateExportTaskRequest:
   type: object
   required: [tables, format]

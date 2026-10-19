@@ -6,9 +6,15 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-04
+> Last verified: 2026-10-19
 
 ## 概述
+
+头像框资源由站点管理员在 `/admin/decorations` 上传，沿用当前 local BLOB 或 S3 provider，
+保存定义后通过论坛同源 `/static/decorations/<uuid>.png|webp` 提供。即使配置了
+`publicUrlPrefix`，头像框仍由论坛应用下行，以保持已发布客户端接受的 URL 形状；
+需计入应用服务器带宽。未保存的预览资源 24 小时后清理；更换定义引用时旧资源进入清理队列。
+随机文件名不可覆盖，同名更新会被长缓存保留旧字节。
 
 论坛文件默认存于 SQLite BLOB（`[db.file]`，无外部依赖）。在管理端（设置 → 存储设置）配置
 S3 兼容对象存储（MinIO / Tencent COS / Alibaba OSS / Cloudflare R2）后，**帖子图片**改为

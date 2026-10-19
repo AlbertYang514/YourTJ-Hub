@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-13
+> Last verified: 2026-10-19
 
 ## Selection and presentation
 
@@ -26,12 +26,14 @@ connections, search, chat peers and the signed-in account, notification actors, 
 and member course-review authors. Private notes retain their existing display-name rules. Existing
 rendered historical exports, Markdown and forwarded-message snapshots are not rewritten.
 
-Frames use bounded gradient borders or an optional transparent PNG/WebP around the avatar,
-preserving its layout and badge overlay. Artwork can be scaled from 50% to 200% of the avatar
+A frame definition is configured as either a bounded gradient border or a transparent PNG/WebP
+around the avatar (the admin form keeps the two choices exclusive), preserving its layout and badge
+overlay. Artwork can be scaled from 50% to 200% of the avatar
 diameter, centered on the portrait; the default is 125%. This saved setting is shared by Web and
-Flutter. Scaling affects artwork only, not the fallback gradient border. Artwork is installed under
-`apps/gooseforum/resource/static/decorations/` and configured by its same-origin static path;
-external URLs and unsafe paths are rejected. Loading failure falls back to the configured gradient
+Flutter. Scaling affects artwork only, not the fallback gradient border. Site managers upload
+artwork in `/admin/decorations` and save its generated `/static/decorations/` path without rebuilding
+the app. Existing embedded artwork under `apps/gooseforum/resource/static/decorations/` remains
+valid. External URLs and unsafe paths are rejected. Loading failure falls back to the configured gradient
 border. See the [avatar-frame artwork generation spec](avatar-frame-generation.md).
 Nickname styles use validated hexadecimal colors with separate light/dark palettes; custom HTML,
 CSS, external assets and animations are not accepted. Definition validation checks ordinary-text

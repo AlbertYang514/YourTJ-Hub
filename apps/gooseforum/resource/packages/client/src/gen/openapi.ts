@@ -84,6 +84,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/decoration-asset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload avatar-frame artwork (SiteManager)
+         * @description Accepts a PNG or WebP no larger than the existing hard 4 MB upload limit.
+         *     The decoded image must be square with a transparent central opening.
+         *     Upload returns a new, never-reused /static/decorations/<uuid> path that
+         *     works on existing clients. Unsaved previews expire after 24 hours;
+         *     saving a definition makes the asset durable. Replacing artwork requires
+         *     a new upload and definition save. Only SiteManager may call this endpoint.
+         */
+        post: operations["uploadDecorationAsset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/user-decorations": {
         parameters: {
             query?: never;
@@ -12671,6 +12696,13 @@ export interface components {
             /** @constant */
             messageCode: "upload.success";
         }) | components["schemas"]["ApiFailure"];
+        DecorationAssetUploadResponse: (components["schemas"]["ApiSuccess"] & {
+            result: {
+                url: string;
+            };
+            /** @constant */
+            messageCode: "upload.success";
+        }) | components["schemas"]["ApiFailure"];
         /**
          * @description Enqueues a background full-table export. The exported content is a verbatim table dump —
          *     for `users` this includes email addresses, freeze/activation state, role ids and profile
@@ -16194,6 +16226,63 @@ export interface operations {
                 };
             };
             /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    uploadDecorationAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description Square PNG/WebP with a transparent center.
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Upload stored and preview path returned. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecorationAssetUploadResponse"];
+                };
+            };
+            /** @description Missing, unsupported, invalid, or oversized image. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account not writable, missing SiteManager permission, or CSRF rejected. */
             403: {
                 headers: {
                     [name: string]: unknown;

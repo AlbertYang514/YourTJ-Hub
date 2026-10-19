@@ -2,10 +2,10 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import DecorationsManagementPage from '../src/admin/pages/management/DecorationsManagementPage.vue'
-import { getDecorations, saveDecoration } from '../src/admin/runtime/api'
+import { getDecorations, saveDecoration, uploadDecorationAsset } from '../src/admin/runtime/api'
 import type { DecorationStyle } from '@gooseforum/client'
 
-vi.mock('../src/admin/runtime/api', () => ({ getDecorations: vi.fn(), saveDecoration: vi.fn() }))
+vi.mock('../src/admin/runtime/api', () => ({ getDecorations: vi.fn(), saveDecoration: vi.fn(), uploadDecorationAsset: vi.fn() }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('../src/admin/runtime/i18n-text', () => ({ adminText: (key: string) => key }))
 vi.mock('../src/admin/components/global-layout', () => ({ BasicPage: { template: '<div><slot name="actions" /><slot /></div>' } }))
@@ -70,6 +70,7 @@ it('rejects unsafe artwork and unreadable nickname colors, clearing artwork on k
   const wrapper = await editor()
   await wrapper.get('#decoration-code').setValue(style.code)
   await wrapper.get('#decoration-name').setValue(style.name)
+  await wrapper.get('#decoration-frame-mode').setValue('image')
   await wrapper.get('#decoration-asset').setValue('https://external.invalid/frame.png')
   await wrapper.get('form').trigger('submit'); await flushPromises()
   expect(saveDecoration).not.toHaveBeenCalled()
@@ -108,10 +109,62 @@ it('previews and saves artwork scale, retaining it when editing an existing fram
   wrapper.unmount()
 })
 
+it('uploads a frame, previews its stable URL, and saves that URL', async () => {
+  const wrapper = await editor()
+  const url = '/static/decorations/12345678-1234-1234-1234-123456789abc.png'
+  vi.mocked(uploadDecorationAsset).mockResolvedValue({ url })
+  await wrapper.get('#decoration-code').setValue(style.code)
+  await wrapper.get('#decoration-name').setValue(style.name)
+  await wrapper.get('#decoration-frame-mode').setValue('image')
+  const input = wrapper.get('#decoration-upload').element as HTMLInputElement
+  Object.defineProperty(input, 'files', { configurable: true, value: [new File(['image'], 'frame.png', { type: 'image/png' })] })
+  await wrapper.get('#decoration-upload').trigger('change')
+  await flushPromises()
+  expect(uploadDecorationAsset).toHaveBeenCalledTimes(1)
+  expect((wrapper.get('#decoration-asset').element as HTMLInputElement).value).toBe(url)
+  vi.mocked(saveDecoration).mockResolvedValue({ ...style, assetUrl: url })
+  await wrapper.get('form').trigger('submit')
+  await flushPromises()
+  expect(saveDecoration).toHaveBeenCalledWith(expect.objectContaining({ assetUrl: url }))
+  wrapper.unmount()
+})
+
+it('makes solid-color and image avatar frames mutually exclusive', async () => {
+  const wrapper = await editor()
+  await wrapper.get('#decoration-code').setValue('solid-frame')
+  await wrapper.get('#decoration-name').setValue('Solid frame')
+  await wrapper.get('#decoration-frame-mode').setValue('image')
+  await wrapper.get('form').trigger('submit'); await flushPromises()
+  expect(saveDecoration).not.toHaveBeenCalled()
+  expect(wrapper.text()).toContain('decoration.configAdmin.assetRequired')
+  await wrapper.get('#decoration-asset').setValue('/static/decorations/solid-frame.png')
+  await wrapper.get('#decoration-frame-mode').setValue('solid')
+  vi.mocked(saveDecoration).mockResolvedValue({ ...style, code: 'solid-frame', name: 'Solid frame' })
+  await wrapper.get('form').trigger('submit'); await flushPromises()
+  expect(saveDecoration).toHaveBeenCalledWith(expect.objectContaining({ assetUrl: '' }))
+  wrapper.unmount()
+})
+
+it('shows only the current kind: frame palette copy vs nickname palette copy', async () => {
+  const wrapper = await editor()
+  expect(wrapper.text()).toContain('decoration.configAdmin.framePalette')
+  expect(wrapper.text()).toContain('decoration.configAdmin.framePaletteHint')
+  expect(wrapper.text()).not.toContain('decoration.configAdmin.nicknamePalette')
+  await wrapper.get('#decoration-kind').setValue('nicknameStyle')
+  expect(wrapper.text()).toContain('decoration.configAdmin.nicknamePaletteHint')
+  expect(wrapper.text()).toContain('decoration.configAdmin.nicknamePreviewHint')
+  expect(wrapper.text()).not.toContain('decoration.configAdmin.framePalette')
+  expect(wrapper.text()).not.toContain('decoration.configAdmin.framePreviewHint')
+  expect(wrapper.find('#decoration-frame-mode').exists()).toBe(false)
+  expect(wrapper.find('#decoration-asset').exists()).toBe(false)
+  wrapper.unmount()
+})
+
 it('clears invalid hidden artwork scale when switching to a nickname style', async () => {
   const wrapper = await editor()
   await wrapper.get('#decoration-code').setValue('nickname-owned')
   await wrapper.get('#decoration-name').setValue('Nickname')
+  await wrapper.get('#decoration-frame-mode').setValue('image')
   const percent = wrapper.findAll('input[type="number"]').find(input => input.attributes('aria-label') === 'decoration.configAdmin.scale')!
   await percent.setValue('')
   await wrapper.get('#decoration-kind').setValue('nicknameStyle')

@@ -837,6 +837,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/decoration-asset"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/decoration-grant"
   },
   {
