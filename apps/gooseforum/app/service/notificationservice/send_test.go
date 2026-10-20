@@ -1,6 +1,11 @@
 package notificationservice
 
 import (
+	"encoding/json"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
+	"strings"
 	"testing"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -11,7 +16,7 @@ import (
 
 func TestMentionCommitPublishesOnlyToRecipients(t *testing.T) {
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &posts.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
@@ -43,7 +48,7 @@ func TestMentionCommitPublishesOnlyToRecipients(t *testing.T) {
 
 func TestCommentNotificationsUseTopicPostPayload(t *testing.T) {
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &posts.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
 		t.Fatalf("migrate notifications: %v", err)
 	}
 
@@ -62,7 +67,7 @@ func TestCommentNotificationsUseTopicPostPayload(t *testing.T) {
 
 func TestLikeNotificationsUseTopicPostPayload(t *testing.T) {
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &posts.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
 		t.Fatalf("migrate notifications: %v", err)
 	}
 
@@ -81,7 +86,7 @@ func TestLikeNotificationsUseTopicPostPayload(t *testing.T) {
 
 func TestMentionNotificationsUseTopicPostPayload(t *testing.T) {
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &posts.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
 		t.Fatalf("migrate notifications: %v", err)
 	}
 
@@ -113,7 +118,7 @@ func TestMentionNotificationsUseTopicPostPayload(t *testing.T) {
 
 func TestBlockedInteractionsDoNotCreateNotifications(t *testing.T) {
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &posts.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
 		t.Fatal(err)
 	}
 	const actor, blocked, allowed = uint64(88211), uint64(88212), uint64(88213)
@@ -142,5 +147,64 @@ func TestBlockedInteractionsDoNotCreateNotifications(t *testing.T) {
 	}
 	if err := conn.Model(&eventNotification.Entity{}).Where("user_id = ?", allowed).Count(&count).Error; err != nil || count != 2 {
 		t.Fatalf("allowed notifications=%d, %v", count, err)
+	}
+}
+
+func TestInteractionsDoNotWakeBotsThroughHumanNotifications(t *testing.T) {
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
+		t.Fatal(err)
+	}
+	bot := users.EntityComplete{Id: 776655, Username: "wake_bot", Email: "wake_bot@example.invalid", ActorType: users.ActorTypeBot}
+	if err := conn.Create(&bot).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		conn.Unscoped().Delete(&bot)
+		conn.Where("user_id = ?", bot.Id).Delete(&eventNotification.Entity{})
+	})
+	if err := SendPostReplyNotification(bot.Id, 881, 2, 880, "reply", 776656); err != nil {
+		t.Fatal(err)
+	}
+	var count int64
+	conn.Model(&eventNotification.Entity{}).Where("user_id = ?", bot.Id).Count(&count)
+	if count != 0 {
+		t.Fatalf("bot received %d legacy wakeups; Agent events must be its only interaction channel", count)
+	}
+}
+
+func TestMentionEnqueuesBothPushChannels(t *testing.T) {
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &posts.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}, &taskQueue.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	config := map[string]string{"webpush.vapid_public_key": strings.Repeat("A", 87), "webpush.vapid_private_key": strings.Repeat("B", 43), "push.fcm.credentials_path": "test-only.json", "push.fcm.project_id": "test-only"}
+	for key, value := range config {
+		preferences.Set(key, value)
+	}
+	t.Cleanup(func() {
+		for key := range config {
+			preferences.Set(key, "")
+		}
+		conn.Where("user_id = ?", 8765).Delete(&eventNotification.Entity{})
+	})
+	if err := SendMentionNotifications([]uint64{8765}, 1, 2, 3, "preview", 4); err != nil {
+		t.Fatal(err)
+	}
+	var n eventNotification.Entity
+	if err := conn.Where("user_id = ?", 8765).Last(&n).Error; err != nil {
+		t.Fatal(err)
+	}
+	for _, family := range []string{"webpush.", "nativepush."} {
+		var task taskQueue.Entity
+		if err := conn.Where("type = ?", family).Order("id desc").First(&task).Error; err != nil {
+			t.Fatalf("%s task missing: %v", family, err)
+		}
+		var payload struct {
+			NotificationId uint64 `json:"notificationId"`
+		}
+		if err := json.Unmarshal([]byte(task.TaskJson), &payload); err != nil || payload.NotificationId != n.Id {
+			t.Fatalf("%s task payload = %s, want notification %d", family, task.TaskJson, n.Id)
+		}
 	}
 }

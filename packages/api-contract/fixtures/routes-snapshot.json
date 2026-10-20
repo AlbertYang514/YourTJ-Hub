@@ -33,6 +33,22 @@
   },
   {
     "method": "GET",
+    "path": "/.well-known/apple-app-site-association"
+  },
+  {
+    "method": "GET",
+    "path": "/.well-known/assetlinks.json"
+  },
+  {
+    "method": "GET",
+    "path": "/a/:publicUid"
+  },
+  {
+    "method": "GET",
+    "path": "/a/:publicUid/avatar.svg"
+  },
+  {
+    "method": "GET",
     "path": "/activate"
   },
   {
@@ -42,6 +58,10 @@
   {
     "method": "GET",
     "path": "/admin/*path"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/agent-comment-policy"
   },
   {
     "method": "GET",
@@ -74,6 +94,14 @@
   {
     "method": "GET",
     "path": "/api/admin/data/import/tasks"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/decorations"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/feed/summary"
   },
   {
     "method": "GET",
@@ -169,6 +197,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/admin/user-decorations"
+  },
+  {
+    "method": "GET",
     "path": "/api/admin/wiki/sync/cdn"
   },
   {
@@ -201,6 +233,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/auth/passkey/status"
+  },
+  {
+    "method": "GET",
     "path": "/api/auth/tongji/registration"
   },
   {
@@ -226,6 +262,18 @@
   {
     "method": "GET",
     "path": "/api/campus/tongji/callback"
+  },
+  {
+    "method": "GET",
+    "path": "/api/external-link-policy"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forum/anonymous/state"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forum/content/appeals"
   },
   {
     "method": "GET",
@@ -257,6 +305,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/forum/mention-targets"
+  },
+  {
+    "method": "GET",
     "path": "/api/forum/my-course-reviews"
   },
   {
@@ -278,6 +330,10 @@
   {
     "method": "GET",
     "path": "/api/forum/push/config"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forum/push/preferences"
   },
   {
     "method": "GET",
@@ -361,11 +417,31 @@
   },
   {
     "method": "GET",
+    "path": "/api/user/decorations"
+  },
+  {
+    "method": "GET",
+    "path": "/api/user/passkeys"
+  },
+  {
+    "method": "GET",
+    "path": "/api/user/privacy-settings"
+  },
+  {
+    "method": "GET",
     "path": "/api/user/sessions"
   },
   {
     "method": "GET",
     "path": "/api/user/totp/status"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/agent/events"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/agent/events/:eventId"
   },
   {
     "method": "GET",
@@ -470,6 +546,10 @@
   {
     "method": "GET",
     "path": "/moderation"
+  },
+  {
+    "method": "GET",
+    "path": "/moderation/action"
   },
   {
     "method": "GET",
@@ -613,6 +693,10 @@
   },
   {
     "method": "PATCH",
+    "path": "/api/user/privacy-settings"
+  },
+  {
+    "method": "PATCH",
     "path": "/mcp"
   },
   {
@@ -625,6 +709,14 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/agent-interaction-intents"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agent-interaction-replay"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/agent-list"
   },
   {
@@ -634,6 +726,38 @@
   {
     "method": "POST",
     "path": "/api/admin/agent-update"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agent-webhook-config"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agent-webhook-deliveries"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agent-webhook-redeliver"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agent-webhook-rotate-secret"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agent-webhook-test"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agents/content-source"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agents/edit-post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agents/edit-topic"
   },
   {
     "method": "POST",
@@ -654,6 +778,18 @@
   {
     "method": "POST",
     "path": "/api/admin/ai-summary-models"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/anonymous-identities/govern"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/anonymous-identities/list"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/badge-asset"
   },
   {
     "method": "POST",
@@ -702,6 +838,22 @@
   {
     "method": "POST",
     "path": "/api/admin/data/import/tasks/:taskId/replay"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/decoration-asset"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/decoration-grant"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/decoration-revoke"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/decoration-save"
   },
   {
     "method": "POST",
@@ -774,6 +926,10 @@
   {
     "method": "POST",
     "path": "/api/admin/role-save"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-agent-comment-policy"
   },
   {
     "method": "POST",
@@ -861,6 +1017,26 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/set-agent-comment-topic-policy"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/stats/category-summary"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/stats/category-trend"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/stats/user-detail"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/stats/user-ranking"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/sticker-delete"
   },
   {
@@ -874,6 +1050,10 @@
   {
     "method": "POST",
     "path": "/api/admin/storage-migrate-task"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/test-http-notify-endpoint"
   },
   {
     "method": "POST",
@@ -957,6 +1137,14 @@
   },
   {
     "method": "POST",
+    "path": "/api/auth/passkey/login/begin"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/passkey/login/finish"
+  },
+  {
+    "method": "POST",
     "path": "/api/auth/tongji/registration"
   },
   {
@@ -989,6 +1177,30 @@
   },
   {
     "method": "POST",
+    "path": "/api/forum/anonymous/batches"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/anonymous/confirm"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/anonymous/disable"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/anonymous/govern"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/anonymous/privacy"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/anonymous/reveal"
+  },
+  {
+    "method": "POST",
     "path": "/api/forum/chat/forward"
   },
   {
@@ -1013,6 +1225,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/forum/content/appeals"
+  },
+  {
+    "method": "POST",
     "path": "/api/forum/course-reviews"
   },
   {
@@ -1025,7 +1241,35 @@
   },
   {
     "method": "POST",
+    "path": "/api/forum/feed/events"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/feed/reconcile"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/feed/refresh"
+  },
+  {
+    "method": "POST",
     "path": "/api/forum/follow-user"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/appeal-action"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/appeals"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/approval-action/execute"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/approval-action/preview"
   },
   {
     "method": "POST",
@@ -1201,6 +1445,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/forum/topics/agent-replies"
+  },
+  {
+    "method": "POST",
     "path": "/api/forum/topics/bookmark"
   },
   {
@@ -1341,6 +1589,30 @@
   },
   {
     "method": "POST",
+    "path": "/api/user/decorations/equip"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/passkeys/reauth"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/passkeys/registration/begin"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/passkeys/registration/finish"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/passkeys/rename"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/passkeys/revoke"
+  },
+  {
+    "method": "POST",
     "path": "/api/user/sessions/revoke"
   },
   {
@@ -1358,6 +1630,10 @@
   {
     "method": "POST",
     "path": "/api/user/totp/setup"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/agent/events/ack"
   },
   {
     "method": "POST",
@@ -1402,6 +1678,10 @@
   {
     "method": "PUT",
     "path": "/api/forum/course-reviews/:reviewId/helpful"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/forum/push/preferences"
   },
   {
     "method": "PUT",

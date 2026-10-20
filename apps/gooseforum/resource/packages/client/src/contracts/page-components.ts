@@ -1,4 +1,5 @@
 import type {
+  AnonymousProfileProps,
   CategoryPageProps,
   CourseCatalogPageProps,
   CourseDetailPageProps,
@@ -10,6 +11,7 @@ import type {
   LinksPageProps,
   LoginPageProps,
   MessagesPageProps,
+  ModerationActionPageProps,
   ModerationPageProps,
   NotificationsPageProps,
   PublishPageProps,
@@ -32,6 +34,7 @@ export const pageComponents = [
   'home.index',
   'topic.detail',
   'user.profile',
+  'anonymous.profile',
   'category.index',
   'links.index',
   'sponsors.index',
@@ -41,6 +44,7 @@ export const pageComponents = [
   'messages.index',
   'drafts.index',
   'moderation.index',
+  'moderation.action',
   'settings.index',
   'theme.preview',
   'publish.index',
@@ -65,6 +69,7 @@ export interface PagePayloadMap {
   'home.index': HomeProps
   'topic.detail': TopicDetailProps
   'user.profile': UserProfileProps
+  'anonymous.profile': AnonymousProfileProps
   'category.index': CategoryPageProps
   'links.index': LinksPageProps
   'sponsors.index': SponsorsPageProps
@@ -74,6 +79,7 @@ export interface PagePayloadMap {
   'messages.index': MessagesPageProps
   'drafts.index': DraftsPageProps
   'moderation.index': ModerationPageProps
+  'moderation.action': ModerationActionPageProps
   'settings.index': SettingsPageProps
   'theme.preview': ThemePreviewProps
   'publish.index': PublishPageProps

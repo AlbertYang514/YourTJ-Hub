@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"strings"
 	"time"
 
@@ -116,7 +118,7 @@ type AiModerationDecisionListReq struct {
 	PageSize    int    `json:"pageSize"`
 	FinalAction string `json:"finalAction" validate:"omitempty,oneof=allow review block"`
 	HumanAction string `json:"humanAction" validate:"omitempty,oneof=none approved rejected"`
-	Mode        string `json:"mode" validate:"omitempty,oneof=shadow enforce"`
+	Mode        string `json:"mode" validate:"omitempty,oneof=shadow enforce deferred"`
 }
 
 // AiModerationDecisionItem 决策记录的管理端视图（不含任何密钥/原始 prompt）。
@@ -144,6 +146,16 @@ type AiModerationDecisionItem struct {
 }
 
 func aiDecisionItem(entity moderationDecision.Entity) AiModerationDecisionItem {
+	if entity.SubjectType == "topic" && topics.UnscopedGet(entity.SubjectId).PersonaUID != "" {
+		entity.AuthorId = 0
+	}
+	if entity.SubjectType == "post" {
+		p := posts.GetMapByIdsUnscoped([]uint64{entity.SubjectId})[entity.SubjectId]
+		if p != nil && p.IsAnonymous {
+			entity.AuthorId = 0
+		}
+	}
+
 	images := entity.Images
 	if images == nil {
 		images = []moderationDecision.ImageRecord{}

@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-29
+> Last verified: 2026-10-13
 
 This standard applies the native reading direction in [0037](../decisions/0037-adaptive-mobile-reading-window.md)
 to the Flutter app. [Mobile experience](mobile-experience.md) records implemented behavior. Rules marked
@@ -66,7 +66,19 @@ Navigation uses the same destinations, icons and unread meaning at every window 
 rail stays reachable independently of reading scroll; compact controls reclaim vertical reading
 space. Compose menus follow their source column and consume system insets once. Implemented
 breakpoints and bounds live in [mobile experience](mobile-experience.md#navigation-and-reading).
-`Planned`: contextual panes and bounded reading layouts on every pushed page.
+`Current`: pushed reading pages use a centered bounded column, including their headers;
+the page receives the actual column width and retains its state across window changes. Timetable,
+management, login and image-viewer pages retain their full viewport; login keeps its form bounded on a continuous background.
+The wide rail shows destination names
+beside their icons when space permits, otherwise below them, with wrapping labels and scrolling at enlarged text sizes.
+`Current`: Home presents category navigation in a horizontal row above its topic feed, settings presents its directory
+beside the current section, and publishing presents editor and preview together when space permits.
+Wide Home windows use a right column for search and existing Hot topics. Messages shows its conversation
+directory beside the selected chat; course and Wiki workspaces keep their selectors beside their content.
+Drafts keeps its filters and search beside the retained draft list; content management keeps topic/reply
+selection beside its retained results. Site information keeps its directory beside the selected document.
+The single-pane fallback keeps selected content and input mounted; enlarged text increases the
+space needed for two panes.
 
 Resizing, rotating or opening the keyboard must not recreate a draft, reset the selected tab, navigate
 away or lose scroll position. No product operation depends solely on hover. Keyboard users can reach
@@ -100,7 +112,9 @@ lives in [mobile experience](mobile-experience.md#publishing).
 
 `Current`: profile and password editing use pages and preserve input on failed saves. Shared short
 choice sheets use a drag handle, 24-pixel top corners, one safe-area boundary and a 640-pixel width
-limit. `Partial`: legacy forms still use bounded scrollable sheets; profile, password and course
+limit. Menus, choices and confirmations use Material presentation on every platform; see
+[0100](../decisions/0100-material-interaction-surfaces-on-ios.md).
+`Partial`: legacy forms still use bounded scrollable sheets; profile, password and course
 review editing confirm discarding changed input.
 Transient feedback uses the existing shared banner; field-specific errors stay beside the field.
 Retry belongs beside the failed operation. A success banner must not precede server acknowledgement
@@ -110,6 +124,12 @@ Only one input accessory is active: software keyboard, emoji/sticker panel, or c
 switches preserve focus intent, text selection and composition. Insertion replaces the current
 selection at the caret; it does not append to the end. Selection is clamped after document changes.
 Hardware keyboards retain editing shortcuts and do not force a large empty software-keyboard gap.
+One accessory slot below the editor owns the keyboard inset and bottom safe area; the page does not
+also resize for the keyboard. A panel takes the last settled keyboard height for the orientation,
+and a switch keeps the outgoing surface until the incoming one covers it, so the editor holds its
+position or moves once in one direction. Switching changes neither the editor's surface nor its
+multiline input semantics. A sheet that briefly borrows the editor's focus, such as the identity
+choice, reserves the keyboard's space and hands focus back, so the editor does not drop and rise.
 
 `Planned`: moment/question publishing retains type selection and the edit/preview/classification
 sequence. Articles use the existing rich editor with a focused writing canvas, selection-aware

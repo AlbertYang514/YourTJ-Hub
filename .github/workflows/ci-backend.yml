@@ -17,26 +17,26 @@ jobs:
   ci-backend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ inputs.source || github.sha }}
           persist-credentials: false
           fetch-depth: 0
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
-          go-version: "1.26"
-      # Go 工具链下限门禁(issue #447): go.mod 声明 go 1.26.6 + toolchain go1.26.8,
-      # 但 setup-go 的 go-version "1.26"(check-latest) 只保证取最新 1.26.x patch。
-      # 显式断言解析到的实际工具链 >= 1.26.6, 防止缓存/回退导致旧 patch
-      # (go1.26.5 及更早的 7 个 stdlib CVE, 修复于 go1.26.6) 静默编译产物。
-      - name: Assert Go toolchain >= 1.26.6 (issue #447)
+          go-version-file: apps/gooseforum/go.mod
+      # Go 工具链下限门禁(issue #447): go.mod 声明 go 1.26.9,
+      # setup-go 读取模块版本, 不依赖可能滞后的 1.26 系列 manifest。
+      # 显式断言解析到的实际工具链 >= 1.26.9, 防止缓存/回退导致旧 patch
+      # (net/http、crypto/tls、html/template 等 stdlib CVE, 修复于 go1.26.9) 静默编译产物。
+      - name: Assert Go toolchain >= 1.26.9 (issue #447)
         working-directory: apps/gooseforum
         run: |
           set -euo pipefail
-          min="1.26.6"
+          min="1.26.9"
           cur="$(go env GOVERSION | sed 's/^go//')"
           if [[ "$(printf '%s\n%s\n' "$min" "$cur" | sort -V | head -n1)" != "$min" ]]; then
-            echo "::error::Go toolchain ${cur} is below the required minimum ${min} (stdlib CVEs fixed in Go 1.26.6, issue #447)"
+            echo "::error::Go toolchain ${cur} is below the required minimum ${min} (stdlib CVEs fixed in Go 1.26.9, issue #447)"
             exit 1
           fi
           echo "Go toolchain ${cur} >= ${min}: OK"
@@ -60,7 +60,10 @@ jobs:
             bash -n "$f"
           done
           bash deploy/scripts/pgdsn_test.sh
+          python3 deploy/scripts/sync_snapshot_retention_test.py
           python3 deploy/render_config_test.py
+          python3 -m unittest deploy/agent_snapshot_test.py
+          python3 -m unittest discover -s examples/agent-runtime -p 'test_*.py' -v
 
   # wiki 同步锁并发测试（#285 回归）必须通过竞态检测。PR #297 描述引用过
   # "ci-backend-race"，但此前该 job 不存在；此处落地为真实 job，与
@@ -70,13 +73,13 @@ jobs:
     if: success()
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ inputs.source || github.sha }}
           persist-credentials: false
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
-          go-version: "1.26"
+          go-version-file: apps/gooseforum/go.mod
       - name: Test (race detector, wiki sync concurrency)
         working-directory: apps/gooseforum
         run: go test -race ./app/service/wikiservice/
@@ -103,13 +106,13 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ inputs.source || github.sha }}
           persist-credentials: false
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
-          go-version: "1.26"
+          go-version-file: apps/gooseforum/go.mod
       - name: Test (PostgreSQL migration + PG-gated models)
         working-directory: apps/gooseforum
         env:

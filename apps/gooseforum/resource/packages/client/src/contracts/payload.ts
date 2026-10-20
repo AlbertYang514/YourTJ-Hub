@@ -1,3 +1,4 @@
+import type { UserDecoration } from './decoration.js'
 export interface PagePayload<TProps = unknown, TComponent extends string = string> {
   component: TComponent
   props: TProps
@@ -48,6 +49,7 @@ export interface LoginPageProps {
   initialMode: 'login' | 'register' | 'forgot'
   redirectUrl: string
   githubUrl: string
+  githubReady: boolean
   googleUrl: string
   tongjiReady?: boolean
   tongjiUrl?: string
@@ -65,6 +67,7 @@ export interface ResetPasswordPageProps {
 }
 
 export interface LayoutPayload {
+  dailyRanking?: boolean
   site: SitePayload
   viewer: ViewerPayload
   header?: NavItemPayload[]
@@ -237,18 +240,25 @@ export interface SitePayload {
   brandType: string
   brandText: string
   brandImage: string
+  /**
+   * 外链免确认白名单（issue #1200）：小写主机名，条目覆盖其全部子域；
+   * 命中且风险为 normal_external 的站外链接跳过确认弹层。
+   */
+  trustedExternalDomains: string[]
 }
 
 export interface ViewerPayload {
   id: number
   username: string
   email: string
+  decoration?: UserDecoration
   avatarUrl: string
   isAuthenticated: boolean
   canAccessAdmin: boolean
   isModerator: boolean
   requiresEmailVerification: boolean
   adminPermissions: number[]
+  canManageAgents?: boolean
 }
 
 export interface CategoryNavPayload {
@@ -312,7 +322,39 @@ export interface PaginationPayload {
   nextUrl: string
 }
 
+export interface SeenProof {
+  token: string
+  topicIds: number[]
+  issuedAt: number
+  expiresAt: number
+}
+export interface SeenPatch {
+  proof: string
+  seen: Record<number, number>
+}
+export interface FeedRefreshRequest {
+  seenPatches?: SeenPatch[]
+  replaceSnapshotId?: string
+}
+export interface FeedSessionResponse {
+  viewerId: number
+  topics: TopicPayload[]
+  removedIds: number[]
+  seenProofs: SeenProof[]
+  snapshotId: string
+  pagination?: PaginationPayload
+  available: boolean
+  seenConfirmed: boolean
+}
 export interface HomeProps {
+  /** Browser-only recovery marker; never serialized by the server. */
+  sessionLost?: boolean
+  sessionCursorExpired?: boolean
+  snapshotId?: string
+  seenProofs?: SeenProof[]
+  actualSort?: string
+  degradeReason?: string
+  feedTrace?: string
   /** Server-defined sort keys include following (sign-in required). */
   sort: string
   tabs: Array<{ key: string; label?: string; url: string; active: boolean }>
@@ -333,12 +375,15 @@ export interface TopicDetailProps {
   hotTopics: TopicPayload[]
   permissions: {
     isOwnTopic: boolean
+    canManageAgentReplies?: boolean
     canPost: boolean
     canModerateTopic: boolean
   }
 }
 
 export interface TopicDetailPayload {
+  /** Missing on older servers; defaults to allowing Agent replies. */
+  agentRepliesDisabled?: boolean
   id: number
   title: string
   description: string
@@ -350,13 +395,17 @@ export interface TopicDetailPayload {
   authorDeleted: boolean
   moderatorRemoved: boolean
   author: {
+    kind?: 'member' | 'persona' | 'anonymous'
+    publicUid?: string
+    profileUrl?: string
     id: number
     username: string
     nickname?: string
+    decoration?: UserDecoration
     avatarUrl: string
     wornBadge?: UserBadgePayload | null
   }
-  participants: Array<{ id: number; username: string; nickname?: string; avatarUrl: string; wornBadge?: UserBadgePayload | null }>
+  participants: Array<{ id: number; username: string; nickname?: string; avatarUrl: string; decoration?: UserDecoration; wornBadge?: UserBadgePayload | null }>
   categories: Array<{ id: number; name: string; url: string; color: string }>
   replyCount: number
   maxPostNo: number
@@ -391,9 +440,13 @@ export interface PostPayload {
   isModeratorRemoved: boolean
   canModerate: boolean
   author: {
+    kind?: 'member' | 'persona' | 'anonymous'
+    publicUid?: string
+    profileUrl?: string
     id: number
     username: string
     nickname?: string
+    decoration?: UserDecoration
     avatarUrl: string
     wornBadge?: UserBadgePayload | null
   }
@@ -406,9 +459,13 @@ export interface PostPayload {
   isAnonymous?: boolean
   updatedAt?: string
   lastEditor?: {
+    kind?: 'member' | 'persona' | 'anonymous'
+    publicUid?: string
+    profileUrl?: string
     id: number
     username: string
     nickname?: string
+    decoration?: UserDecoration
     avatarUrl: string
     wornBadge?: UserBadgePayload | null
   }
@@ -418,15 +475,21 @@ export interface PostPayload {
   isLiked: boolean
   isBookmarked: boolean
   isAnswer: boolean
+  /** Topic gallery, only on the visible first post (issue #1228). */
+  images?: string[]
 }
 
 export interface ReplyTargetPayload {
   id: number
   postNo?: number
   author: {
+    kind?: 'member' | 'persona' | 'anonymous'
+    publicUid?: string
+    profileUrl?: string
     id: number
     username: string
     nickname?: string
+    decoration?: UserDecoration
     avatarUrl: string
     wornBadge?: UserBadgePayload | null
   }
@@ -451,6 +514,9 @@ export interface PostWindowPayload {
 }
 
 export interface TopicPayload {
+  feedTrace?: string
+  feedPosition?: number
+  feedReason?: string
   id: number
   title: string
   description: string
@@ -458,13 +524,17 @@ export interface TopicPayload {
   images?: string[]
   url: string
   author: {
+    kind?: 'member' | 'persona' | 'anonymous'
+    publicUid?: string
+    profileUrl?: string
     id: number
     username: string
     nickname?: string
+    decoration?: UserDecoration
     avatarUrl: string
     wornBadge?: UserBadgePayload | null
   }
-  participants: Array<{ id: number; username: string; nickname?: string; avatarUrl: string; wornBadge?: UserBadgePayload | null }>
+  participants: Array<{ id: number; username: string; nickname?: string; avatarUrl: string; decoration?: UserDecoration; wornBadge?: UserBadgePayload | null }>
   categories: Array<{ id: number; name: string; url: string; color: string }>
   replyCount: number
   viewCount: number
@@ -503,10 +573,14 @@ export interface ModerationLogItem {
   id: number
   action: string
   actor: {
+    kind?: 'member' | 'persona' | 'anonymous'
+    publicUid?: string
+    profileUrl?: string
     id: number
     username: string
     /** Current nickname; absent when the actor has none. */
     nickname?: string
+    decoration?: UserDecoration
     avatarUrl: string
   }
   subject: ModerationLogSubject
@@ -538,6 +612,7 @@ export interface ModerationReportItem {
     username: string
     /** Current nickname; absent when the reporter has none. */
     nickname?: string
+    decoration?: UserDecoration
     avatarUrl: string
   }
   handler: {
@@ -545,6 +620,7 @@ export interface ModerationReportItem {
     username: string
     /** Current nickname; absent when the handler has none. */
     nickname?: string
+    decoration?: UserDecoration
     avatarUrl: string
   }
   categories: Array<{ id: number; name: string; url: string; color: string }>
@@ -557,6 +633,29 @@ export interface ModerationReportListResponse {
   items: ModerationReportItem[]
   nextCursor: number
   hasNext: boolean
+}
+
+export interface ModerationActionPageProps {
+  // 快捷审批确认页（issue #1049）：token 只在前端读取并 POST 给 preview/execute，SSR 仅提供空壳。
+}
+
+/** 快捷审批确认页视图（issue #1049）：无权限、token 无效或过期时不含目标内容。 */
+export interface ModerationApprovalActionView {
+  state: 'ready' | 'done' | 'processed' | 'changed' | 'expired' | 'invalid' | 'forbidden' | 'notFound' | 'failed'
+  subject?: 'review.topic' | 'review.post' | 'report' | 'appeal'
+  action?: 'approve' | 'reject' | 'ban' | 'hide' | 'dismiss'
+  targetType?: 'topic' | 'post' | 'chat_message' | 'course_review'
+  targetId?: number
+  reportId?: number
+  title?: string
+  excerpt?: string
+  anonymous?: boolean
+  targetUrl?: string
+  workbenchUrl: string
+  expiresAt?: string
+  /** 申诉复核：原审核理由与作者的申诉说明，只在站内确认页展示。 */
+  originalReason?: string
+  appealReason?: string
 }
 
 export interface ModerationDeletedContentView {
@@ -579,6 +678,7 @@ export interface UserCardPayload {
   userId: number
   username: string
   nickname: string
+  decoration?: UserDecoration
   avatarUrl: string
   profileCoverUrl: string
   bio: string
@@ -621,10 +721,31 @@ export interface UserProfileProps {
   following: UserConnectionPayload[]
   followers: UserConnectionPayload[]
   isOwnProfile: boolean
+  canManageAgent?: boolean
   canMessage: boolean
   canFollow: boolean
   messageUrl: string
   settingsUrl: string
+  /** Profile sections as resolved for the current viewer (issue #1124). */
+  visibility: UserProfileVisibility
+}
+
+export type ProfileVisibilityReason = 'signin' | 'followers' | 'mutual' | 'private'
+
+export interface ProfileSectionVisibility {
+  visible: boolean
+  /** Present only when the section is hidden from this viewer. */
+  reason?: ProfileVisibilityReason
+  /** Present only on the owner's own profile. */
+  audience?: 'everyone' | 'members' | 'followers' | 'mutual' | 'self'
+}
+
+export interface UserProfileVisibility {
+  profileTopics: ProfileSectionVisibility
+  profileActivity: ProfileSectionVisibility
+  profileLikes: ProfileSectionVisibility
+  followingList: ProfileSectionVisibility
+  followersList: ProfileSectionVisibility
 }
 
 export interface BadgePayload {
@@ -693,6 +814,7 @@ export interface UserConnectionPayload {
   id: number
   username: string
   nickname: string
+  decoration?: UserDecoration
   avatarUrl: string
   bio: string
   url: string
@@ -768,6 +890,7 @@ export interface SponsorPayload {
   name: string
   message: string
   link: string
+  decoration?: UserDecoration
   avatarUrl: string
 }
 
@@ -788,6 +911,8 @@ export interface SponsorsRulePayload {
 }
 
 export interface NotificationsPageProps {
+  category?: NotificationCategory
+  filter?: NotificationFilter
   total: number
   unreadCount: number
   notifications: NotificationPayload[]
@@ -800,6 +925,7 @@ export interface NotificationsPageProps {
 }
 
 export type NotificationFilter = 'all' | 'unread'
+export type NotificationCategory = 'all' | 'mentions' | 'replies' | 'likes' | 'following' | 'system'
 
 export interface NotificationListResponse {
   items: NotificationPayload[]
@@ -817,8 +943,14 @@ export type NotificationTemplateKey =
   | 'notifications.templates.follow'
   | 'notifications.templates.badge'
   | 'notifications.templates.wikiUpdated'
+  | 'notifications.templates.reviewPending'
   | 'notifications.templates.reviewApproved'
   | 'notifications.templates.reviewRejected'
+  // 审核申诉（#1114）：沿用三种审核事件类型，仅模板不同。
+  | 'notifications.templates.appealSubmitted'
+  | 'notifications.templates.appealApproved'
+  | 'notifications.templates.appealRejected'
+  | 'notifications.templates.appealStale'
 
 export interface DraftsPageProps {
   total: number
@@ -844,6 +976,8 @@ export interface DraftPayload {
   categories: Array<{ id: number; name: string; url: string; color: string }>
 }
 
+// review_pending links to the author's candidate; review_approved is human-only.
+// review_rejected links to content management; payload.topicTitle is masked by the server.
 export interface NotificationPayload {
   id: number
   eventType: string
@@ -852,10 +986,14 @@ export interface NotificationPayload {
   title: string
   content: string
   actor: {
+    kind?: 'member' | 'persona' | 'anonymous'
+    publicUid?: string
+    profileUrl?: string
     id: number
     username: string
     /** Current nickname; absent when the actor has none. */
     nickname?: string
+    decoration?: UserDecoration
     avatarUrl?: string
   }
   topic?: {
@@ -866,6 +1004,7 @@ export interface NotificationPayload {
   payload: {
     title?: string
     content?: string
+    hasDirectMention?: boolean
     templateKey?: NotificationTemplateKey
     templateParams?: NotificationTemplateParams
     actorId: number
@@ -900,6 +1039,7 @@ export interface ChatItemPayload {
   peerUsername: string
   /** Current nickname; absent when the peer has none. */
   peerNickname?: string
+  peerDecoration?: UserDecoration
   peerAvatar: string
   lastMsg: string
   lastMsgTime: string
@@ -935,6 +1075,7 @@ export interface SettingsUserPayload {
   pendingEmail: string
   nickname: string
   locale: string
+  decoration?: UserDecoration
   avatarUrl: string
   profileCoverUrl: string
   bio: string
@@ -956,10 +1097,13 @@ export interface PublishPageProps {
   isEditing: boolean
   categories: PublishCategoryPayload[]
   topic: {
+    images?: string[]
     title: string
     content: string
     categoryIds: number[]
     topicStatus: number
+    agentRepliesDisabled?: boolean
+    identity?: 'member' | 'persona'
     contentType?: 0 | 1 | 2 | 3 // 0=regular, 1=question, 2=thought, 3=article
   }
 }
@@ -974,6 +1118,7 @@ export interface UserSearchPayload {
   id: number
   username: string
   nickname: string
+  decoration?: UserDecoration
   avatarUrl: string
   bio: string
 }
@@ -1164,6 +1309,7 @@ export interface WikiContributorPayload {
   userId: number
   username: string
   /** GitHub noreply 邮箱可解析时的动态头像直链；自定义邮箱贡献者为空。 */
+  decoration?: UserDecoration
   avatarUrl: string
   /** GitHub 主页外链（{username}）；自定义邮箱贡献者为空。 */
   githubUrl?: string
@@ -1212,3 +1358,15 @@ export interface ChatForwardEntry { senderName: string; avatarUrl?: string; cont
 export interface ChatForwardBundle { version: number; messages: ChatForwardEntry[] }
 export interface ForwardChatMessagesRequest { convId: number; peerId: number; messageIds: number[]; mode: 'individual' | 'merged'; clientForwardId: string }
 export interface ForwardChatMessagesResult { convId: number; messageIds: number[] }
+
+/** Public persona profile: topics/replies only; member identity and relationships are absent. */
+export interface AnonymousProfileProps {
+ showContent: boolean
+ persona: {kind:'persona'; publicUid:string; name:string; avatarUrl:string; profileUrl:string}
+ topics: TopicPayload[]
+ replies: Array<{id:number;url:string;excerpt:string}>
+ topicCount:number
+ replyCount:number
+ page:number
+ hasNext:boolean
+}

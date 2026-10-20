@@ -36,6 +36,54 @@ NotificationPayload notification({
 );
 
 void main() {
+  test(
+    'review copy uses the reviewed subject instead of legacy preview text',
+    () {
+      for (final event in [
+        'review_pending',
+        'review_approved',
+        'review_rejected',
+      ]) {
+        final subject = event == 'review_rejected' ? '首******尾' : '无标题正文摘要';
+        final copy = notificationText(
+          notification(
+            event: event,
+            topicTitle: subject,
+            content: 'Legacy raw preview',
+          ),
+          AppLocalizationsEn(),
+        );
+        expect(copy.$2, startsWith(subject));
+        expect(copy.$2, isNot(contains('Legacy raw preview')));
+        expect(copy.$2, isNot(contains('Actual preview')));
+      }
+    },
+  );
+
+  test('manual review and rejection explain the next step in all locales', () {
+    for (final l10n in [
+      AppLocalizationsZh(),
+      AppLocalizationsEn(),
+      AppLocalizationsJa(),
+      AppLocalizationsDe(),
+    ]) {
+      final pending = notificationText(
+        notification(template: 'notifications.templates.reviewPending'),
+        l10n,
+      );
+      expect(pending.$1, l10n.notificationReviewPending);
+      expect(pending.$2, contains(l10n.notificationReviewPendingDetail));
+      final rejected = notificationText(
+        notification(template: 'notifications.templates.reviewRejected'),
+        l10n,
+      );
+      expect(rejected.$1, l10n.notificationReviewRejected);
+      expect(rejected.$2, contains(l10n.notificationReviewRejectedDetail));
+      // 并非所有被拒内容都可申诉：指引须指向条目上实际出现的申诉按钮，而不是无条件承诺可申诉。
+      expect(l10n.notificationReviewRejectedDetail, contains(l10n.appealAction));
+    }
+  });
+
   test('mention text in every locale and stable floor navigation', () {
     for (final locale in <AppLocalizations>[
       AppLocalizationsZh(),
@@ -76,6 +124,29 @@ void main() {
         floor == 8 ? '/p/512?postNo=8' : '/p/512',
       );
     }
+    expect(
+      notificationTarget(notification(event: 'review_rejected')),
+      '/my-content',
+    );
+    // 申诉受理回执（review_pending 且引导到内容管理）与 Web 深链判定一致。
+    expect(
+      notificationTarget(
+        notification(
+          event: 'review_pending',
+          metadata: const NotificationMetadata(
+            profileUrl: '/settings?tab=content',
+          ),
+        ),
+      ),
+      '/my-content',
+    );
+    // 普通待审通知没有内容管理 profileUrl，仍按话题打开。
+    expect(
+      notificationTarget(
+        notification(event: 'review_pending', topicTitle: 'pending topic'),
+      ),
+      isNull,
+    );
     expect(notificationTarget(notification(event: 'mention')), isNull);
     expect(notificationTarget(notification(event: 'follow')), '/u/1');
   });
@@ -176,6 +247,66 @@ void main() {
     },
   );
 
+  test('appeal outcomes have their own wording and destination (#1114)', () {
+    NotificationPayload appeal(String event, String template) =>
+        NotificationPayload(
+          id: 9,
+          eventType: event,
+          isRead: false,
+          createdAt: '',
+          title: '',
+          content: '',
+          actor: const NotificationActorPayload(id: 0, username: ''),
+          payload: NotificationInnerPayload(
+            actorId: 0,
+            topicId: 42,
+            topicTitle: 'S******t',
+            templateKey: 'notifications.templates.$template',
+          ),
+        );
+    final cases =
+        <(String, String, String Function(AppLocalizations), String?)>[
+          (
+            'review_pending',
+            'appealSubmitted',
+            (l) => l.notificationAppealSubmitted,
+            '/my-content',
+          ),
+          (
+            'review_approved',
+            'appealApproved',
+            (l) => l.notificationAppealApproved,
+            '/p/42',
+          ),
+          (
+            'review_rejected',
+            'appealRejected',
+            (l) => l.notificationAppealRejected,
+            '/my-content',
+          ),
+          (
+            'review_rejected',
+            'appealStale',
+            (l) => l.notificationAppealStale,
+            '/my-content',
+          ),
+        ];
+    for (final l10n in <AppLocalizations>[
+      AppLocalizationsEn(),
+      AppLocalizationsZh(),
+      AppLocalizationsJa(),
+      AppLocalizationsDe(),
+    ]) {
+      for (final (event, template, title, target) in cases) {
+        final item = appeal(event, template);
+        final (heading, detail) = notificationText(item, l10n);
+        expect(heading, title(l10n));
+        expect(heading, isNot(l10n.notificationReviewRejected));
+        expect(detail, startsWith('S******t\n'));
+        expect(notificationTarget(item), target);
+      }
+    }
+  });
   test('all Web template keys resolve in both supported locales', () {
     for (final l10n in [AppLocalizationsEn(), AppLocalizationsZh()]) {
       for (final key in [
@@ -196,7 +327,11 @@ void main() {
           l10n,
         );
         expect(title, isNot(contains('notifications.')));
-        expect(title, contains(key == 'badge' ? '维护者' : 'Alice'));
+        if (key != 'wikiUpdated') {
+          expect(title, contains(key == 'badge' ? '维护者' : 'Alice'));
+        } else {
+          expect(title, l10n.notificationWikiUpdated);
+        }
         expect(subtitle, 'Actual preview');
       }
     }

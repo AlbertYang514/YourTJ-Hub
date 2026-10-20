@@ -1,18 +1,25 @@
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter, lerpDouble;
 
 import 'package:flutter/foundation.dart'
     show DiagnosticPropertiesBuilder, DoubleProperty, ValueListenable;
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
+import '../twemoji/twemoji_text.dart';
 import 'gf_motion.dart';
+import 'gf_symbol.dart';
 
 /// A single selectable tab in [GfTabBar].
 class GfTab {
-  const GfTab({required this.label, required this.value});
+  const GfTab({required this.label, required this.value, this.symbol});
 
   final String label;
   final Object value;
+
+  /// Optional leading ReIcon glyph; it follows the label's selected color.
+  /// With [GfTabBar.selectedSymbolOnly], pass the Filled weight.
+  final String? symbol;
 }
 
 @immutable
@@ -57,7 +64,8 @@ class GfTabSwipeProgressScope extends InheritedWidget {
 /// Scrollable tab bar mirroring web `.gf-tab` semantics.
 ///
 /// On mobile the bar scrolls horizontally when tabs overflow; the active tab
-/// renders with a short brand underline; idle tabs use muted text.
+/// renders with a short brand underline; idle tabs use muted text. Overflowing
+/// edges fade out so the hidden tabs read as reachable by scrolling.
 class GfTabBar extends StatefulWidget {
   /// Use this for overlay toolbars so their content inset grows with text.
   static double heightFor(BuildContext context) =>
@@ -68,15 +76,27 @@ class GfTabBar extends StatefulWidget {
     required this.selected,
     required this.onSelected,
     this.mobile = true,
+    this.distribute = false,
+    this.selectedSymbolOnly = false,
   });
 
   final List<GfTab> tabs;
   final Object selected;
   final ValueChanged<Object> onSelected;
 
+  /// When true and every tab fits, tabs share the width evenly. Otherwise
+  /// (narrow windows, large text) the bar keeps scrolling horizontally.
+  final bool distribute;
+
   /// When true (default) the bar scrolls horizontally on overflow; when false
   /// tabs wrap.
   final bool mobile;
+
+  /// When true, only the selected tab shows its [GfTab.symbol]. The glyph
+  /// follows the selection: the outgoing one shrinks toward the incoming tab
+  /// while the incoming one grows in from the outgoing side, so the two meet
+  /// in the middle. A page swipe scrubs the same handoff.
+  final bool selectedSymbolOnly;
 
   @override
   State<GfTabBar> createState() => _GfTabBarState();
@@ -99,7 +119,22 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
   bool _reduceMotion = false;
   bool _ready = false;
 
+  /// Width of each evenly distributed tab, or null while the bar scrolls.
+  ///
+  /// Assigned inside [LayoutBuilder] during [build] (before the indicator is
+  /// measured in that same frame) and read by the indicator/gesture paths as
+  /// the value from the last completed build. It is a layout cache, not a
+  /// source of truth, so it must be refreshed on every build.
+  double? _cellWidth;
+
   static const Curve _indicatorCurve = GfLogarithmicEaseOutCurve();
+  static const double _symbolSize = 18;
+  static const double _symbolGap = 6;
+  static const double _fillLabelPadding = 4;
+  // Horizontal travel of a selected-only glyph while it hands off.
+  static const double _symbolTravel = 10;
+  // The 4px enter blur expressed as a Gaussian sigma.
+  static const double _symbolBlurSigma = 2;
 
   int get _selectedIndex =>
       widget.tabs.indexWhere((tab) => tab.value == widget.selected);
@@ -219,6 +254,7 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
         targetIndex >= widget.tabs.length) {
       return 0;
     }
+    if (_cellWidth case final cell?) return cell * progress.offset.abs();
     final style = DefaultTextStyle.of(
       context,
     ).style.copyWith(fontSize: 16, height: 1.25, fontWeight: FontWeight.w600);
@@ -234,6 +270,86 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
     _settleController.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  /// How present the selected-only glyph of [index] is, from 0 to 1.
+  ///
+  /// A tap that skips tabs only hands off between its two ends; a drag or an
+  /// idle bar follows the controller value, so neighbours share the glyph.
+  double _symbolPresence(int index) {
+    final double value = _controller.animation!.value;
+    if (_controller.indexIsChanging) {
+      final int from = _controller.previousIndex;
+      final int to = _controller.index;
+      final double progress = ((value - from) / (to - from)).clamp(0.0, 1.0);
+      if (index == to) return progress;
+      if (index == from) return 1 - progress;
+      return 0;
+    }
+    return (1 - (value - index).abs()).clamp(0.0, 1.0);
+  }
+
+  Widget _selectedOnlySymbol(int index, String symbol) => AnimatedBuilder(
+    animation: _controller.animation!,
+    builder: (context, _) {
+      final double presence = _symbolPresence(index);
+      if (presence == 0) return const SizedBox.shrink();
+      const double slot = _symbolSize + _symbolGap;
+      final double hidden = 1 - presence;
+      // Toward the other tab of the handoff: positive while selection moves
+      // to higher indexes, mirrored for right-to-left reading.
+      final double direction =
+          (_controller.animation!.value - index).sign *
+          (Directionality.of(context) == TextDirection.rtl ? -1 : 1);
+      Widget glyph = Transform.translate(
+        offset: Offset(_symbolTravel * hidden * direction, 0),
+        child: Transform.scale(
+          scale: lerpDouble(.25, 1, presence)!,
+          child: GfSymbol(symbol, size: _symbolSize),
+        ),
+      );
+      if (hidden > 0) {
+        final double sigma = _symbolBlurSigma * hidden;
+        glyph = ImageFiltered(
+          imageFilter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+          child: glyph,
+        );
+      }
+      return SizedBox(
+        width: slot * presence,
+        height: _symbolSize,
+        child: OverflowBox(
+          minWidth: slot,
+          maxWidth: slot,
+          child: Padding(
+            padding: const EdgeInsetsDirectional.only(end: _symbolGap),
+            child: Opacity(opacity: presence, child: glyph),
+          ),
+        ),
+      );
+    },
+  );
+
+  Widget _label(int index, {required bool active}) {
+    final GfTab tab = widget.tabs[index];
+    final text = GfText(tab.label, maxLines: 1, softWrap: false);
+    final String? symbol = tab.symbol;
+    if (symbol == null ||
+        (widget.selectedSymbolOnly && !widget.mobile && !active)) {
+      return text;
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (widget.selectedSymbolOnly && widget.mobile)
+          _selectedOnlySymbol(index, symbol)
+        else ...[
+          GfSymbol(symbol, size: _symbolSize),
+          const SizedBox(width: _symbolGap),
+        ],
+        Flexible(child: text),
+      ],
+    );
   }
 
   @override
@@ -253,7 +369,7 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
       context,
     ).style.copyWith(fontSize: 16, height: 1.25, fontWeight: FontWeight.w600);
     final currentProgress = _swipeProgress?.value;
-    final double dragExtension =
+    double dragExtension() =>
         currentProgress != null &&
             currentProgress.originIndex == _controller.index &&
             !_controller.indexIsChanging
@@ -280,7 +396,12 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
         child: InkWell(
           onTap: () => selectTab(index),
           child: SizedBox(
-            width: _itemWidth(context, tabs[index], measureStyle),
+            width: _itemWidth(
+              context,
+              tabs[index],
+              measureStyle,
+              withSymbol: !widget.selectedSymbolOnly || active,
+            ),
             height: height,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -293,7 +414,19 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
                     color: active ? colors.baseContent : colors.iconMuted,
                     fontWeight: active ? FontWeight.w600 : FontWeight.w400,
                   ),
-                  child: Text(tabs[index].label, maxLines: 1, softWrap: false),
+                  // The glyph shares the label's color transition.
+                  child: TweenAnimationBuilder<Color?>(
+                    tween: ColorTween(
+                      end: active ? colors.baseContent : colors.iconMuted,
+                    ),
+                    duration: noAnimation ? Duration.zero : duration,
+                    curve: curve,
+                    builder: (context, color, child) => IconTheme.merge(
+                      data: IconThemeData(color: color),
+                      child: child!,
+                    ),
+                    child: _label(index, active: active),
+                  ),
                 ),
                 const Spacer(),
                 AnimatedContainer(
@@ -318,50 +451,157 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
     }
     if (tabs.isEmpty) return const SizedBox.shrink();
 
-    return SizedBox(
-      height: height,
-      child: TabBar(
-        key: const ValueKey('gf-tab-bar'),
-        controller: _controller,
-        isScrollable: true,
-        tabAlignment: TabAlignment.start,
-        indicatorAnimation: TabIndicatorAnimation.elastic,
-        indicatorSize: TabBarIndicatorSize.label,
-        indicator: _FixedWidthTabIndicator(
-          color: colors.primary,
-          width: 28 + (dragExtension > 0 ? dragExtension : settleExtension),
-        ),
-        dividerColor: Colors.transparent,
-        dividerHeight: 0,
-        labelColor: colors.baseContent,
-        labelStyle: measureStyle.copyWith(fontWeight: FontWeight.w600),
-        labelPadding: const EdgeInsets.symmetric(horizontal: 16),
-        unselectedLabelColor: colors.iconMuted,
-        unselectedLabelStyle: measureStyle.copyWith(
-          fontWeight: FontWeight.w400,
-        ),
-        tabs: [
-          for (final tab in tabs)
-            Tab(
-              height: height,
-              child: Text(tab.label, maxLines: 1, softWrap: false),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Equal cells must each hold the widest label at the fill padding.
+        final bool fill =
+            widget.distribute &&
+            constraints.hasBoundedWidth &&
+            tabs.fold<double>(
+                      0,
+                      (widest, tab) => math.max(
+                        widest,
+                        _itemWidth(
+                          context,
+                          tab,
+                          measureStyle,
+                          padding: _fillLabelPadding,
+                        ),
+                      ),
+                    ) *
+                    tabs.length <=
+                constraints.maxWidth;
+        _cellWidth = fill ? constraints.maxWidth / tabs.length : null;
+        final double extension = dragExtension();
+        final Widget bar = SizedBox(
+          height: height,
+          child: TabBar(
+            key: const ValueKey('gf-tab-bar'),
+            controller: _controller,
+            isScrollable: !fill,
+            tabAlignment: fill ? TabAlignment.fill : TabAlignment.start,
+            indicatorAnimation: TabIndicatorAnimation.elastic,
+            indicatorSize: TabBarIndicatorSize.label,
+            indicator: _FixedWidthTabIndicator(
+              color: colors.primary,
+              width: 28 + (extension > 0 ? extension : settleExtension),
             ),
-        ],
-        onTap: selectTab,
-      ),
+            dividerColor: Colors.transparent,
+            dividerHeight: 0,
+            labelColor: colors.baseContent,
+            labelStyle: measureStyle.copyWith(fontWeight: FontWeight.w600),
+            labelPadding: EdgeInsets.symmetric(
+              horizontal: fill ? _fillLabelPadding : 16,
+            ),
+            unselectedLabelColor: colors.iconMuted,
+            unselectedLabelStyle: measureStyle.copyWith(
+              fontWeight: FontWeight.w400,
+            ),
+            tabs: [
+              for (var i = 0; i < tabs.length; i++)
+                Tab(
+                  height: height,
+                  child: _label(i, active: i == selectedIndex),
+                ),
+            ],
+            onTap: selectTab,
+          ),
+        );
+        // Evenly distributed tabs always fit. The scrolling strip keeps one
+        // tree so its offset survives the fade appearing and disappearing.
+        return fill ? bar : _GfTabEdgeFade(child: bar);
+      },
     );
   }
 
-  double _itemWidth(BuildContext context, GfTab tab, TextStyle style) {
+  double _itemWidth(
+    BuildContext context,
+    GfTab tab,
+    TextStyle style, {
+    double padding = 16,
+    bool withSymbol = true,
+  }) {
     final painter = TextPainter(
       text: TextSpan(text: tab.label, style: style),
       maxLines: 1,
       textDirection: Directionality.of(context),
       textScaler: MediaQuery.textScalerOf(context),
     )..layout();
-    final width = painter.width + 32;
+    final width =
+        painter.width +
+        padding * 2 +
+        (tab.symbol == null || !withSymbol ? 0 : _symbolSize + _symbolGap);
     painter.dispose();
     return width;
+  }
+}
+
+/// Fades whichever end of a horizontal strip still has content to scroll to.
+class _GfTabEdgeFade extends StatefulWidget {
+  const _GfTabEdgeFade({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_GfTabEdgeFade> createState() => _GfTabEdgeFadeState();
+}
+
+class _GfTabEdgeFadeState extends State<_GfTabEdgeFade> {
+  static const double _fadeExtent = 32;
+
+  bool _start = false;
+  bool _end = false;
+
+  bool _onNotification(Notification notification) {
+    final ScrollMetrics? metrics = switch (notification) {
+      ScrollNotification(depth: 0, :final metrics) => metrics,
+      ScrollMetricsNotification(depth: 0, :final metrics) => metrics,
+      _ => null,
+    };
+    if (metrics == null || metrics.axis != Axis.horizontal) return false;
+    final bool start = metrics.extentBefore > .5;
+    final bool end = metrics.extentAfter > .5;
+    if (start != _start || end != _end) {
+      setState(() {
+        _start = start;
+        _end = end;
+      });
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final TextDirection direction = Directionality.of(context);
+    return NotificationListener<Notification>(
+      onNotification: _onNotification,
+      child: TweenAnimationBuilder<Offset>(
+        tween: Tween<Offset>(end: Offset(_start ? 1 : 0, _end ? 1 : 0)),
+        duration: GfMotion.duration(context, GfMotion.selection),
+        curve: GfMotion.layoutCurve,
+        child: widget.child,
+        builder: (context, fade, child) => ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (Rect bounds) {
+            final double stop = bounds.width <= 0
+                ? 0
+                : math.min(.5, _fadeExtent / bounds.width);
+            return LinearGradient(
+              begin: AlignmentDirectional.centerStart,
+              end: AlignmentDirectional.centerEnd,
+              colors: <Color>[
+                Color.fromRGBO(0, 0, 0, 1 - fade.dx),
+                const Color(0xFF000000),
+                const Color(0xFF000000),
+                Color.fromRGBO(0, 0, 0, 1 - fade.dy),
+              ],
+              stops: <double>[0, stop, 1 - stop, 1],
+            ).createShader(bounds, textDirection: direction);
+          },
+          child: child,
+        ),
+      ),
+    );
   }
 }
 

@@ -89,6 +89,7 @@ type ExternalInformation struct {
 }
 
 type EntityComplete struct {
+	PushPreferences *string `gorm:"column:push_preferences;type:text" json:"-"`
 	// base
 	Id             uint64     `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`                                                                         //
 	Username       string     `gorm:"column:username;uniqueIndex:uniq_users_username;type:varchar(64);not null;default:'';" json:"username"`                          //
@@ -121,6 +122,7 @@ type EntityComplete struct {
 	DisplayBadgeCodes   string              `gorm:"column:display_badge_codes;type:text;not null;default:'';" json:"-"`                                     // Empty means legacy first-five; JSON [] explicitly hides all.
 	WornBadgeCode       string              `gorm:"column:worn_badge_code;type:varchar(64);not null;default:'';" json:"wornBadgeCode"`                      // 当前佩戴的徽章
 
+	AnonymousGovernanceBlocked bool `gorm:"not null;default:false" json:"-"`
 	// status
 	CreatedAt time.Time      `gorm:"column:created_at;index;autoCreateTime;<-:create;" json:"createdAt"` //
 	UpdatedAt time.Time      `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`

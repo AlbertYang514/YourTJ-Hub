@@ -218,8 +218,11 @@ PublishTopicPayload _$PublishTopicPayloadFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$PublishTopicPayload {
+  bool get agentRepliesDisabled => throw _privateConstructorUsedError;
+  String get identity => throw _privateConstructorUsedError;
   String get title => throw _privateConstructorUsedError;
   String get content => throw _privateConstructorUsedError;
+  List<String> get images => throw _privateConstructorUsedError;
   List<int> get categoryIds => throw _privateConstructorUsedError;
   int get topicStatus => throw _privateConstructorUsedError;
   int get contentType => throw _privateConstructorUsedError;
@@ -242,8 +245,11 @@ abstract class $PublishTopicPayloadCopyWith<$Res> {
   ) = _$PublishTopicPayloadCopyWithImpl<$Res, PublishTopicPayload>;
   @useResult
   $Res call({
+    bool agentRepliesDisabled,
+    String identity,
     String title,
     String content,
+    List<String> images,
     List<int> categoryIds,
     int topicStatus,
     int contentType,
@@ -265,14 +271,25 @@ class _$PublishTopicPayloadCopyWithImpl<$Res, $Val extends PublishTopicPayload>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? agentRepliesDisabled = null,
+    Object? identity = null,
     Object? title = null,
     Object? content = null,
+    Object? images = null,
     Object? categoryIds = null,
     Object? topicStatus = null,
     Object? contentType = null,
   }) {
     return _then(
       _value.copyWith(
+            agentRepliesDisabled: null == agentRepliesDisabled
+                ? _value.agentRepliesDisabled
+                : agentRepliesDisabled // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            identity: null == identity
+                ? _value.identity
+                : identity // ignore: cast_nullable_to_non_nullable
+                      as String,
             title: null == title
                 ? _value.title
                 : title // ignore: cast_nullable_to_non_nullable
@@ -281,6 +298,10 @@ class _$PublishTopicPayloadCopyWithImpl<$Res, $Val extends PublishTopicPayload>
                 ? _value.content
                 : content // ignore: cast_nullable_to_non_nullable
                       as String,
+            images: null == images
+                ? _value.images
+                : images // ignore: cast_nullable_to_non_nullable
+                      as List<String>,
             categoryIds: null == categoryIds
                 ? _value.categoryIds
                 : categoryIds // ignore: cast_nullable_to_non_nullable
@@ -309,8 +330,11 @@ abstract class _$$PublishTopicPayloadImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    bool agentRepliesDisabled,
+    String identity,
     String title,
     String content,
+    List<String> images,
     List<int> categoryIds,
     int topicStatus,
     int contentType,
@@ -331,14 +355,25 @@ class __$$PublishTopicPayloadImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? agentRepliesDisabled = null,
+    Object? identity = null,
     Object? title = null,
     Object? content = null,
+    Object? images = null,
     Object? categoryIds = null,
     Object? topicStatus = null,
     Object? contentType = null,
   }) {
     return _then(
       _$PublishTopicPayloadImpl(
+        agentRepliesDisabled: null == agentRepliesDisabled
+            ? _value.agentRepliesDisabled
+            : agentRepliesDisabled // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        identity: null == identity
+            ? _value.identity
+            : identity // ignore: cast_nullable_to_non_nullable
+                  as String,
         title: null == title
             ? _value.title
             : title // ignore: cast_nullable_to_non_nullable
@@ -347,6 +382,10 @@ class __$$PublishTopicPayloadImplCopyWithImpl<$Res>
             ? _value.content
             : content // ignore: cast_nullable_to_non_nullable
                   as String,
+        images: null == images
+            ? _value._images
+            : images // ignore: cast_nullable_to_non_nullable
+                  as List<String>,
         categoryIds: null == categoryIds
             ? _value._categoryIds
             : categoryIds // ignore: cast_nullable_to_non_nullable
@@ -368,20 +407,39 @@ class __$$PublishTopicPayloadImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
   const _$PublishTopicPayloadImpl({
+    this.agentRepliesDisabled = false,
+    this.identity = "member",
     required this.title,
     required this.content,
+    final List<String> images = const <String>[],
     final List<int> categoryIds = const <int>[],
     required this.topicStatus,
     this.contentType = 3,
-  }) : _categoryIds = categoryIds;
+  }) : _images = images,
+       _categoryIds = categoryIds;
 
   factory _$PublishTopicPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$PublishTopicPayloadImplFromJson(json);
 
   @override
+  @JsonKey()
+  final bool agentRepliesDisabled;
+  @override
+  @JsonKey()
+  final String identity;
+  @override
   final String title;
   @override
   final String content;
+  final List<String> _images;
+  @override
+  @JsonKey()
+  List<String> get images {
+    if (_images is EqualUnmodifiableListView) return _images;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_images);
+  }
+
   final List<int> _categoryIds;
   @override
   @JsonKey()
@@ -399,7 +457,7 @@ class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
 
   @override
   String toString() {
-    return 'PublishTopicPayload(title: $title, content: $content, categoryIds: $categoryIds, topicStatus: $topicStatus, contentType: $contentType)';
+    return 'PublishTopicPayload(agentRepliesDisabled: $agentRepliesDisabled, identity: $identity, title: $title, content: $content, images: $images, categoryIds: $categoryIds, topicStatus: $topicStatus, contentType: $contentType)';
   }
 
   @override
@@ -407,8 +465,13 @@ class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$PublishTopicPayloadImpl &&
+            (identical(other.agentRepliesDisabled, agentRepliesDisabled) ||
+                other.agentRepliesDisabled == agentRepliesDisabled) &&
+            (identical(other.identity, identity) ||
+                other.identity == identity) &&
             (identical(other.title, title) || other.title == title) &&
             (identical(other.content, content) || other.content == content) &&
+            const DeepCollectionEquality().equals(other._images, _images) &&
             const DeepCollectionEquality().equals(
               other._categoryIds,
               _categoryIds,
@@ -423,8 +486,11 @@ class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
   @override
   int get hashCode => Object.hash(
     runtimeType,
+    agentRepliesDisabled,
+    identity,
     title,
     content,
+    const DeepCollectionEquality().hash(_images),
     const DeepCollectionEquality().hash(_categoryIds),
     topicStatus,
     contentType,
@@ -449,8 +515,11 @@ class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
 
 abstract class _PublishTopicPayload implements PublishTopicPayload {
   const factory _PublishTopicPayload({
+    final bool agentRepliesDisabled,
+    final String identity,
     required final String title,
     required final String content,
+    final List<String> images,
     final List<int> categoryIds,
     required final int topicStatus,
     final int contentType,
@@ -460,9 +529,15 @@ abstract class _PublishTopicPayload implements PublishTopicPayload {
       _$PublishTopicPayloadImpl.fromJson;
 
   @override
+  bool get agentRepliesDisabled;
+  @override
+  String get identity;
+  @override
   String get title;
   @override
   String get content;
+  @override
+  List<String> get images;
   @override
   List<int> get categoryIds;
   @override
@@ -1753,6 +1828,11 @@ HomeProps _$HomePropsFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$HomeProps {
+  String? get snapshotId => throw _privateConstructorUsedError;
+  List<FeedSeenProof> get seenProofs => throw _privateConstructorUsedError;
+  String? get actualSort => throw _privateConstructorUsedError;
+  String? get degradeReason => throw _privateConstructorUsedError;
+  String? get feedTrace => throw _privateConstructorUsedError;
   String get sort => throw _privateConstructorUsedError;
   List<TabItemPayload> get tabs => throw _privateConstructorUsedError;
   List<TopicPayload> get topics => throw _privateConstructorUsedError;
@@ -1775,6 +1855,11 @@ abstract class $HomePropsCopyWith<$Res> {
       _$HomePropsCopyWithImpl<$Res, HomeProps>;
   @useResult
   $Res call({
+    String? snapshotId,
+    List<FeedSeenProof> seenProofs,
+    String? actualSort,
+    String? degradeReason,
+    String? feedTrace,
     String sort,
     List<TabItemPayload> tabs,
     List<TopicPayload> topics,
@@ -1801,6 +1886,11 @@ class _$HomePropsCopyWithImpl<$Res, $Val extends HomeProps>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? snapshotId = freezed,
+    Object? seenProofs = null,
+    Object? actualSort = freezed,
+    Object? degradeReason = freezed,
+    Object? feedTrace = freezed,
     Object? sort = null,
     Object? tabs = null,
     Object? topics = null,
@@ -1809,6 +1899,26 @@ class _$HomePropsCopyWithImpl<$Res, $Val extends HomeProps>
   }) {
     return _then(
       _value.copyWith(
+            snapshotId: freezed == snapshotId
+                ? _value.snapshotId
+                : snapshotId // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            seenProofs: null == seenProofs
+                ? _value.seenProofs
+                : seenProofs // ignore: cast_nullable_to_non_nullable
+                      as List<FeedSeenProof>,
+            actualSort: freezed == actualSort
+                ? _value.actualSort
+                : actualSort // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            degradeReason: freezed == degradeReason
+                ? _value.degradeReason
+                : degradeReason // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            feedTrace: freezed == feedTrace
+                ? _value.feedTrace
+                : feedTrace // ignore: cast_nullable_to_non_nullable
+                      as String?,
             sort: null == sort
                 ? _value.sort
                 : sort // ignore: cast_nullable_to_non_nullable
@@ -1865,6 +1975,11 @@ abstract class _$$HomePropsImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    String? snapshotId,
+    List<FeedSeenProof> seenProofs,
+    String? actualSort,
+    String? degradeReason,
+    String? feedTrace,
     String sort,
     List<TabItemPayload> tabs,
     List<TopicPayload> topics,
@@ -1892,6 +2007,11 @@ class __$$HomePropsImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? snapshotId = freezed,
+    Object? seenProofs = null,
+    Object? actualSort = freezed,
+    Object? degradeReason = freezed,
+    Object? feedTrace = freezed,
     Object? sort = null,
     Object? tabs = null,
     Object? topics = null,
@@ -1900,6 +2020,26 @@ class __$$HomePropsImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$HomePropsImpl(
+        snapshotId: freezed == snapshotId
+            ? _value.snapshotId
+            : snapshotId // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        seenProofs: null == seenProofs
+            ? _value._seenProofs
+            : seenProofs // ignore: cast_nullable_to_non_nullable
+                  as List<FeedSeenProof>,
+        actualSort: freezed == actualSort
+            ? _value.actualSort
+            : actualSort // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        degradeReason: freezed == degradeReason
+            ? _value.degradeReason
+            : degradeReason // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        feedTrace: freezed == feedTrace
+            ? _value.feedTrace
+            : feedTrace // ignore: cast_nullable_to_non_nullable
+                  as String?,
         sort: null == sort
             ? _value.sort
             : sort // ignore: cast_nullable_to_non_nullable
@@ -1929,17 +2069,40 @@ class __$$HomePropsImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$HomePropsImpl implements _HomeProps {
   const _$HomePropsImpl({
+    this.snapshotId,
+    final List<FeedSeenProof> seenProofs = const [],
+    this.actualSort,
+    this.degradeReason,
+    this.feedTrace,
     required this.sort,
     required final List<TabItemPayload> tabs,
     required final List<TopicPayload> topics,
     required this.pagination,
     required this.announcement,
-  }) : _tabs = tabs,
+  }) : _seenProofs = seenProofs,
+       _tabs = tabs,
        _topics = topics;
 
   factory _$HomePropsImpl.fromJson(Map<String, dynamic> json) =>
       _$$HomePropsImplFromJson(json);
 
+  @override
+  final String? snapshotId;
+  final List<FeedSeenProof> _seenProofs;
+  @override
+  @JsonKey()
+  List<FeedSeenProof> get seenProofs {
+    if (_seenProofs is EqualUnmodifiableListView) return _seenProofs;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_seenProofs);
+  }
+
+  @override
+  final String? actualSort;
+  @override
+  final String? degradeReason;
+  @override
+  final String? feedTrace;
   @override
   final String sort;
   final List<TabItemPayload> _tabs;
@@ -1965,7 +2128,7 @@ class _$HomePropsImpl implements _HomeProps {
 
   @override
   String toString() {
-    return 'HomeProps(sort: $sort, tabs: $tabs, topics: $topics, pagination: $pagination, announcement: $announcement)';
+    return 'HomeProps(snapshotId: $snapshotId, seenProofs: $seenProofs, actualSort: $actualSort, degradeReason: $degradeReason, feedTrace: $feedTrace, sort: $sort, tabs: $tabs, topics: $topics, pagination: $pagination, announcement: $announcement)';
   }
 
   @override
@@ -1973,6 +2136,18 @@ class _$HomePropsImpl implements _HomeProps {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$HomePropsImpl &&
+            (identical(other.snapshotId, snapshotId) ||
+                other.snapshotId == snapshotId) &&
+            const DeepCollectionEquality().equals(
+              other._seenProofs,
+              _seenProofs,
+            ) &&
+            (identical(other.actualSort, actualSort) ||
+                other.actualSort == actualSort) &&
+            (identical(other.degradeReason, degradeReason) ||
+                other.degradeReason == degradeReason) &&
+            (identical(other.feedTrace, feedTrace) ||
+                other.feedTrace == feedTrace) &&
             (identical(other.sort, sort) || other.sort == sort) &&
             const DeepCollectionEquality().equals(other._tabs, _tabs) &&
             const DeepCollectionEquality().equals(other._topics, _topics) &&
@@ -1986,6 +2161,11 @@ class _$HomePropsImpl implements _HomeProps {
   @override
   int get hashCode => Object.hash(
     runtimeType,
+    snapshotId,
+    const DeepCollectionEquality().hash(_seenProofs),
+    actualSort,
+    degradeReason,
+    feedTrace,
     sort,
     const DeepCollectionEquality().hash(_tabs),
     const DeepCollectionEquality().hash(_topics),
@@ -2009,6 +2189,11 @@ class _$HomePropsImpl implements _HomeProps {
 
 abstract class _HomeProps implements HomeProps {
   const factory _HomeProps({
+    final String? snapshotId,
+    final List<FeedSeenProof> seenProofs,
+    final String? actualSort,
+    final String? degradeReason,
+    final String? feedTrace,
     required final String sort,
     required final List<TabItemPayload> tabs,
     required final List<TopicPayload> topics,
@@ -2019,6 +2204,16 @@ abstract class _HomeProps implements HomeProps {
   factory _HomeProps.fromJson(Map<String, dynamic> json) =
       _$HomePropsImpl.fromJson;
 
+  @override
+  String? get snapshotId;
+  @override
+  List<FeedSeenProof> get seenProofs;
+  @override
+  String? get actualSort;
+  @override
+  String? get degradeReason;
+  @override
+  String? get feedTrace;
   @override
   String get sort;
   @override

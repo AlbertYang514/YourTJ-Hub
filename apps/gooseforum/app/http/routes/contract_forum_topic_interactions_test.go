@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 )
@@ -23,6 +24,35 @@ func TestUpdateTopicStatusHTTPContract(t *testing.T) {
 			t.Fatalf("topic status status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "result-true.json"))
+	})
+
+	t.Run("another user cannot delete an author's draft", func(t *testing.T) {
+		conn, router := setupForumInteractionContractTest(t)
+		author := createHTTPContractUser(t, conn, contractTestID())
+		otherUser := createHTTPContractUser(t, conn, contractTestID())
+		base := contractTestID()
+		topicID, firstPostID := base, base+1
+		createContractPublishedTopic(t, conn, topicID, firstPostID, author.Id)
+		if err := conn.Model(&topics.Entity{}).Where("id = ?", topicID).Update("status", 0).Error; err != nil {
+			t.Fatalf("set topic as draft: %v", err)
+		}
+
+		body := fmt.Sprintf(`{"topicId":%d}`, topicID)
+		response := serveJSON(router, "/api/forum/topics/delete", body, contractSessionToken(t, otherUser))
+		if response.Code != http.StatusOK {
+			t.Fatalf("delete draft status = %d, want 200: %s", response.Code, response.Body.String())
+		}
+		if got := decodeContractEnvelope(t, response).MessageCode; got != "topic.ownerMismatch" {
+			t.Fatalf("delete draft messageCode = %q, want topic.ownerMismatch", got)
+		}
+
+		drafts, err := topics.GetDraftsByUserId(author.Id, 100)
+		if err != nil {
+			t.Fatalf("list author's drafts: %v", err)
+		}
+		if len(drafts) != 1 || drafts[0].Id != topicID {
+			t.Fatalf("author's drafts after unauthorized delete = %v, want draft %d", drafts, topicID)
+		}
 	})
 
 	t.Run("missing session returns 401", func(t *testing.T) {
@@ -64,6 +94,47 @@ func TestUpdateTopicStatusHTTPContract(t *testing.T) {
 }
 
 func TestDeleteTopicByUserHTTPContract(t *testing.T) {
+	t.Run("deleting a draft prevents a later editor autosave from restoring it", func(t *testing.T) {
+		conn, router := setupForumInteractionContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		base := contractTestID()
+		topicID, firstPostID := base, base+1
+		createContractPublishedTopic(t, conn, topicID, firstPostID, user.Id)
+		if err := conn.Model(&topics.Entity{}).Where("id = ?", topicID).Update("status", 0).Error; err != nil {
+			t.Fatalf("set topic as draft: %v", err)
+		}
+
+		deleteResponse := serveJSON(router, "/api/forum/topics/delete", fmt.Sprintf(`{"topicId":%d}`, topicID), contractSessionToken(t, user))
+		if deleteResponse.Code != http.StatusOK {
+			t.Fatalf("delete draft status = %d, want 200: %s", deleteResponse.Code, deleteResponse.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, deleteResponse), contractFixture(t, "result-true.json"))
+
+		// A different tab may still submit a debounced autosave using the deleted ID.
+		// The normal scoped topic lookup must reject that update instead of creating a new draft.
+		writeBody := fmt.Sprintf(`{"topicId":%d,"title":"Resaved draft","content":"A sufficiently long draft body after deletion.","categoryId":[1],"topicStatus":0,"contentType":3}`, topicID)
+		writeResponse := serveJSON(router, "/api/forum/topics/write", writeBody, contractSessionToken(t, user))
+		if writeResponse.Code != http.StatusOK {
+			t.Fatalf("autosave after deletion status = %d, want 200: %s", writeResponse.Code, writeResponse.Body.String())
+		}
+		if got := decodeContractEnvelope(t, writeResponse).MessageCode; got != "topic.ownerMismatch" {
+			t.Fatalf("autosave after deletion messageCode = %q, want topic.ownerMismatch", got)
+		}
+
+		drafts, err := topics.GetDraftsByUserId(user.Id, 100)
+		if err != nil {
+			t.Fatalf("list drafts after autosave: %v", err)
+		}
+		for _, draft := range drafts {
+			if draft.Id == topicID {
+				t.Fatal("deleted draft reappeared after editor autosave")
+			}
+		}
+		if stored := topics.UnscopedGet(topicID); !stored.DeletedAt.Valid {
+			t.Fatal("deleted draft lost its soft-delete marker")
+		}
+	})
+
 	t.Run("success", func(t *testing.T) {
 		conn, router := setupForumInteractionContractTest(t)
 		user := createHTTPContractUser(t, conn, contractTestID())

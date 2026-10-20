@@ -3,6 +3,9 @@ import 'dart:ui' show SemanticsAction, Tristate;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:forum_app/src/local/writing_store.dart';
 import 'package:forum_app/src/current_user.dart';
+import 'package:forum_app/src/server_messages.dart';
+import 'package:forum_app/src/pages/content/content_page.dart';
+import 'package:forum_app/src/pages/topic/post_editor.dart';
 
 import 'package:core/core.dart';
 import 'package:image/image.dart' as img;
@@ -22,7 +25,6 @@ import 'package:forum_app/src/widgets/editor/rich_markdown_editor.dart';
 import 'package:forum_app/src/widgets/markdown_view.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/providers.dart';
-import 'fixtures/page_fixtures.dart' show topicDetailPayloadJson;
 import 'fixtures/sticker_fixtures.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_picker.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
@@ -46,7 +48,6 @@ class _PublishPageRepository extends PageRepository {
 
   final PagePayload payload;
   bool offline = false;
-  PagePayload? existingTopic;
   final List<String> paths = <String>[];
 
   @override
@@ -55,10 +56,6 @@ class _PublishPageRepository extends PageRepository {
     if (offline) throw const NetworkException(fallbackMessage: 'offline');
     return payload;
   }
-
-  @override
-  Future<PagePayload> topicDetail(int topicId, {int? postNo}) async =>
-      existingTopic ?? await super.topicDetail(topicId, postNo: postNo);
 }
 
 class _FailingWritingStore extends WritingStore {
@@ -99,9 +96,11 @@ class _RecordingTopicRepository extends TopicRepository {
     super.client, {
     this.resultId = 99,
     this.requireCaptcha = false,
+    this.pendingReview = false,
     this.captchaAction = 'topic.write',
   });
   final bool requireCaptcha;
+  final bool pendingReview;
   final String captchaAction;
 
   final int resultId;
@@ -112,6 +111,8 @@ class _RecordingTopicRepository extends TopicRepository {
       String content,
       List<int> categoryIds,
       int topicStatus,
+      int contentType,
+      bool agentRepliesDisabled,
     })
   >
   writes =
@@ -122,6 +123,8 @@ class _RecordingTopicRepository extends TopicRepository {
           String content,
           List<int> categoryIds,
           int topicStatus,
+          int contentType,
+          bool agentRepliesDisabled,
         })
       >[];
 
@@ -133,9 +136,11 @@ class _RecordingTopicRepository extends TopicRepository {
     required List<int> categoryIds,
     required int topicStatus,
     int contentType = 3,
+    bool agentRepliesDisabled = false,
     List<String>? images,
     String? captchaId,
     String? captchaCode,
+    String? identity,
   }) async {
     if (requireCaptcha &&
         (captchaId != 'challenge' ||
@@ -159,9 +164,37 @@ class _RecordingTopicRepository extends TopicRepository {
       content: content,
       categoryIds: List<int>.of(categoryIds),
       topicStatus: topicStatus,
+      contentType: contentType,
+      agentRepliesDisabled: agentRepliesDisabled,
     ));
-    return WriteTopicResult(id: resultId);
+    return WriteTopicResult(
+      id: resultId,
+      pendingReview: pendingReview,
+      checking: pendingReview,
+    );
   }
+}
+
+class _RejectedContentRepository extends ContentRepository {
+  _RejectedContentRepository(super.client);
+  @override
+  Future<UserContentPage> list({
+    required String contentType,
+    bool deleted = false,
+    int cursor = 0,
+  }) async => const UserContentPage(
+    items: [
+      UserContentItem(
+        id: 42,
+        contentType: 'topic',
+        title: 'Rejected topic',
+        content: 'Stale list body',
+        processStatus: 1,
+      ),
+    ],
+    hasMore: false,
+    nextCursorId: 0,
+  );
 }
 
 class _CaptchaAuthRepository extends AuthRepository {
@@ -180,6 +213,7 @@ PagePayload _publishPayload({
   List<int>? categoryIds,
   String? content,
   bool viewerAuthenticated = true,
+  List<String> images = const [],
 }) {
   return PagePayload.fromJson(<String, dynamic>{
     'component': PageComponent.publish,
@@ -198,6 +232,7 @@ PagePayload _publishPayload({
         'categoryIds': categoryIds ?? (editing ? <int>[2] : null),
         'topicStatus': topicStatus ?? (editing ? 1 : 0),
         'contentType': contentType,
+        'images': images,
       },
     },
     'meta': <String, dynamic>{'title': editing ? '编辑话题' : '发布话题'},
@@ -258,6 +293,7 @@ void main() {
     String editQueryKey = 'topicId',
     String? localDraftKey,
     int contentType = 0,
+    int? initialContentType,
     int? topicStatus,
     List<int>? categoryIds,
     Locale locale = const Locale('zh'),
@@ -272,6 +308,8 @@ void main() {
     bool viewerAuthenticated = true,
     WritingStore? localStore,
     bool withStickers = false,
+    bool fromContentManagement = false,
+    ImageProvider<Object>? imageProvider,
   }) async {
     final _MemoryTokenStorage storage = _MemoryTokenStorage();
     final GfApiClient client = GfApiClient(
@@ -288,23 +326,30 @@ void main() {
         categoryIds: categoryIds,
         content: content,
         viewerAuthenticated: viewerAuthenticated,
+        images: readableGallery
+            ? const ['/file/img/gallery-photo.png']
+            : const [],
       ),
     );
     pageRepository.offline = offline;
-    if (readableGallery) {
-      final detail = topicDetailPayloadJson();
-      (detail['props'] as Map)['topic']['id'] = 42;
-      pageRepository.existingTopic = PagePayload.fromJson(detail);
-    }
     final _RecordingTopicRepository topicRepository = _RecordingTopicRepository(
       client,
       resultId: resultId,
       requireCaptcha: requireCaptcha,
       captchaAction: captchaAction,
+      pendingReview: fromContentManagement,
     );
     final GoRouter router = GoRouter(
-      initialLocation: editing ? '/publish?$editQueryKey=42' : '/publish',
+      initialLocation: fromContentManagement
+          ? '/my-content'
+          : editing
+          ? '/publish?$editQueryKey=42'
+          : '/publish',
       routes: <RouteBase>[
+        GoRoute(
+          path: '/my-content',
+          builder: (context, state) => const ContentPage(),
+        ),
         GoRoute(
           path: '/',
           builder: (BuildContext context, GoRouterState state) =>
@@ -315,7 +360,8 @@ void main() {
           builder: (BuildContext context, GoRouterState state) => PublishPage(
             topicId: publishTopicIdFromUri(state.uri),
             localDraftKey: localDraftKey,
-            initialContentType: contentType == 0 ? 3 : contentType,
+            initialContentType:
+                initialContentType ?? (contentType == 0 ? 3 : contentType),
             markdownConverter: markdownConverter,
           ),
         ),
@@ -328,10 +374,36 @@ void main() {
       ],
     );
 
+    Widget app = MaterialApp.router(
+      theme: gfThemeData(Brightness.light),
+      routerConfig: router,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      locale: locale,
+    );
+    if (imageProvider != null) {
+      app = GfMediaScope(
+        identity: imageProvider,
+        factory:
+            (
+              _, {
+              int? width,
+              int? height,
+              Set<String>? allowedOrigins,
+              ResizeImagePolicy policy = ResizeImagePolicy.exact,
+            }) => imageProvider,
+        child: app,
+      );
+    }
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: <Override>[
           tokenStorageProvider.overrideWithValue(storage),
+          if (fromContentManagement)
+            contentRepositoryProvider.overrideWithValue(
+              _RejectedContentRepository(client),
+            ),
           if (withStickers)
             stickerLibraryProvider.overrideWith(
               (ref) => StickerLibrary(ComposerStickerRepository(client)),
@@ -356,13 +428,7 @@ void main() {
           pageRepositoryProvider.overrideWithValue(pageRepository),
           topicRepositoryProvider.overrideWithValue(topicRepository),
         ],
-        child: MaterialApp.router(
-          theme: gfThemeData(Brightness.light),
-          routerConfig: router,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          locale: locale,
-        ),
+        child: app,
       ),
     );
     await tester.pumpAndSettle();
@@ -421,6 +487,27 @@ void main() {
       expect(box.constraints.minHeight, 220);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets(
+    'insert-link dialog url field stays a plain text field (issue #1111)',
+    (tester) async {
+      // 与登录页同根因:enableSuggestions:false 会被 Flutter Android 引擎映射为
+      // VISIBLE_PASSWORD inputType,ColorOS 据此强制安全键盘并禁用粘贴。
+      usePhoneViewport(tester);
+      await pumpPublishPage(tester, editing: false, contentType: 3);
+      await tester.tap(find.byTooltip('插入链接'));
+      await tester.pumpAndSettle();
+
+      final dialogField = tester.widget<TextField>(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(TextField),
+        ),
+      );
+      expect(dialogField.enableSuggestions, isTrue);
+      expect(dialogField.keyboardType, TextInputType.url);
     },
   );
 
@@ -498,7 +585,7 @@ void main() {
     }
   }
 
-  testWidgets('a new moment starts with body only and can opt into a title', (
+  testWidgets('a new moment shows an optional title without creating work', (
     tester,
   ) async {
     usePhoneViewport(tester);
@@ -507,13 +594,14 @@ void main() {
       editing: false,
       contentType: 2,
     );
-    expect(find.byType(TextField), findsOneWidget);
-    expect(find.byKey(const Key('publish-title')), findsNothing);
-    await tester.tap(find.byKey(const Key('publish-add-title')));
-    await tester.pumpAndSettle();
     final title = find.byKey(const Key('publish-title'));
     expect(title, findsOneWidget);
+    expect(find.text('标题（可留空）'), findsOneWidget);
+    await tester.tap(title);
+    await tester.pumpAndSettle();
     expect(tester.widget<TextField>(title).focusNode!.hasFocus, isTrue);
+    // The length counter appears only while the title is focused.
+    expect(find.text('0/100'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 800));
     await tester.pumpAndSettle();
     expect(
@@ -524,6 +612,33 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('保留这次创作？'), findsNothing);
     expect(result.router.state.uri.path, '/');
+  });
+
+  testWidgets('new topic submits the selected robot reply restriction', (
+    tester,
+  ) async {
+    usePhoneViewport(tester);
+    final result = await pumpPublishPage(
+      tester,
+      editing: false,
+      contentType: 2,
+      categoryIds: [2],
+    );
+    await tester.enterText(
+      find.byKey(const Key('publish-editor')),
+      'A sufficiently long campus moment.',
+    );
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    final setting = find.byKey(const Key('publish-agent-replies'));
+    await tester.ensureVisible(setting);
+    await tester.tap(
+      find.descendant(of: setting, matching: find.byType(Switch)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    expect(result.topicRepository.writes.single.agentRepliesDisabled, isTrue);
   });
 
   for (final draft in [false, true]) {
@@ -592,11 +707,8 @@ void main() {
       );
       expect(find.text('恢复的正文'), findsOneWidget);
       final titleField = find.byKey(const Key('publish-title'));
-      if (title.isEmpty) {
-        expect(titleField, findsNothing);
-      } else {
-        expect(tester.widget<TextField>(titleField).controller!.text, title);
-      }
+      // The optional title stays visible, empty or restored.
+      expect(tester.widget<TextField>(titleField).controller!.text, title);
     });
   }
 
@@ -611,8 +723,6 @@ void main() {
         categoryIds: [2],
       );
       await tester.enterText(find.byKey(const Key('publish-editor')), '这一刻的正文');
-      await tester.tap(find.byKey(const Key('publish-add-title')));
-      await tester.pumpAndSettle();
       await tester.enterText(find.byKey(const Key('publish-title')), '自定义标题');
       await tester.pump();
       await tester.tap(find.byKey(const Key('publish-appbar-submit')));
@@ -641,7 +751,6 @@ void main() {
         contentType: type,
       );
       expect(find.byKey(const Key('publish-title')), findsOneWidget);
-      expect(find.byKey(const Key('publish-add-title')), findsNothing);
       await tester.tap(find.byKey(const Key('publish-appbar-submit')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('publish-appbar-submit')));
@@ -672,7 +781,9 @@ void main() {
             .text,
         '原始标题',
       );
-      expect(find.byKey(const Key('publish-add-title')), findsNothing);
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('publish-agent-replies')), findsNothing);
     });
   }
 
@@ -682,14 +793,18 @@ void main() {
     usePhoneViewport(tester);
     await pumpPublishPage(tester, editing: false, contentType: 2);
     await tester.enterText(find.byKey(const Key('publish-editor')), '保留正文');
-    await tester.tap(find.byKey(const Key('publish-add-title')));
-    await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('publish-title')), '保留标题');
-    for (final type in ['文章', '提问', '瞬间']) {
-      await tester.tap(find.byType(DropdownButton<int>));
+    for (final (type, value) in [('文章', 3), ('提问', 1), ('瞬间', 2)]) {
+      await tester.tap(find.byKey(Key('publish-type-$value')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text(type).last);
-      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<Semantics>(find.byKey(Key('publish-type-$value')))
+            .properties
+            .selected,
+        isTrue,
+        reason: type,
+      );
       expect(
         tester
             .widget<TextField>(find.byKey(const Key('publish-title')))
@@ -1070,8 +1185,6 @@ void main() {
         tester.getBottomLeft(tools).dy,
         lessThanOrEqualTo(keyboardTop + 0.01),
       );
-      await tester.tap(find.text('文字格式'));
-      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('粗体'));
       await tester.pump();
       expect(
@@ -1102,7 +1215,7 @@ void main() {
     );
     original.focusNode.requestFocus();
     await tester.pump();
-    await tester.tap(find.text('文字格式'));
+    await tester.tap(find.byTooltip('粗体'));
     await tester.pumpAndSettle();
     final expanded = tester.widget<QuillEditor>(find.byType(QuillEditor));
     expect(identical(expanded.focusNode, original.focusNode), isTrue);
@@ -1224,8 +1337,6 @@ void main() {
         final l10n = AppLocalizations.of(
           tester.element(find.byType(PublishPage)),
         );
-        await tester.tap(find.text(l10n.publishFormatting));
-        await tester.pumpAndSettle();
         expect(find.byTooltip(l10n.publishUndo), findsOneWidget);
         expect(find.byTooltip(l10n.publishToolBold), findsOneWidget);
         await tester.tap(find.byKey(const Key('publish-appbar-submit')));
@@ -1246,8 +1357,6 @@ void main() {
     final semantics = tester.ensureSemantics();
     await pumpPublishPage(tester, editing: false, contentType: 3);
     final l10n = AppLocalizations.of(tester.element(find.byType(PublishPage)));
-    await tester.tap(find.text('文字格式'));
-    await tester.pumpAndSettle();
     GfIconButton button(String label) => tester.widget<GfIconButton>(
       find.ancestor(
         of: find.byTooltip(label),
@@ -1322,8 +1431,6 @@ void main() {
     tester.view.viewInsets = const FakeViewPadding(bottom: 250);
     addTearDown(tester.view.resetViewInsets);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('文字格式'));
-    await tester.pumpAndSettle();
 
     int? headerLevel() =>
         editor.controller
@@ -1395,19 +1502,19 @@ void main() {
   }
 
   testWidgets(
-    'an unreadable existing gallery blocks editing instead of clearing photos',
+    'rejected content can be edited without fetching its unavailable public page',
     (tester) async {
       final result = await pumpPublishPage(
         tester,
         editing: true,
         contentType: 2,
       );
-      expect(find.byKey(const Key('publish-editor')), findsNothing);
+      expect(find.byKey(const Key('publish-editor')), findsOneWidget);
       expect(
         tester
             .widget<GfButton>(find.byKey(const Key('publish-appbar-submit')))
             .onPressed,
-        isNull,
+        isNotNull,
       );
       expect(result.topicRepository.writes, isEmpty);
     },
@@ -1642,7 +1749,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(result.topicRepository.writes, isEmpty);
-    expect(find.text('选择分区与标签'), findsOneWidget);
+    expect(find.byKey(const Key('publish-category-menu')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('publish-category-menu')),
+        matching: find.text('开发'),
+      ),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const Key('publish-appbar-submit')));
     await tester.pumpAndSettle();
 
@@ -1656,6 +1770,130 @@ void main() {
     expect(result.router.state.uri.path, '/p/99');
     expect(find.text('topic-99'), findsOneWidget);
 
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('moments pick one category and the menu closes', (tester) async {
+    usePhoneViewport(tester);
+    final result = await pumpPublishPage(
+      tester,
+      editing: false,
+      contentType: 2,
+    );
+    await tester.enterText(find.byKey(const Key('publish-editor')), '正文');
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    final menu = find.byKey(const Key('publish-category-menu'));
+    expect(find.text('选择一个分区'), findsOneWidget);
+    await tester.ensureVisible(menu);
+    for (final (id, name) in [(1, '校园'), (3, '生活')]) {
+      await tester.tap(menu);
+      await tester.pumpAndSettle();
+      // Single choice: no "up to" header in the menu.
+      expect(find.textContaining('最多选'), findsNothing);
+      await tester.tap(find.byKey(ValueKey('publish-category-$id')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(ValueKey('publish-category-$id')), findsNothing);
+      expect(
+        find.descendant(of: menu, matching: find.text(name)),
+        findsOneWidget,
+      );
+    }
+    expect(find.descendant(of: menu, matching: find.text('校园')), findsNothing);
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    expect(result.topicRepository.writes.single.categoryIds, <int>[3]);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('articles pick up to three categories with the menu open', (
+    tester,
+  ) async {
+    usePhoneViewport(tester);
+    final result = await pumpPublishPage(tester, editing: true);
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    final menu = find.byKey(const Key('publish-category-menu'));
+    await tester.ensureVisible(menu);
+    await tester.tap(menu);
+    await tester.pumpAndSettle();
+    expect(find.text('最多选 3 个'), findsOneWidget);
+    expect(find.text('1/3'), findsOneWidget);
+    for (final id in [1, 3]) {
+      await tester.tap(find.byKey(ValueKey('publish-category-$id')));
+      await tester.pumpAndSettle();
+    }
+    // The menu stays open while picking; a fourth choice is unavailable.
+    expect(find.text('3/3'), findsOneWidget);
+    expect(
+      tester
+          .widget<MenuItemButton>(
+            find.byKey(const ValueKey('publish-category-4')),
+          )
+          .onPressed,
+      isNull,
+    );
+    await tester.tap(find.byKey(const ValueKey('publish-category-2')));
+    await tester.pumpAndSettle();
+    expect(find.text('2/3'), findsOneWidget);
+    await tester.tap(menu);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('publish-category-1')), findsNothing);
+    expect(
+      find.descendant(of: menu, matching: find.text('生活')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    expect(result.topicRepository.writes.single.categoryIds, <int>[1, 3]);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('article preview reorders body images in one undo step', (
+    tester,
+  ) async {
+    usePhoneViewport(tester);
+    final result = await pumpPublishPage(
+      tester,
+      editing: true,
+      content:
+          '开头\n\n![image](/a.png)\n\n中间\n\n![image](/b.png)\n\n![image](/c.png)\n',
+    );
+    final controller = tester
+        .widget<QuillEditor>(find.byType(QuillEditor))
+        .controller;
+    expect(find.byKey(const Key('publish-image-order')), findsNothing);
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    final strip = find.byKey(const Key('publish-image-order-strip'));
+    await tester.ensureVisible(strip);
+    expect(find.text('图片顺序'), findsOneWidget);
+    expect(find.bySemanticsLabel('第 3 张图片'), findsOneWidget);
+    tester.widget<ReorderableListView>(strip).onReorderItem!(0, 2);
+    await tester.pumpAndSettle();
+    expect(documentImageUrls(controller.document), <String>[
+      '/b.png',
+      '/c.png',
+      '/a.png',
+    ]);
+    expect(controller.document.toPlainText(), contains('中间'));
+    controller.undo();
+    await tester.pumpAndSettle();
+    expect(documentImageUrls(controller.document), <String>[
+      '/a.png',
+      '/b.png',
+      '/c.png',
+    ]);
+    controller.redo();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    final content = result.topicRepository.writes.single.content;
+    expect(content.indexOf('/b.png'), lessThan(content.indexOf('/c.png')));
+    expect(content.indexOf('/c.png'), lessThan(content.indexOf('/a.png')));
+    await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
   });
 
@@ -1673,6 +1911,93 @@ void main() {
     expect(find.text('已保存为草稿'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  for (final type in [1, 2, 3]) {
+    testWidgets(
+      'rejected type $type opens its normal editor from content management and resubmits',
+      (tester) async {
+        final result = await pumpPublishPage(
+          tester,
+          editing: true,
+          contentType: type,
+          initialContentType: 3,
+          content: 'Latest candidate body',
+          fromContentManagement: true,
+          locale: const Locale('en'),
+        );
+        await tester.tap(find.byType(GfPopupMenuButton<String>));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Edit and resubmit'));
+        await tester.pumpAndSettle();
+        expect(result.pageRepository.paths.last, '/publish?id=42');
+        expect(find.byType(PostEditor), findsNothing);
+        expect(
+          find.byType(QuillEditor),
+          type == 3 ? findsOneWidget : findsNothing,
+        );
+        if (type == 3) {
+          final controller = tester
+              .widget<QuillEditor>(find.byType(QuillEditor))
+              .controller;
+          expect(
+            controller.document.toPlainText(),
+            contains('Latest candidate body'),
+          );
+          controller.replaceText(
+            0,
+            controller.document.length - 1,
+            'Corrected candidate body',
+            const TextSelection.collapsed(offset: 24),
+          );
+        } else {
+          final body = find.byWidgetPredicate(
+            (w) =>
+                w is TextField && w.controller?.text == 'Latest candidate body',
+          );
+          expect(body, findsOneWidget);
+          await tester.enterText(body, 'Corrected candidate body');
+        }
+        await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+        await tester.pumpAndSettle();
+        final write = result.topicRepository.writes.single;
+        expect(write.topicId, 42);
+        expect(write.contentType, type);
+        expect(write.content, contains('Corrected candidate body'));
+        expect(write.topicStatus, 1);
+        expect(result.router.state.uri.path, '/p/99');
+        expect(
+          find.text(
+            pendingReviewMessage(
+              AppLocalizations.of(tester.element(find.text('topic-99'))),
+              checking: true,
+            ),
+          ),
+          findsOneWidget,
+        );
+        await tester.pump(const Duration(seconds: 4));
+      },
+    );
+  }
+
+  testWidgets('内容管理编辑瞬间优先使用服务端类型而非文章默认值', (tester) async {
+    final result = await pumpPublishPage(
+      tester,
+      editing: true,
+      editQueryKey: 'id',
+      contentType: 2,
+      initialContentType: 3,
+    );
+    expect(find.byType(QuillEditor), findsNothing);
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    expect(result.topicRepository.writes.single.topicId, 42);
+    expect(result.topicRepository.writes.single.contentType, 2);
     await tester.pump(const Duration(milliseconds: 600));
   });
 
@@ -1718,6 +2043,8 @@ void main() {
     await tester.pump();
     expect(find.text('标题不能为空'), findsOneWidget);
     expect(find.byType(GfStatusMessage), findsOneWidget);
+    // Let the preview step's identity request finish before teardown.
+    await tester.pumpAndSettle();
   });
 
   testWidgets('预览页只保留右上角发布按钮，保存草稿移入 AppBar', (tester) async {
@@ -1742,11 +2069,15 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
-  testWidgets('瞬间/提问编辑态只保留顶部画廊图片入口', (tester) async {
+  testWidgets('瞬间/提问编辑态只保留画廊图片入口', (tester) async {
     for (final type in [1, 2]) {
       await pumpPublishPage(tester, editing: false, contentType: type);
       expect(find.byTooltip('添加图片'), findsNothing);
-      expect(find.text('先选图片，再记录这一刻'), findsOneWidget);
+      expect(find.byKey(const Key('publish-gallery-add')), findsOneWidget);
+      expect(
+        find.text('先选图片，再记录这一刻'),
+        type == 2 ? findsOneWidget : findsNothing,
+      );
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 600));
     }
@@ -1779,6 +2110,65 @@ void main() {
     );
     expect(find.byKey(const Key('publish-appbar-submit')), findsOneWidget);
 
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('iPad long preview scrolls without moving the writing canvas', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1120, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await pumpPublishPage(
+      tester,
+      editing: true,
+      contentType: 1,
+      content: List.generate(
+        80,
+        (i) => 'Paragraph $i of the iPad draft.',
+      ).join('\n\n'),
+    );
+    final pane = find.byKey(const Key('publish-preview-pane'));
+    expect(pane, findsOneWidget);
+    expect(tester.getSize(pane).height, lessThanOrEqualTo(560));
+    final before = tester.getTopLeft(find.byKey(const Key('publish-editor')));
+    await tester.drag(pane, const Offset(0, -350));
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(find.byKey(const Key('publish-editor'))), before);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('iPad large text keeps a full-width editor and its draft', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1120, 900);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.6;
+    addTearDown(tester.view.reset);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await pumpPublishPage(tester, editing: true, contentType: 1);
+    final editor = find.byKey(const Key('publish-editor'));
+    await tester.enterText(editor, 'A preserved accessible iPad draft');
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(find.byKey(const Key('publish-preview')), findsNothing);
+    expect(tester.getSize(editor).width, greaterThan(800));
+    tester.platformDispatcher.textScaleFactorTestValue = 1;
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('publish-preview-pane')), findsOneWidget);
+    expect(
+      tester.widget<TextField>(editor).controller!.text,
+      'A preserved accessible iPad draft',
+    );
+    final keyboardTop = tester.view.physicalSize.height - 300;
+    expect(
+      tester.getRect(find.byKey(const Key('publish-writing-tools'))).bottom,
+      lessThanOrEqualTo(keyboardTop),
+    );
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
   });
@@ -1933,12 +2323,25 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
+    // Use a decoded image rather than depending on an HTTP failure icon and
+    // whether the current test command includes the package's SVG assets.
+    final imageProvider = MemoryImage(
+      img.encodePng(img.Image(width: 120, height: 60)),
+    );
     await pumpPublishPage(
       tester,
       editing: true,
       contentType: 3,
       content: '第一段\n\n![image](u1)\n\n第三段\n',
+      imageProvider: imageProvider,
     );
+    await tester.runAsync(
+      () => precacheImage(
+        imageProvider,
+        tester.element(find.byType(QuillEditor)),
+      ),
+    );
+    await tester.pumpAndSettle();
     expect(find.text('长按正文图片，可拖动到任意段落位置'), findsOneWidget);
 
     QuillController controllerOfEditor() =>
@@ -1960,15 +2363,32 @@ void main() {
       matching: find.byType(LongPressDraggable<ComposerImageDragPayload>),
     );
     expect(draggable, findsOneWidget);
+    expect(draggable.hitTestable(), findsOneWidget);
+    final Finder targetParagraph = find.descendant(
+      of: find.byType(QuillEditor),
+      matching: find.textContaining('第三段', findRichText: true),
+    );
+    expect(targetParagraph, findsOneWidget);
+    expect(targetParagraph.hitTestable(), findsOneWidget);
 
     final TestGesture gesture = await tester.startGesture(
       tester.getCenter(draggable),
     );
     await tester.pump(const Duration(milliseconds: 600));
-    await gesture.moveBy(const Offset(0, 140));
+    // Drop onto the actual paragraph instead of assuming a fixed image height
+    // and pixel distance to the next line.
+    await gesture.moveTo(tester.getCenter(targetParagraph));
     await tester.pump();
+    // A drop line marks the slot below the paragraph under the finger.
+    final Finder dropLine = find.byKey(const Key('publish-image-drop-line'));
+    expect(dropLine, findsOneWidget);
+    expect(
+      tester.getRect(dropLine).top,
+      greaterThan(tester.getRect(targetParagraph).top),
+    );
     await gesture.up();
     await tester.pumpAndSettle();
+    expect(dropLine, findsNothing);
     final String after = flatOf(controllerOfEditor().document);
     expect(after, isNot(before));
     // Drop semantics: the image lands directly below the dropped-on
@@ -2000,6 +2420,147 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('长文输入时页面跟随光标滚动外层视口（#1122）', (tester) async {
+    usePhoneViewport(tester);
+    await pumpPublishPage(
+      tester,
+      editing: true,
+      contentType: 3,
+      content: List.generate(40, (index) => '第 $index 段').join('\n\n'),
+    );
+    final editor = tester.widget<QuillEditor>(find.byType(QuillEditor));
+    final Finder pageView = find
+        .ancestor(
+          of: find.byKey(const Key('publish-editor')),
+          matching: find.byType(SingleChildScrollView),
+        )
+        .first;
+    final ScrollController scroll = tester
+        .widget<SingleChildScrollView>(pageView)
+        .controller!;
+    editor.focusNode.requestFocus();
+    await tester.pumpAndSettle();
+    expect(editor.focusNode.hasFocus, isTrue);
+    expect(scroll.offset, 0);
+
+    // 在文末继续输入：光标行超出视口后页面自动跟随。
+    final int end = editor.controller.document.length - 1;
+    editor.controller.replaceText(
+      end,
+      0,
+      '末尾续写',
+      TextSelection.collapsed(offset: end + 4),
+    );
+    await tester.pumpAndSettle();
+
+    expect(scroll.offset, greaterThan(0));
+    final Rect viewportRect = tester.getRect(pageView);
+    final EditorState editorState = tester.state<EditorState>(
+      find.byType(QuillRawEditor),
+    );
+    final Offset caret = editorState.renderEditor.localToGlobal(
+      editorState.renderEditor
+          .getLocalRectForCaret(editor.controller.selection.extent)
+          .bottomLeft,
+    );
+    expect(caret.dy, greaterThan(viewportRect.top));
+    expect(caret.dy, lessThanOrEqualTo(viewportRect.bottom - 11));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 800));
+  });
+
+  testWidgets('键盘弹起压缩视口后光标行保持可见（#1122）', (tester) async {
+    usePhoneViewport(tester);
+    await pumpPublishPage(
+      tester,
+      editing: true,
+      contentType: 3,
+      content: List.generate(40, (index) => '第 $index 段').join('\n\n'),
+    );
+    final editor = tester.widget<QuillEditor>(find.byType(QuillEditor));
+    final Finder pageView = find
+        .ancestor(
+          of: find.byKey(const Key('publish-editor')),
+          matching: find.byType(SingleChildScrollView),
+        )
+        .first;
+    final ScrollController scroll = tester
+        .widget<SingleChildScrollView>(pageView)
+        .controller!;
+    editor.focusNode.requestFocus();
+    await tester.pumpAndSettle();
+    final int end = editor.controller.document.length - 1;
+    editor.controller.replaceText(
+      end,
+      0,
+      '末尾续写',
+      TextSelection.collapsed(offset: end + 4),
+    );
+    await tester.pumpAndSettle();
+    final double before = scroll.offset;
+
+    // 键盘弹起：视口在光标不动的情况下变矮，跟随逻辑需要把光标行重新带回。
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    await tester.pumpAndSettle();
+    expect(scroll.offset, greaterThan(before));
+    final Rect viewportRect = tester.getRect(pageView);
+    final EditorState editorState = tester.state<EditorState>(
+      find.byType(QuillRawEditor),
+    );
+    final Offset caret = editorState.renderEditor.localToGlobal(
+      editorState.renderEditor
+          .getLocalRectForCaret(editor.controller.selection.extent)
+          .bottomLeft,
+    );
+    expect(caret.dy, lessThanOrEqualTo(viewportRect.bottom - 11));
+
+    tester.view.resetViewInsets();
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 800));
+  });
+
+  testWidgets('正文图片在编辑器内等比缩放并限制最大高度（#1122）', (tester) async {
+    usePhoneViewport(tester);
+    final ImageProvider<Object> imageProvider = MemoryImage(
+      img.encodePng(img.Image(width: 1200, height: 2000)),
+    );
+    await pumpPublishPage(
+      tester,
+      editing: true,
+      contentType: 3,
+      content: '第一段\n\n![image](u1)\n\n第三段\n',
+      imageProvider: imageProvider,
+    );
+    await tester.runAsync(
+      () => precacheImage(
+        imageProvider,
+        tester.element(find.byType(QuillEditor)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final Rect image = tester.getRect(
+      find.descendant(
+        of: find.byType(QuillEditor),
+        matching: find.byType(Image),
+      ),
+    );
+    final Rect editor = tester.getRect(find.byType(QuillEditor));
+    // 高度上限 = 0.6 倍视口高（规范见 editor_embed_image.dart）。
+    expect(image.height, lessThanOrEqualTo(844 * 0.6 + 0.5));
+    // 等比缩放：1200x2000 的宽高比保持，且不超出编辑器宽度。
+    expect(image.width, closeTo(image.height * 1200 / 2000, 0.5));
+    expect(image.left, greaterThanOrEqualTo(editor.left - 0.5));
+    expect(image.right, lessThanOrEqualTo(editor.right + 0.5));
+    expect(image.center.dx, closeTo(editor.center.dx, 0.5));
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 800));
   });
 
   testWidgets('访客会话不显示本机保存状态且可正常离开（#705 回归）', (tester) async {

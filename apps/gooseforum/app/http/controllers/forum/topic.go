@@ -1,6 +1,9 @@
 package forum
 
 import (
+	"context"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/decorationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -14,6 +17,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/feedservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicaccessservice"
@@ -68,6 +72,7 @@ func TopicDetail(c *gin.Context) {
 		renderNotFound(c)
 		return
 	}
+	publicationservice.OwnerSnapshot(&topic, &firstPost, loginUser.UserId, false)
 	postservice.EnsureRenderedHTML(&firstPost)
 	if loginUser.UserId > 0 {
 		if err := topicunseenservice.MarkVisited(loginUser.UserId, topic.Id, topic.LastPostId, time.Now()); err != nil {
@@ -86,6 +91,11 @@ func TopicDetail(c *gin.Context) {
 	renderPage(c, "topic.gohtml", payload)
 	if shouldCountTopicView(&topic) {
 		topicviewservice.RecordView(topic.Id)
+		if foregroundPage(c) && topic.VisibilityStatus == topics.VisibilityActive && firstPost.ProcessStatus == posts.ProcessStatusNormal && firstPost.VisibilityStatus == posts.VisibilityActive {
+			feedservice.CaptureView(loginUser.UserId, topic.Id, topic.UserId)
+			feedservice.CaptureOpened(loginUser.UserId, topic.Id, c.GetHeader("X-Goose-Feed-Trace"), cast.ToInt(c.GetHeader("X-Goose-Feed-Position")))
+			feedservice.CaptureActivity(loginUser.UserId)
+		}
 	}
 }
 
@@ -225,7 +235,7 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 		firstPost = &post
 	}
 
-	return component.SuccessResponse(buildPostWindowPayloadFromEntities(
+	window := buildPostWindowPayloadFromEntities(
 		postEntities,
 		userMap,
 		req.UserId,
@@ -236,7 +246,9 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 		maxPostNo,
 		req.Params.AnchorPostID,
 		firstPost,
-	))
+	)
+	attachFirstPostGallery(window.Posts, topicEntity.PublicGallery())
+	return component.SuccessResponse(window)
 }
 
 // canViewTopic 话题详情读路径的可见性：在共享谓词之上允许作者阅读自己待审中的
@@ -355,6 +367,7 @@ func PostRevisions(req component.BetterRequest[PostRevisionsReq]) component.Resp
 	}
 	userMap := users.GetMapByIds(editorIDs)
 	wornBadges := badgeservice.GetWornBadges(selectedWornBadges(userMap))
+	decorations := decorationservice.EffectiveBatch(context.Background(), editorIDs)
 
 	type revisionPayload struct {
 		Version       uint64             `json:"version"`
@@ -375,12 +388,16 @@ func PostRevisions(req component.BetterRequest[PostRevisionsReq]) component.Resp
 		// 编辑者身份一并匿名化，避免泄露「该内容在审核/已删、被谁编辑过、
 		// 何时编辑」的元数据——楼层窗口刻意不提供这些信息（review 发现）。
 		masked := false
+		canReviewVersion := canModerate
+		if postEntity.PostNo == 1 && postEntity.LatestRevisionId != 0 {
+			canReviewVersion = canReviewVersion && moderationservice.CanModerateAnyCategory(req.UserId, v.CategoryIds)
+		}
 		if postDeleted {
 			// 删除/匿名化帖的版本快照不得绕过删除留存原文
 			content = ""
 			rendered = ""
 			masked = true
-		} else if (v.ProcessStatus != posts.ProcessStatusNormal || postModerated) && !canModerate {
+		} else if (v.ProcessStatus != posts.ProcessStatusNormal || postModerated) && !canReviewVersion {
 			// 非正常状态版本（待审/封禁）与封禁/待审帖正文对非版主屏蔽，
 			// 与楼层窗口过滤同语义；封禁版正文在帖子解封后也不得泄露
 			// 给非版主（此前只屏蔽 Pending 版本，漏掉 Blocked）。
@@ -394,11 +411,15 @@ func PostRevisions(req component.BetterRequest[PostRevisionsReq]) component.Resp
 			rendered = postservice.RenderPostHTML(content)
 		}
 		editor := userPayloadWithWornBadge(v.EditorId, userMap, wornBadges[v.EditorId])
+		editor.Decoration = decorations[v.EditorId]
 		if postEntity.IsAnonymous {
 			// 匿名楼层（issue #524）：所有版本的编辑者均为匿名作者本人
 			// （v1 EditorId 即真实作者 uid），公开历史不得回显，否则
 			// 一次未登录请求即可完成去匿名化。
 			editor = anonymousPostAuthor()
+			if postEntity.PersonaUID != "" {
+				editor = personaAuthor(postEntity.PersonaUID)
+			}
 		} else if masked {
 			editor = userPayloadWithWornBadge(0, nil, nil)
 		}

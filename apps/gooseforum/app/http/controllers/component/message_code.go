@@ -126,8 +126,10 @@ const (
 
 const (
 	MessageTopicNotFound                    MessageCode = "topic.notFound"                    // 主题不存在。
+	MessageTopicAgentCommentDisabled        MessageCode = "topic.agentCommentDisabled"        // 该主题已禁止 Agent 评论（管理端 Agent 评论策略）。
 	MessageTopicOwnerMismatch               MessageCode = "topic.ownerMismatch"               // 不能修改或删除他人的主题。
 	MessageTopicOperationDenied             MessageCode = "topic.operationDenied"             // 当前主题不可操作。
+	MessageTopicAgentRepliesDisabled        MessageCode = "topic.agentRepliesDisabled"        // 作者禁止机器人回复。
 	MessageTopicSaveFailed                  MessageCode = "topic.saveFailed"                  // 主题保存失败。
 	MessageTopicDailyLimit                  MessageCode = "topic.dailyLimit"                  // 当天发布过多。
 	MessageTopicTitleTooShort               MessageCode = "topic.title.tooShort"              // 标题过短，params.minLength。
@@ -147,6 +149,7 @@ const (
 	MessagePostFirstPostUndeletable         MessageCode = "post.firstPostUndeletable"         // 话题首楼不可删除，请改用话题删除（issue #553）。
 	MessagePostUpdateFailed                 MessageCode = "post.updateFailed"                 // post 更新失败，params.error 可带原始错误。
 	MessageReportNotFound                   MessageCode = "report.notFound"                   // 举报不存在。
+	MessageReportAlreadyProcessed           MessageCode = "report.alreadyProcessed"           // 举报已被其他版主处理。
 	MessageReportTargetInvalid              MessageCode = "report.targetInvalid"              // 举报对象无效。
 	MessageReportOwnContent                 MessageCode = "report.ownContent"                 // 不能举报自己的内容。
 	MessageReportDuplicate                  MessageCode = "report.duplicate"                  // 已举报，等待处理。
@@ -226,6 +229,7 @@ const (
 	MessageOAuthUnbindFailed           MessageCode = "oauth.unbind.failed"           // 解绑第三方账号失败，params.error 可带原始错误。
 	MessageOAuthUnbindSuccess          MessageCode = "oauth.unbind.success"          // 解绑第三方账号成功。
 	MessageOAuthCallbackFailed         MessageCode = "oauth.callback.failed"         // OAuth 认证回调失败。
+	MessageOAuthProviderUnavailable    MessageCode = "oauth.provider.unavailable"    // OAuth 提供商未配置或当前不可用。
 	MessageOAuthProcessFailed          MessageCode = "oauth.process.failed"          // OAuth 登录处理失败。
 	MessageOAuthAccountFrozen          MessageCode = "oauth.account.frozen"          // OAuth 登录账号被冻结。
 	MessageOAuthActivationUpdateFailed MessageCode = "oauth.activation.updateFailed" // OAuth 用户激活状态更新失败。
@@ -295,6 +299,10 @@ const (
 	MessageAdminStorageMigrateFailed          MessageCode = "admin.storage.migrateFailed"          // 文件迁移任务创建失败，params.error 可带原始错误。
 	MessageAdminStorageMigrateInvalidProvider MessageCode = "admin.storage.migrateInvalidProvider" // 文件迁移仅支持对象存储（S3 兼容）配置。
 
+	// HTTP 通知
+	MessageAdminHttpNotifyTestFailed  MessageCode = "admin.httpNotify.testFailed"  // 回调地址测试发送失败，params.error 为不含地址的失败原因。
+	MessageAdminHttpNotifyTestSuccess MessageCode = "admin.httpNotify.testSuccess" // 回调地址测试发送成功。
+
 	// 数据导入导出
 	MessageAdminDataExportFailed        MessageCode = "admin.data.exportFailed"        // 导出任务创建失败，params.error 可带原始错误。
 	MessageAdminDataImportFailed        MessageCode = "admin.data.importFailed"        // 导入失败，params.error 可带原始错误。
@@ -308,6 +316,17 @@ const (
 	MessageAdminReviewNotFound      MessageCode = "admin.review.notFound"      // 审核对象不存在。
 	MessageAdminReviewProcessed     MessageCode = "admin.review.processed"     // 审核对象已处理。
 	MessageAdminReviewFailed        MessageCode = "admin.review.failed"        // 审核操作失败，params.error 可带原始错误。
+	// 审核申诉（#1114）：作者提交与版主复核分别给出可操作的具体原因。
+	MessageContentAppealReasonInvalid   MessageCode = "content.appeal.reasonInvalid"     // 申诉理由为空或超过 512 字。
+	MessageContentAppealDuplicate       MessageCode = "content.appeal.duplicate"         // 该版本已申诉过。
+	MessageContentAppealIneligible      MessageCode = "content.appeal.ineligible"        // 内容已修改、删除或所在话题未公开，当前不可申诉。
+	MessageContentAppealFrozen          MessageCode = "content.appeal.frozen"            // 账号冻结期间不能申诉。
+	MessageContentAppealNotFound        MessageCode = "content.appeal.notFound"          // 内容不存在或不属于当前用户。
+	MessageModerationAppealReason       MessageCode = "moderation.appeal.reasonRequired" // 驳回申诉须填写理由（不超过 512 字）。
+	MessageModerationAppealProcessed    MessageCode = "moderation.appeal.processed"      // 申诉已有处理结果。
+	MessageModerationAppealStale        MessageCode = "moderation.appeal.stale"          // 作者已修改或删除内容，申诉已失效。
+	MessageModerationAppealAuthorFrozen MessageCode = "moderation.appeal.authorFrozen"   // 作者账号冻结，暂不能恢复公开。
+	MessageModerationAppealNotFound     MessageCode = "moderation.appeal.notFound"       // 申诉不存在或不在管辖范围内。
 	// AI 课程总结（issue #181）：models 列表自动获取
 	MessageAdminAiSummaryModelsFailed        MessageCode = "admin.aiSummary.modelsFailed"        // 拉取模型列表失败，params.error 为固定文案（不携带提供方响应原文，防泄漏）。
 	MessageAdminAiSummaryModelsUnsupported   MessageCode = "admin.aiSummary.modelsUnsupported"   // 提供方未实现 /models 端点，需手动输入模型。
@@ -345,4 +364,7 @@ const (
 	MessageAdminStickerImportInvalidZip MessageCode = "admin.sticker.importInvalidZip" // 表情包导入仅支持 zip 压缩包。
 	// 管理员可配置 URL 校验（issue #409）
 	MessageAdminUrlInvalid MessageCode = "admin.url.invalid" // 链接不符合允许的协议/目标策略（http(s)、站内相对路径，部分字段允许 mailto）。
+
+	// 外链免确认白名单（issue #1200）
+	MessageAdminExternalDomainInvalid MessageCode = "admin.externalDomain.invalid" // 白名单条目不是可存储的主机名（带协议/路径/端口/通配符、公网后缀、IP 或超过条数上限），params.domain。
 )

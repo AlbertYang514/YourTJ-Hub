@@ -51,7 +51,7 @@ func MarkTargetRecovering(targetType string, targetId uint64, expiresAt time.Tim
 	return builder().
 		Where(queryopt.Eq("target_type", targetType)).
 		Where(queryopt.Eq("target_id", targetId)).
-		Where(queryopt.Eq("status", UsageStatusActive)).
+		Where(queryopt.In("status", []string{UsageStatusActive, UsageStatusPending})).
 		Updates(map[string]any{
 			"status":     UsageStatusRecovering,
 			"expires_at": expiresAt,
@@ -60,12 +60,17 @@ func MarkTargetRecovering(targetType string, targetId uint64, expiresAt time.Tim
 
 // MarkTargetActive 将某内容的附件引用恢复为正常（内容恢复）。
 func MarkTargetActive(targetType string, targetId uint64) error {
+	return RestoreTarget(targetType, targetId, UsageStatusActive)
+}
+
+// RestoreTarget restores content references with their actual publication visibility.
+func RestoreTarget(targetType string, targetId uint64, status string) error {
 	return builder().
 		Where(queryopt.Eq("target_type", targetType)).
 		Where(queryopt.Eq("target_id", targetId)).
 		Where(queryopt.Eq("status", UsageStatusRecovering)).
 		Updates(map[string]any{
-			"status":     UsageStatusActive,
+			"status":     status,
 			"expires_at": nil,
 		}).Error
 }
@@ -73,7 +78,17 @@ func MarkTargetActive(targetType string, targetId uint64) error {
 // MarkTargetPendingActive 待审内容获批后把其 PENDING 引用转为 ACTIVE（issue #975）。
 // 幂等：只迁移 PENDING 行，重复调用无副作用。
 func MarkTargetPendingActive(targetType string, targetId uint64) error {
-	return builder().
+	return markTargetPendingActive(builder(), targetType, targetId)
+}
+
+// MarkTargetPendingActiveTx is the transaction-scoped variant, so the content
+// approval and its file publication commit atomically.
+func MarkTargetPendingActiveTx(tx *gorm.DB, targetType string, targetId uint64) error {
+	return markTargetPendingActive(tx, targetType, targetId)
+}
+
+func markTargetPendingActive(q *gorm.DB, targetType string, targetId uint64) error {
+	return q.Table(tableName).
 		Where(queryopt.Eq("target_type", targetType)).
 		Where(queryopt.Eq("target_id", targetId)).
 		Where(queryopt.Eq("status", UsageStatusPending)).
@@ -124,6 +139,7 @@ func HasActiveReferences(fileName string) bool {
 	builder().
 		Where(queryopt.Eq("file_name", fileName)).
 		Where(queryopt.Eq("status", UsageStatusActive)).
+		Where("expires_at IS NULL OR expires_at > ?", time.Now()).
 		Where(queryopt.Ne("usage_type", UsageUploadOwner)).
 		Count(&count)
 	return count > 0
@@ -153,13 +169,19 @@ func ListPendingReferences(fileName string) (entities []Entity) {
 	return
 }
 
-// ReplaceStickerTx couples the definition and its active file reference.
-func ReplaceStickerTx(tx *gorm.DB, stickerID, userID uint64, fileName string) error {
+// ReplaceStickerTx couples the definition and its file reference. Personal
+// uploads pass UsageStatusPending so the bytes stay non-public until review
+// approves them (issue #1071); official stickers pass UsageStatusActive.
+func ReplaceStickerTx(tx *gorm.DB, stickerID, userID uint64, fileName, status string) error {
 	if err := tx.Where("target_type = ? AND target_id = ? AND usage_type = ?", TargetSticker, stickerID, UsageSticker).Delete(&Entity{}).Error; err != nil {
 		return err
 	}
 	if fileName == "" {
 		return nil
 	}
-	return tx.Create(&Entity{FileName: fileName, TargetType: TargetSticker, TargetId: stickerID, UsageType: UsageSticker, UserId: userID}).Error
+	return tx.Create(&Entity{FileName: fileName, TargetType: TargetSticker, TargetId: stickerID, UsageType: UsageSticker, UserId: userID, Status: status}).Error
+}
+
+func RestoreRevisionPrivate(id uint64) error {
+	return builder().Where("target_type = ? AND target_id = ? AND status = ?", TargetPostRevision, id, UsageStatusRecovering).Updates(map[string]any{"status": UsageStatusPending, "expires_at": nil}).Error
 }

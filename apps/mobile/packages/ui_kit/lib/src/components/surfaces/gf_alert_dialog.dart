@@ -101,3 +101,32 @@ class GfAlertDialog extends StatelessWidget {
     );
   }
 }
+
+/// Material dialog action with explicit destructive/filled roles.
+class GfDialogAction extends StatelessWidget {
+  const GfDialogAction({
+    super.key,
+    required this.onPressed,
+    required this.child,
+    this.destructive = false,
+    this.filled = false,
+  });
+  final VoidCallback? onPressed;
+  final Widget child;
+  final bool destructive;
+
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) => filled
+      ? FilledButton(onPressed: onPressed, child: child)
+      : TextButton(
+          onPressed: onPressed,
+          style: destructive
+              ? TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.error,
+                )
+              : null,
+          child: child,
+        );
+}

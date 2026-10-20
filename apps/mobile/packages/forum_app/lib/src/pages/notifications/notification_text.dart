@@ -20,23 +20,49 @@ import '../../../l10n/app_localizations.dart';
   final key = item.payload.templateKey ?? '';
   final event = notificationEvent(item);
   final badge = literal(item.payload.metadata?.badgeName);
+  final topic = literal(item.topic?.title ?? item.payload.topicTitle);
   final legacyTitle = [
     item.title,
     item.payload.title,
   ].map(heading).firstWhere((s) => s.isNotEmpty, orElse: () => '');
-  final title = key.isEmpty && legacyTitle.isNotEmpty
+  final title =
+      key.isEmpty && legacyTitle.isNotEmpty && !item.payload.hasDirectMention
       ? legacyTitle
       : switch (event) {
-          'comment' => l10n.notificationComment(actor),
-          'mention' => l10n.notificationMention(actor),
+          'comment' =>
+            topic.isEmpty
+                ? l10n.notificationComment(actor)
+                : l10n.notificationCommentTopic(actor, topic),
+          'mention' =>
+            topic.isEmpty
+                ? l10n.notificationMention(actor)
+                : l10n.notificationMentionTopic(actor, topic),
           'post_reply' => l10n.notificationPostReply(actor),
-          'topic_post' => l10n.notificationTopicPost(actor),
+          'topic_post' =>
+            topic.isEmpty
+                ? l10n.notificationTopicPost(actor)
+                : l10n.notificationTopicPostTopic(actor, topic),
           'follow' => l10n.notificationFollow(actor),
           'like' => l10n.notificationLike(actor),
-          'wiki_updated' => l10n.notificationWikiUpdated(actor),
+          'wiki_updated' =>
+            topic.isEmpty
+                ? l10n.notificationWikiUpdated
+                : l10n.notificationWikiTopic(topic),
           // 人工审核结果(issue #975):无触发者,标题即结论,副标题为内容标题。
-          'review_approved' => l10n.notificationReviewApproved,
-          'review_rejected' => l10n.notificationReviewRejected,
+          // 申诉结论(#1114)复用这三种事件,按模板换成各自的结论文案。
+          'review_pending' => switch (notificationAppeal(item)) {
+            'appealSubmitted' => l10n.notificationAppealSubmitted,
+            _ => l10n.notificationReviewPending,
+          },
+          'review_approved' => switch (notificationAppeal(item)) {
+            'appealApproved' => l10n.notificationAppealApproved,
+            _ => l10n.notificationReviewApproved,
+          },
+          'review_rejected' => switch (notificationAppeal(item)) {
+            'appealRejected' => l10n.notificationAppealRejected,
+            'appealStale' => l10n.notificationAppealStale,
+            _ => l10n.notificationReviewRejected,
+          },
           'badge' =>
             badge.isEmpty
                 ? l10n.notificationBadgeUnnamed
@@ -49,33 +75,80 @@ import '../../../l10n/app_localizations.dart';
                   orElse: () => l10n.notificationNew,
                 ),
         };
-  final subtitle =
-      [
-            item.content,
-            item.payload.content,
-            item.payload.templateParams?.preview,
-            item.topic?.title,
-            item.payload.topicTitle,
-          ]
-          .map(literal)
-          .firstWhere((s) => s.isNotEmpty && s != title, orElse: () => '');
+  final isReview =
+      event == 'review_pending' ||
+      event == 'review_approved' ||
+      event == 'review_rejected';
+  // The server preserves the reviewed snapshot and redacts rejected subjects.
+  // Legacy previews/live topic titles must not replace that snapshot.
+  final subtitle = isReview
+      ? literal(item.payload.topicTitle)
+      : [
+              item.content,
+              item.payload.content,
+              item.payload.templateParams?.preview,
+              item.topic?.title,
+              item.payload.topicTitle,
+            ]
+            .map(literal)
+            .firstWhere((s) => s.isNotEmpty && s != title, orElse: () => '');
+  final detail = switch (notificationAppeal(item)) {
+    'appealSubmitted' => l10n.notificationAppealSubmittedDetail,
+    'appealApproved' => l10n.notificationAppealApprovedDetail,
+    'appealRejected' => l10n.notificationAppealRejectedDetail,
+    'appealStale' => l10n.notificationAppealStaleDetail,
+    _ => switch (event) {
+      'review_pending' => l10n.notificationReviewPendingDetail,
+      'review_rejected' => l10n.notificationReviewRejectedDetail,
+      _ => '',
+    },
+  };
+  if (detail.isNotEmpty) {
+    return (title, [subtitle, detail].where((s) => s.isNotEmpty).join('\n'));
+  }
   return (title, subtitle);
 }
 
+/// Appeal outcome carried by a review notification (#1114), or '' when the
+/// notice is an ordinary review result. Same rule as Web `appealNotice`:
+/// older receipts are `review_pending` linking to content management.
+String notificationAppeal(NotificationPayload item) {
+  final key = item.payload.templateKey ?? '';
+  const prefix = 'notifications.templates.';
+  const appeals = {
+    'appealSubmitted',
+    'appealApproved',
+    'appealRejected',
+    'appealStale',
+  };
+  if (key.startsWith(prefix) &&
+      appeals.contains(key.substring(prefix.length))) {
+    return key.substring(prefix.length);
+  }
+  if (item.eventType == 'review_pending' &&
+      item.payload.metadata?.profileUrl == '/settings?tab=content') {
+    return 'appealSubmitted';
+  }
+  return '';
+}
+
 String notificationEvent(NotificationPayload item) =>
-    switch (item.payload.templateKey ?? '') {
-      'notifications.templates.comment' => 'comment',
-      'notifications.templates.mention' => 'mention',
-      'notifications.templates.postReply' => 'post_reply',
-      'notifications.templates.topicPost' => 'topic_post',
-      'notifications.templates.follow' => 'follow',
-      'notifications.templates.badge' => 'badge',
-      'notifications.templates.like' => 'like',
-      'notifications.templates.wikiUpdated' => 'wiki_updated',
-      'notifications.templates.reviewApproved' => 'review_approved',
-      'notifications.templates.reviewRejected' => 'review_rejected',
-      _ => item.eventType,
-    };
+    item.payload.hasDirectMention
+    ? 'mention'
+    : switch (item.payload.templateKey ?? '') {
+        'notifications.templates.comment' => 'comment',
+        'notifications.templates.mention' => 'mention',
+        'notifications.templates.postReply' => 'post_reply',
+        'notifications.templates.topicPost' => 'topic_post',
+        'notifications.templates.follow' => 'follow',
+        'notifications.templates.badge' => 'badge',
+        'notifications.templates.like' => 'like',
+        'notifications.templates.wikiUpdated' => 'wiki_updated',
+        'notifications.templates.reviewPending' => 'review_pending',
+        'notifications.templates.reviewApproved' => 'review_approved',
+        'notifications.templates.reviewRejected' => 'review_rejected',
+        _ => item.eventType,
+      };
 
 String notificationActorName(
   NotificationPayload item,

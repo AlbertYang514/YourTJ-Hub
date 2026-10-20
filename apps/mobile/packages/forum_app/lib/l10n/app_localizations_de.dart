@@ -9,6 +9,14 @@ class AppLocalizationsDe extends AppLocalizations {
   AppLocalizationsDe([String locale = 'de']) : super(locale);
 
   @override
+  String get agentRepliesDisabled =>
+      'Der Autor hat Bot-Antworten ausgeschaltet';
+
+  @override
+  String get agentRepliesHelp =>
+      'Wenn aus, können die Bot-Konten dieser Seite hier nicht antworten. Bestehende Antworten bleiben.';
+
+  @override
   String get campusCourseReviews => 'Kursbewertungen';
 
   @override
@@ -288,7 +296,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get authRegisterEmailVerify =>
-      'Registrierung erfolgreich. Eine Bestätigungs-E-Mail wurde gesendet. Bitte prüfe dein Postfach.';
+      'Registrierung erfolgreich. Eine Bestätigungs-E-Mail wurde gesendet. Bitte prüfe dein Postfach. Keine E-Mail erhalten? Melde dich an und sende sie unter Kontosicherheit erneut.';
+
+  @override
+  String get authActivationRequired =>
+      'Bitte aktiviere zuerst dein Konto über die E-Mail in deinem Postfach.';
+
+  @override
+  String get authResendActivationEmail => 'Bestätigungs-E-Mail erneut senden';
 
   @override
   String get authRegisterSuccess =>
@@ -606,19 +621,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get notificationsUnread => 'Ungelesen';
 
   @override
-  String get searchTitle => 'Suchen';
-
-  @override
   String get searchHint => 'Themen, Nutzer, Kategorien suchen …';
-
-  @override
-  String get searchEmpty => 'Suchbegriff eingeben';
-
-  @override
-  String get searchNoUsers => 'Keine passenden Nutzer';
-
-  @override
-  String get searchNoCategories => 'Keine passenden Kategorien';
 
   @override
   String get searchUnavailable => 'Suche nicht verfügbar';
@@ -650,7 +653,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsTabProfile => 'Profil';
 
   @override
-  String get settingsTabAccount => 'Konto';
+  String get settingsTabAccount => 'Konto, Sicherheit und Datenschutz';
 
   @override
   String get settingsTabPrivacy => 'Datenschutz';
@@ -1476,6 +1479,37 @@ class AppLocalizationsDe extends AppLocalizations {
       'Bild im Text gedrückt halten und in einen beliebigen Absatz ziehen.';
 
   @override
+  String get publishMomentTitleHint => 'Titel (optional)';
+
+  @override
+  String get publishCategoryLabel => 'Kategorie';
+
+  @override
+  String publishCategoryLimit(int count) {
+    return 'Bis zu $count';
+  }
+
+  @override
+  String get publishCategoryPickOne => 'Eine Kategorie auswählen';
+
+  @override
+  String get publishImageOrderTitle => 'Bildreihenfolge';
+
+  @override
+  String get publishImageOrderHint =>
+      'Lange drücken und ziehen, um die Reihenfolge der Bilder im Text zu ändern';
+
+  @override
+  String publishImageOrderPosition(int index) {
+    return 'Bild $index';
+  }
+
+  @override
+  String publishStepOf(int current, int total) {
+    return 'Schritt $current von $total';
+  }
+
+  @override
   String get publishFormatting => 'Formatierung';
 
   @override
@@ -1871,18 +1905,21 @@ class AppLocalizationsDe extends AppLocalizations {
   String get mentionTagParticipant => 'Teilnehmer';
 
   @override
+  String get mentionAgentLabel => 'Bot';
+
+  @override
   String notificationPostReply(String actor) {
     return '$actor hat dir geantwortet';
   }
 
   @override
   String notificationTopicPost(String actor) {
-    return '$actor hat in einem von dir verfolgten Thema geschrieben';
+    return '$actor hat in einem abonnierten Thema geantwortet';
   }
 
   @override
   String notificationFollow(String actor) {
-    return '$actor folgt dir jetzt';
+    return '$actor folgt dir';
   }
 
   @override
@@ -1891,9 +1928,8 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String notificationWikiUpdated(String actor) {
-    return '$actor hat eine von dir verfolgte Wiki-Seite aktualisiert';
-  }
+  String get notificationWikiUpdated =>
+      'Eine abonnierte Wiki-Seite wurde aktualisiert';
 
   @override
   String notificationBadge(String badge) {
@@ -1901,7 +1937,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get notificationNew => 'Neue Benachrichtigung';
+  String get notificationNew => 'Du hast eine neue Systembenachrichtigung';
 
   @override
   String get notificationSomeone => 'Jemand';
@@ -2426,10 +2462,6 @@ class AppLocalizationsDe extends AppLocalizations {
       'Noch keine Kursbewertungen. Entdecke den Kurskatalog.';
 
   @override
-  String get searchDiscoveryDescription =>
-      'Finde Beiträge, Personen und Kategorien oder öffne deine Campus-Werkzeuge.';
-
-  @override
   String get notificationsEmptyDescription =>
       'Antworten, Erwähnungen und neue Follower erscheinen hier. Entdecke Neues auf dem Campus.';
 
@@ -2489,6 +2521,40 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get searchWiki => 'Wiki durchsuchen';
+
+  @override
+  String get searchIdleHint =>
+      'Suche nach Themen, Nutzern und Kategorien. Deine letzten Suchanfragen erscheinen hier.';
+
+  @override
+  String searchFor(String query) {
+    return 'Nach „$query“ suchen';
+  }
+
+  @override
+  String searchCoursesFor(String query) {
+    return '„$query“ in Kursen suchen';
+  }
+
+  @override
+  String searchWikiFor(String query) {
+    return '„$query“ im Wiki suchen';
+  }
+
+  @override
+  String get searchRemoveRecent => 'Aus letzten Suchanfragen entfernen';
+
+  @override
+  String get searchSeeAll => 'Alle anzeigen';
+
+  @override
+  String searchNoResults(String query) {
+    return 'Keine Ergebnisse für „$query“';
+  }
+
+  @override
+  String get searchNoResultsHint =>
+      'Versuche andere Suchbegriffe oder durchsuche Kurse und das Wiki.';
 
   @override
   String get refreshFailedRetained =>
@@ -2588,6 +2654,22 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get campusUnavailable =>
       'Hochschuldaten sind derzeit nicht verfügbar. Bitte später erneut versuchen.';
+
+  @override
+  String get campusUpstreamUnavailable =>
+      'Hochschuldienste sind vorübergehend nicht verfügbar. Bitte später erneut versuchen.';
+
+  @override
+  String get campusRulesAIUnavailable =>
+      'KI nicht verfügbar. Modellverbindung unter „KI-Kurszusammenfassungen“ prüfen oder Regeln manuell hinzufügen.';
+
+  @override
+  String get campusRulesAIOutput =>
+      'Die KI hat keine gültigen Regeln erzeugt. Vollständige Daten und eindeutige Nachholtermine ergänzen oder manuell bearbeiten.';
+
+  @override
+  String get campusRulesLimited =>
+      'Zu viele KI-Anfragen. Bitte später erneut versuchen.';
 
   @override
   String get campusNoData => 'Noch keine Einträge';
@@ -2732,11 +2814,36 @@ class AppLocalizationsDe extends AppLocalizations {
   String get linkPreviewContinue => 'Weiter';
 
   @override
+  String linkPreviewAuthorArtist(String author) {
+    return 'Künstler: $author';
+  }
+
+  @override
+  String linkPreviewAuthorUploader(String author) {
+    return 'Uploader: $author';
+  }
+
+  @override
   String get linkPreviewCampusFallbackTitle => 'Campusnetz';
 
   @override
   String get linkPreviewCampusFallbackDescription =>
       'Zugriff nur aus dem Campusnetz';
+
+  @override
+  String get linkPreviewPlatformAppleMusic => 'Apple Music';
+
+  @override
+  String get linkPreviewPlatformBilibili => 'Bilibili';
+
+  @override
+  String get linkPreviewResourceTypeAlbum => 'Album';
+
+  @override
+  String get linkPreviewResourceTypeSong => 'Song';
+
+  @override
+  String get linkPreviewResourceTypeVideo => 'Video';
 
   @override
   String campusTodayMakeup(String name, String date) {
@@ -3478,4 +3585,637 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get topicPendingReviewReply =>
       'In Prüfung · Bis zur Freigabe sehen diese Antwort nur du und die Prüfenden.';
+
+  @override
+  String get contentReviewBlocked => 'Nicht freigegeben';
+
+  @override
+  String get contentReviewRetry => 'Bearbeiten und erneut senden';
+
+  @override
+  String get contentReviewLive =>
+      'Deine zuvor veröffentlichte Version ist weiterhin öffentlich, diese Änderung nicht.';
+
+  @override
+  String get contentReviewView => 'Inhalt ansehen';
+
+  @override
+  String get contentReviewPending => 'In Prüfung';
+
+  @override
+  String get notificationReviewPending =>
+      'Dein Beitrag wartet auf manuelle Prüfung';
+
+  @override
+  String get notificationReviewPendingDetail =>
+      'Wir prüfen ihn bald und informieren dich über das Ergebnis. Bis dahin kannst du ihn ansehen oder bearbeiten.';
+
+  @override
+  String get notificationReviewRejectedDetail =>
+      'Diese Einreichung wird nicht öffentlich angezeigt. Bearbeite sie in der Inhaltsverwaltung und sende sie erneut. Hältst du die Entscheidung für falsch, zeigen berechtigte Einträge dort „Einspruch einlegen“ an; erste Wiki-Beiträge und gesperrte Konten sind ausgenommen.';
+
+  @override
+  String get contentReviewReasonLabel => 'Begründung der Prüfung';
+
+  @override
+  String get contentReviewSheetTitle => 'Prüfergebnis';
+
+  @override
+  String get appealAction => 'Einspruch einlegen';
+
+  @override
+  String get appealFormTitle => 'Gegen diese Entscheidung Einspruch einlegen';
+
+  @override
+  String get appealFormIntro =>
+      'Hältst du die Entscheidung für falsch? Die Moderation prüft den ursprünglichen Beitrag erneut. Ein Einspruch ändert deinen Beitrag nicht – zum Ändern nutze „Bearbeiten und erneut senden“.';
+
+  @override
+  String get appealReasonLabel => 'Begründung';
+
+  @override
+  String get appealReasonPlaceholder =>
+      'Zum Beispiel: Das ist ein Zitat aus den Kursunterlagen und richtet sich gegen niemanden.';
+
+  @override
+  String get appealOncePerVersion => 'Pro Version ist ein Einspruch möglich.';
+
+  @override
+  String get appealSubmit => 'Einspruch senden';
+
+  @override
+  String get appealSubmitted =>
+      'Einspruch gesendet. Wir benachrichtigen dich über die Entscheidung.';
+
+  @override
+  String get appealSubmitFailed =>
+      'Der Einspruch konnte nicht gesendet werden. Prüfe deine Verbindung und versuche es erneut – deine Begründung bleibt erhalten.';
+
+  @override
+  String get appealYourReason => 'Deine Begründung';
+
+  @override
+  String get appealReviewerNote => 'Hinweis der Moderation';
+
+  @override
+  String get appealNoReviewerNote =>
+      'Die Moderation hat keinen Hinweis hinterlassen.';
+
+  @override
+  String appealSubmittedAt(String time) {
+    return 'Gesendet $time';
+  }
+
+  @override
+  String appealDecidedAt(String time) {
+    return 'Entschieden $time';
+  }
+
+  @override
+  String get appealStatePendingTitle => 'Einspruch wird geprüft';
+
+  @override
+  String get appealStatePendingBody =>
+      'Die Moderation prüft den ursprünglichen Beitrag und benachrichtigt dich. Wenn du vorher bearbeitest und erneut sendest, wird dieser Einspruch hinfällig.';
+
+  @override
+  String get appealStateApprovedTitle => 'Einspruch angenommen';
+
+  @override
+  String get appealStateApprovedBody =>
+      'Dein Beitrag ist öffentlich und für alle sichtbar.';
+
+  @override
+  String get appealStateRejectedTitle => 'Einspruch abgelehnt';
+
+  @override
+  String get appealStateRejectedBody =>
+      'Gegen diese Version ist kein weiterer Einspruch möglich. Bearbeite sie und sende sie erneut, um eine neue Prüfung zu starten.';
+
+  @override
+  String get appealStateStaleTitle => 'Einspruch hinfällig';
+
+  @override
+  String get appealStateStaleBody =>
+      'Der Beitrag wurde vor der Prüfung geändert oder ist nicht mehr sichtbar, daher wird nicht mehr entschieden.';
+
+  @override
+  String get appealEditWarning =>
+      'Wenn du bearbeitest und erneut sendest, wird der laufende Einspruch hinfällig.';
+
+  @override
+  String get appealEditAnyway => 'Trotzdem bearbeiten';
+
+  @override
+  String get notificationAppealSubmitted =>
+      'Einspruch eingereicht – wartet auf Prüfung';
+
+  @override
+  String get notificationAppealApproved =>
+      'Einspruch angenommen – dein Beitrag ist öffentlich';
+
+  @override
+  String get notificationAppealRejected => 'Einspruch abgelehnt';
+
+  @override
+  String get notificationAppealStale => 'Einspruch hinfällig';
+
+  @override
+  String get notificationAppealSubmittedDetail =>
+      'Wir benachrichtigen dich über die Entscheidung. Wenn du vorher bearbeitest und erneut sendest, wird der Einspruch hinfällig.';
+
+  @override
+  String get notificationAppealApprovedDetail =>
+      'Er ist jetzt für alle sichtbar.';
+
+  @override
+  String get notificationAppealRejectedDetail =>
+      'Die Begründung findest du in der Inhaltsverwaltung. Du kannst den Beitrag bearbeiten und erneut senden.';
+
+  @override
+  String get notificationAppealStaleDetail =>
+      'Der Beitrag wurde vor der Prüfung geändert oder ist nicht mehr sichtbar, daher wird nicht entschieden.';
+
+  @override
+  String get anonymousIdentity => 'Anonyme Identität';
+
+  @override
+  String get anonymousBoundary =>
+      'Jedes Konto hat eine anonyme Identität; ein bestätigter Name bleibt ein Jahr lang fest. Sie kann sich nicht anmelden, keine Nachrichten senden und niemandem folgen. Likes und Stimmen zählen pro Konto nur einmal, egal mit welcher Identität.';
+
+  @override
+  String get anonymousRetry => 'Erneut versuchen';
+
+  @override
+  String get anonymousUnavailable =>
+      'Anonyme Identität ist gerade nicht verfügbar';
+
+  @override
+  String get anonymousPublishAs => 'Posten als';
+
+  @override
+  String get anonymousMember => 'Hauptkonto';
+
+  @override
+  String get anonymousSetup => 'Anonyme Identität einrichten';
+
+  @override
+  String get anonymousNext => 'Nächste Seite';
+
+  @override
+  String get anonymousPersonaLabel => 'Anonyme Identität';
+
+  @override
+  String get anonymousManage => 'Anonyme Identität verwalten';
+
+  @override
+  String get sortForYou => 'Für dich';
+
+  @override
+  String get feedReasonFollowing => 'Von jemandem, dem du folgst';
+
+  @override
+  String get feedReasonCategory => 'Eine Kategorie, in der du schreibst';
+
+  @override
+  String get feedReasonNewReply => 'Neue Antworten';
+
+  @override
+  String get feedReasonRecent => 'Kürzlich veröffentlicht';
+
+  @override
+  String get sortDaily => 'Top-Themen heute';
+
+  @override
+  String get anonymousPurpose =>
+      'Poste und antworte unter einem festen Namen. Andere sehen dein Hauptkonto nicht.';
+
+  @override
+  String get anonymousSettingsHint =>
+      'Unter festem Namen posten, ohne das Hauptkonto zu zeigen';
+
+  @override
+  String get anonymousIntroTitle => 'Wähle zuerst einen Namen';
+
+  @override
+  String get anonymousConfirmHint =>
+      'Jedes Konto hat eine anonyme Identität. Nach der Bestätigung lässt sich der Name ein Jahr lang nicht ändern.';
+
+  @override
+  String get anonymousPrivacySummary =>
+      'Andere Mitglieder und normale Moderatoren sehen dein Hauptkonto nicht. Wenige berechtigte Admins können es bei Verstößen einsehen – jedes Mal mit Begründung und Protokoll. Die Zuordnung bleibt auch nach Kontoschließung erhalten.';
+
+  @override
+  String get anonymousRules => 'Alle Regeln lesen';
+
+  @override
+  String get anonymousChooseName => 'Namen wählen';
+
+  @override
+  String get anonymousRefreshNames => 'Neue Auswahl';
+
+  @override
+  String anonymousDrawsRemaining(int remaining) {
+    return 'Heute noch $remaining Runden';
+  }
+
+  @override
+  String anonymousBatchNumber(int number) {
+    return 'Runde $number';
+  }
+
+  @override
+  String get anonymousPreviousBatches => 'Erzeugte Runden';
+
+  @override
+  String get anonymousNamePreview => 'Ihr gewählter Name';
+
+  @override
+  String get anonymousConfirmName => 'Diesen Namen verwenden';
+
+  @override
+  String get anonymousInactive => 'Deaktiviert';
+
+  @override
+  String get anonymousReady => 'Verfügbar';
+
+  @override
+  String anonymousLockedUntil(String date) {
+    return 'Name ab $date änderbar';
+  }
+
+  @override
+  String get anonymousNameLockHint =>
+      'Nach dem Bestätigen ein Jahr lang nicht änderbar.';
+
+  @override
+  String get anonymousShowContent => 'Meine Beiträge auf diesem Profil zeigen';
+
+  @override
+  String get anonymousShowContentDescription =>
+      'Wenn aus, zeigt das Profil nur Name und Avatar. Themen und Antworten bleiben dort sichtbar, wo du sie gepostet hast.';
+
+  @override
+  String get anonymousProfileContentHidden =>
+      'Die Beiträge dieses Mitglieds werden hier nicht angezeigt';
+
+  @override
+  String get agentRepliesAllow => 'Bot-Antworten erlauben';
+
+  @override
+  String get agentRepliesOff => 'Bot-Antworten aus';
+
+  @override
+  String get anonymousTag => 'Anonym';
+
+  @override
+  String get anonymousTagOwn => 'Deine anonyme Identität';
+
+  @override
+  String get anonymousIntroBody =>
+      'Name und Avatar erscheinen statt deines Hauptkontos bei Beiträgen und Antworten.';
+
+  @override
+  String get anonymousGenerateNames => 'Namen erzeugen';
+
+  @override
+  String anonymousBatchOf(int number, int total) {
+    return 'Runde $number von $total';
+  }
+
+  @override
+  String get anonymousPreviewCaption => 'So sehen dich andere';
+
+  @override
+  String get anonymousPreviewPlaceholder => 'Wähle unten einen Namen';
+
+  @override
+  String get anonymousRestricted => 'Eingeschränkt';
+
+  @override
+  String anonymousQuota(String date) {
+    return 'Heute keine Runden mehr. Ab $date wieder; frühere Namen bleiben wählbar.';
+  }
+
+  @override
+  String get anonymousProfileContentHiddenOwn =>
+      'Beiträge sind auf diesem Profil ausgeblendet';
+
+  @override
+  String get anonymousProfileContentHiddenOwnDescription =>
+      'Niemand, auch du nicht, sieht hier die Beitragsliste. Themen und Antworten erscheinen weiterhin dort, wo du sie gepostet hast.';
+
+  @override
+  String get anonymousProfileOwnerHint =>
+      'Das ist deine anonyme Identität. Andere sehen nur Name, Avatar und öffentliche Beiträge – nie dein Hauptkonto.';
+
+  @override
+  String get anonymousProfileMemberHint =>
+      'Dieses Mitglied schreibt anonym. Das Hauptkonto wird nicht angezeigt.';
+
+  @override
+  String get anonymousProfileGuestHint =>
+      'Anonyme Identität eines Forummitglieds. Das Hauptkonto bleibt privat.';
+
+  @override
+  String get anonymousActiveLabel => 'Anonyme Identität nutzen';
+
+  @override
+  String get anonymousDisabledHint =>
+      'Solange sie aus ist, kannst du damit nicht posten. Bestehende Beiträge bleiben.';
+
+  @override
+  String get anonymousStatusRestricted =>
+      'Von einem Admin eingeschränkt – du kannst damit gerade nicht posten';
+
+  @override
+  String get anonymousStatusDisabled =>
+      'Deaktiviert – du kannst damit gerade nicht posten';
+
+  @override
+  String get anonymousLinkabilityHint =>
+      'Alles, was du damit postest, landet auf einem Profil und kann verknüpft werden. Auch der Inhalt kann verraten, wer du bist.';
+
+  @override
+  String get anonymousViewProfile => 'Anonymes Profil ansehen';
+
+  @override
+  String get profilePrivacyTitle => 'Profilsichtbarkeit';
+
+  @override
+  String get profilePrivacyDescription =>
+      'Lege fest, wer welche Teile deines Profils sehen kann.';
+
+  @override
+  String get profilePrivacyScope =>
+      'Das ändert nur, was dein Profil anzeigt. Deine Themen und Antworten erscheinen weiterhin in Kategorien, in der Suche und in den ursprünglichen Diskussionen, und Zahlen wie Follower bleiben sichtbar.';
+
+  @override
+  String get profilePrivacyViewProfile => 'Mein Profil ansehen';
+
+  @override
+  String get profilePrivacyTopics => 'Beiträge';
+
+  @override
+  String get profilePrivacyTopicsDescription =>
+      'Deine veröffentlichten Beiträge';
+
+  @override
+  String get profilePrivacyActivity => 'Aktivität';
+
+  @override
+  String get profilePrivacyActivityDescription =>
+      'Antworten und andere Aktivitäten. Beiträge, Likes und Follows darin folgen zusätzlich ihren eigenen Einstellungen';
+
+  @override
+  String get profilePrivacyLikes => 'Gelikte Beiträge';
+
+  @override
+  String get profilePrivacyLikesDescription => 'Beiträge, die dir gefallen';
+
+  @override
+  String get profilePrivacyFollowing => 'Liste „Folgt“';
+
+  @override
+  String get profilePrivacyFollowingDescription => 'Personen, denen du folgst';
+
+  @override
+  String get profilePrivacyFollowers => 'Follower-Liste';
+
+  @override
+  String get profilePrivacyFollowersDescription => 'Personen, die dir folgen';
+
+  @override
+  String get profilePrivacyBookmarksDescription =>
+      'Deine gespeicherten Beiträge. Immer nur für dich sichtbar';
+
+  @override
+  String get profilePrivacyEveryone => 'Alle';
+
+  @override
+  String get profilePrivacyMembers => 'Angemeldete Mitglieder';
+
+  @override
+  String get profilePrivacyFollowersOnly => 'Deine Follower';
+
+  @override
+  String get profilePrivacyMutual => 'Gegenseitige Follows';
+
+  @override
+  String get profilePrivacySelf => 'Nur du';
+
+  @override
+  String profilePrivacyAudienceTitle(String section) {
+    return 'Wer $section sehen kann';
+  }
+
+  @override
+  String get profilePrivacyLoadFailed =>
+      'Profilsichtbarkeit konnte nicht geladen werden.';
+
+  @override
+  String get profilePrivacySaved => 'Sichtbarkeit in deinem Konto gespeichert';
+
+  @override
+  String get profilePrivacySaveFailed =>
+      'Speichern fehlgeschlagen. Deine Einstellung bleibt unverändert. Prüfe deine Verbindung und versuche es erneut.';
+
+  @override
+  String get profilePrivacyWidenTitle => 'Für mehr Personen sichtbar machen?';
+
+  @override
+  String profilePrivacyWidenDescription(String section, String audience) {
+    return '„$section“ wird für „$audience“ sichtbar, einschließlich allem, was während der Ausblendung entstanden ist.';
+  }
+
+  @override
+  String get profilePrivacyWidenConfirm => 'Sichtbarkeit erweitern';
+
+  @override
+  String get profileHiddenTitle => 'Dieser Bereich ist nicht öffentlich';
+
+  @override
+  String profileHiddenPrivate(String name) {
+    return '$name zeigt diesen Bereich nicht im Profil.';
+  }
+
+  @override
+  String profileHiddenSignin(String name) {
+    return '$name zeigt diesen Bereich nur angemeldeten Mitgliedern.';
+  }
+
+  @override
+  String profileHiddenFollowers(String name) {
+    return '$name zeigt diesen Bereich nur Followern. Folge, um ihn zu sehen.';
+  }
+
+  @override
+  String profileHiddenFollowersGuest(String name) {
+    return '$name zeigt diesen Bereich nur Followern. Melde dich an und folge, um ihn zu sehen.';
+  }
+
+  @override
+  String profileHiddenMutual(String name) {
+    return '$name zeigt diesen Bereich nur gegenseitigen Follows.';
+  }
+
+  @override
+  String get profileHiddenSignIn => 'Anmelden';
+
+  @override
+  String get profileOwnerMembers =>
+      'Nur angemeldete Mitglieder können das sehen.';
+
+  @override
+  String get profileOwnerFollowers => 'Nur deine Follower können das sehen.';
+
+  @override
+  String get profileOwnerMutual => 'Nur gegenseitige Follows können das sehen.';
+
+  @override
+  String get profileOwnerSelf => 'Nur du kannst das sehen.';
+
+  @override
+  String get notificationsMentions => 'Erwähnungen';
+
+  @override
+  String get notificationsReplies => 'Antworten';
+
+  @override
+  String get notificationsLikes => 'Likes';
+
+  @override
+  String get notificationsFollowing => 'Abonniert';
+
+  @override
+  String get notificationsSystem => 'System';
+
+  @override
+  String get pushChat => 'Direktnachrichten';
+
+  @override
+  String get pushMentionsAndReplies => 'Erwähnungen und Antworten';
+
+  @override
+  String get pushActivity => 'Likes';
+
+  @override
+  String get pushFollowing => 'Abonnierte Aktivitäten';
+
+  @override
+  String get pushSystem => 'System und Moderation';
+
+  @override
+  String notificationMentionTopic(String actor, String topic) {
+    return '$actor hat dich in „$topic“ erwähnt';
+  }
+
+  @override
+  String notificationCommentTopic(String actor, String topic) {
+    return '$actor hat „$topic“ kommentiert';
+  }
+
+  @override
+  String notificationTopicPostTopic(String actor, String topic) {
+    return '$actor hat im abonnierten Thema „$topic“ geantwortet';
+  }
+
+  @override
+  String notificationWikiTopic(String topic) {
+    return '„$topic“ wurde aktualisiert';
+  }
+
+  @override
+  String get authPasskey => 'Mit Passkey anmelden';
+
+  @override
+  String get authPasskeyUnavailable =>
+      'Passkeys sind auf diesem Gerät nicht verfügbar.';
+
+  @override
+  String get authPasskeyFailed =>
+      'Passkey-Anmeldung fehlgeschlagen. Versuche es erneut oder melde dich mit deinem Passwort an.';
+
+  @override
+  String get authPasskeyCancelled =>
+      'Kein Passkey ausgewählt oder verfügbar. Versuche es erneut oder melde dich mit deinem Passwort an.';
+
+  @override
+  String get settingsPasskeyTitle => 'Passkeys';
+
+  @override
+  String get settingsPasskeyManage => 'Passkeys verwalten';
+
+  @override
+  String get settingsPasskeyDescription =>
+      'Melde dich ohne Passwort mit einem Passkey auf deinem Gerät an. Die Passkey-Anmeldung funktioniert auch bei aktivierter Zwei-Faktor-Authentifizierung.';
+
+  @override
+  String get settingsPasskeyReauthHint =>
+      'Zum Hinzufügen, Umbenennen oder Entfernen eines Passkeys brauchst du dein Passwort und bei aktivierter Zwei-Faktor-Authentifizierung einen aktuellen Code.';
+
+  @override
+  String get settingsPasskeyName => 'Passkey-Name';
+
+  @override
+  String get settingsPasskeyPassword => 'Anmeldepasswort';
+
+  @override
+  String get settingsPasskeyAdd => 'Passkey hinzufügen';
+
+  @override
+  String get settingsPasskeyAddedAt => 'Hinzugefügt';
+
+  @override
+  String get settingsPasskeyLastUsed => 'Zuletzt verwendet';
+
+  @override
+  String get settingsPasskeyNeverUsed => 'Noch nicht verwendet';
+
+  @override
+  String get settingsPasskeySyncCapable => 'Synchronisierbar';
+
+  @override
+  String get settingsPasskeyDeviceBound => 'Gerätegebunden';
+
+  @override
+  String get settingsPasskeyBackedUp => 'Synchronisiert';
+
+  @override
+  String get settingsPasskeyRevokedHint =>
+      'Das Entfernen bei YourTJ löscht den Passkey nicht aus deinem Passwortmanager.';
+
+  @override
+  String get settingsPasskeyRename => 'Umbenennen';
+
+  @override
+  String get settingsPasskeyRevoke => 'Entfernen';
+
+  @override
+  String get settingsPasskeyAdded => 'Passkey hinzugefügt';
+
+  @override
+  String get settingsPasskeyRevoked => 'Passkey entfernt';
+
+  @override
+  String get settingsPasskeyEmpty => 'Es sind keine Passkeys registriert.';
+
+  @override
+  String get settingsPasskeyUnavailable =>
+      'Passkeys sind auf diesem Server nicht aktiviert.';
+
+  @override
+  String get previewUpdateInstructions =>
+      'Dies ist ein Testbuild. Updates gibt es über den Android-Link im Release-Issue oder die zugewiesene TestFlight-Gruppe.';
+
+  @override
+  String get previewStale =>
+      'Diese Vorschau ist nicht mehr der aktuelle Kandidat. Prüfe den Release-Status für die aktuelle Testversion oder die Rückkehr zur Produktivversion.';
+
+  @override
+  String get previewStatusUnknown =>
+      'Der Vorschau-Status kann nicht geprüft werden. Frage vor dem Testen die verantwortliche Person.';
+
+  @override
+  String get previewStatusLink => 'Vorschau-Status';
 }

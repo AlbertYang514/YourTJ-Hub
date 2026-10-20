@@ -46,8 +46,9 @@ type ImageMetadata struct {
 	Variants []ImageVariant `json:"variants,omitempty"`
 }
 
-// ProcessUploadedImage persists intrinsic dimensions and stores smaller
-// derivatives for static JPEG, PNG and BMP uploads. Animated/unsupported
+// ProcessUploadedImage persists display dimensions and stores smaller
+// derivatives for static JPEG, PNG and BMP uploads. JPEG EXIF Orientation is
+// applied to dimensions and derivative pixels. Animated/unsupported
 // formats retain their original bytes and dimensions without a derivative.
 func ProcessUploadedImage(name string, data []byte) (ImageMetadata, error) {
 	var media ImageMetadata
@@ -57,6 +58,13 @@ func ProcessUploadedImage(name string, data []byte) (ImageMetadata, error) {
 	}
 	if config.Width < 1 || config.Height < 1 {
 		return media, errors.New("decoded image has invalid dimensions")
+	}
+	orientation := 1
+	if format == "jpeg" {
+		orientation = jpegOrientation(data)
+		if orientation >= 5 {
+			config.Width, config.Height = config.Height, config.Width
+		}
 	}
 	media = ImageMetadata{URL: accessPath(name), Width: config.Width, Height: config.Height}
 	if err := updateImageMetadata(name, config.Width, config.Height, nil); err != nil {
@@ -72,6 +80,9 @@ func ProcessUploadedImage(name string, data []byte) (ImageMetadata, error) {
 	}
 	if decodedFormat != format {
 		return media, errors.New("image format changed while decoding")
+	}
+	if orientation != 1 {
+		source = orientedImage{Image: source, orientation: orientation}
 	}
 	variantExt, variantType := ".png", "image/png"
 	if format == "jpeg" {
@@ -167,6 +178,10 @@ func updateImageMetadata(name string, width, height int, variants []storedImageV
 // ImageMetadataByNames returns only ready original rows; legacy files with no
 // dimensions are omitted so clients keep their URL-based fallback.
 func ImageMetadataByNames(names []string) (map[string]ImageMetadata, error) {
+	return ImageMetadataByNamesContext(context.Background(), names)
+}
+
+func ImageMetadataByNamesContext(ctx context.Context, names []string) (map[string]ImageMetadata, error) {
 	unique := make([]string, 0, len(names))
 	seen := make(map[string]bool, len(names))
 	for _, name := range names {
@@ -180,7 +195,7 @@ func ImageMetadataByNames(names []string) (map[string]ImageMetadata, error) {
 		return result, nil
 	}
 	var entities []Entity
-	if err := builder().Select("name", "image_width", "image_height", "image_variants").
+	if err := builder().WithContext(ctx).Select("name", "image_width", "image_height", "image_variants").
 		Where("name IN ? AND parent_name = '' AND storage_status = ?", unique, StorageStatusReady).
 		Find(&entities).Error; err != nil {
 		return nil, err

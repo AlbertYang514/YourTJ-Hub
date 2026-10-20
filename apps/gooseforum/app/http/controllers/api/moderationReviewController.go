@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
@@ -15,6 +16,9 @@ import (
 
 // ModerationReviewQueue 列出当前版主可审核的待审话题或回复。
 func ModerationReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response {
+	if req.Params.Kind == "sticker" {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
 	global, categoryIDs, ok := moderationReviewScope(req.UserId)
 	if !ok {
 		return component.FailResponseCode(component.MessagePermissionDenied, nil)
@@ -28,10 +32,13 @@ func ModerationReviewQueue(req component.BetterRequest[ReviewQueueReq]) componen
 // ModerationReviewAction 版主通过或拒绝一条待审内容（与后台 ReviewAction 同语义：
 // 通过公开内容与图片、补发业务事件并通知作者；拒绝保持不公开并通知作者）。
 func ModerationReviewAction(req component.BetterRequest[ReviewActionReq]) component.Response {
+	if req.Params.Kind == "sticker" {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
 	if _, _, ok := moderationReviewScope(req.UserId); !ok {
 		return component.FailResponseCode(component.MessagePermissionDenied, nil)
 	}
-	if !canReviewTarget(req.UserId, req.Params.Kind, req.Params.Id) {
+	if !canReviewTarget(req.UserId, req.Params.Kind, req.Params.Id, req.Params.RevisionId) {
 		return component.FailResponseCode(component.MessageAdminReviewNotFound, nil)
 	}
 	return ReviewAction(req)
@@ -45,17 +52,35 @@ func moderationReviewScope(userID uint64) (bool, []uint64, bool) {
 	return global, categoryIDs, global || len(categoryIDs) > 0
 }
 
-func canReviewTarget(userID uint64, kind string, id uint64) bool {
+func canReviewTarget(userID uint64, kind string, id, revisionID uint64) bool {
 	topicID := id
+	var post posts.Entity
 	if kind == "post" {
-		post := posts.Get(id)
+		post = posts.Get(id)
 		if post.Id == 0 {
 			return false
 		}
 		topicID = post.TopicId
 	}
 	topic := topics.GetSimple(topicID)
-	return topic.Id != 0 && moderationservice.CanModerateAnyCategory(userID, topic.CategoryIds)
+	if topic.Id == 0 || !moderationservice.CanModerateAnyCategory(userID, topic.CategoryIds) {
+		return false
+	}
+	if kind == "topic" {
+		post = posts.Get(topic.FirstPostId)
+	}
+	// A first post publishes the whole topic snapshot even when addressed as a post.
+	// Check the exact requested revision; Review fences it against the latest revision.
+	if post.PostNo == 1 && post.LatestRevisionId != 0 {
+		revision := postRevisions.Get(revisionID)
+		if revision.Id == 0 || revision.PostId != post.Id {
+			return false
+		}
+		if !moderationservice.CanModerateAnyCategory(userID, revision.CategoryIds) {
+			return false
+		}
+	}
+	return true
 }
 
 // postContentWrittenAt 帖子当前正文的最后写入时间：编辑过取 last_edited_at，

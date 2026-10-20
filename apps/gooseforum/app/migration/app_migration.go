@@ -1,12 +1,15 @@
 package migration
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/datamigration"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
 )
 
@@ -418,6 +421,33 @@ func runVersionedDataMigrations() error {
 		}
 		slog.Info("app migration preset sticker packs backfilled", "changed", changed)
 		currentVersion = 30
+	}
+	if currentVersion < 31 {
+		if err := publicationservice.AdoptPending(context.Background()); err != nil {
+			return fmt.Errorf("app migration v31 pending submissions: %w", err)
+		}
+		if err := pageConfig.SyncMigrationVersion(31); err != nil {
+			return err
+		}
+		currentVersion = 31
+	}
+	if currentVersion < 32 {
+		if err := agentservice.BackfillRobotBadges(); err != nil {
+			return fmt.Errorf("app migration v32 robot badges: %w", err)
+		}
+		if err := pageConfig.SyncMigrationVersion(32); err != nil {
+			return err
+		}
+		currentVersion = 32
+	}
+	if currentVersion < 33 {
+		if err := publicationservice.AdoptRejected(context.Background()); err != nil {
+			return fmt.Errorf("app migration v33 rejected submissions: %w", err)
+		}
+		if err := pageConfig.SyncMigrationVersion(33); err != nil {
+			return err
+		}
+		currentVersion = 33
 	}
 	slog.Info("app migration end", "version", currentVersion)
 	return nil

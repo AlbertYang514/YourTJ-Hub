@@ -25,6 +25,18 @@ class ScheduleWidgetBridge {
   Future<void> _tail = Future.value();
   void invalidate() => generation++;
 
+  /// The native widget container is shared by dev and production app installs.
+  /// Clear the previous site's projection before exposing a new environment.
+  Future<void> prepareEnvironment(String site) => _serialize(() async {
+    if (!Platform.isAndroid && !Platform.isIOS) return;
+    await HomeWidget.setAppGroupId(appGroupId);
+    const key = 'schedule_widget_site';
+    final previous =
+        await HomeWidget.getWidgetData<String>(key) ?? 'https://f.yourtj.de';
+    if (previous != site) await _clear('needsData');
+    await HomeWidget.saveWidgetData<String>(key, site);
+  });
+
   Future<void> _serialize(Future<void> Function() operation) {
     final result = _tail.then((_) => operation());
     _tail = result.then<void>((_) {}, onError: (Object _, StackTrace _) {});

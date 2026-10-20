@@ -1,6 +1,7 @@
 package eventNotification
 
 import (
+	"strings"
 	"time"
 )
 
@@ -17,8 +18,8 @@ const (
 	EventTypeLike        = "like"         // 楼层点赞通知
 	EventTypeWikiUpdated = "wiki_updated" // wiki 页面审核通过后的更新通知
 	EventTypeMention     = "mention"      // @mention 通知（issue #563）
-	// 人工审核结果（issue #975）：通过时链接到内容；拒绝时内容对作者也不可见，
-	// payload 不带 TopicId（只带标题快照），客户端不生成跳转。
+	// Manual review links to the candidate; rejection links to content management.
+	EventTypeReviewPending  = "review_pending"
 	EventTypeReviewApproved = "review_approved"
 	EventTypeReviewRejected = "review_rejected"
 )
@@ -33,9 +34,25 @@ const (
 	TemplateWikiUpdated = "notifications.templates.wikiUpdated"
 	TemplateMention     = "notifications.templates.mention"
 	// 人工审核结果模板（issue #975）。
+	TemplateReviewPending  = "notifications.templates.reviewPending"
 	TemplateReviewApproved = "notifications.templates.reviewApproved"
 	TemplateReviewRejected = "notifications.templates.reviewRejected"
+	// 审核申诉（#1114）复用三种审核事件类型，只用模板区分文案：
+	// 受理回执走 review_pending，通过走 review_approved，驳回与失效走 review_rejected（同样脱敏）。
+	TemplateAppealSubmitted = "notifications.templates.appealSubmitted"
+	TemplateAppealApproved  = "notifications.templates.appealApproved"
+	TemplateAppealRejected  = "notifications.templates.appealRejected"
+	TemplateAppealStale     = "notifications.templates.appealStale"
 )
+
+// IsAppealTemplate reports whether a review notification concerns an appeal outcome.
+func IsAppealTemplate(key string) bool {
+	switch key {
+	case TemplateAppealSubmitted, TemplateAppealApproved, TemplateAppealRejected, TemplateAppealStale:
+		return true
+	}
+	return false
+}
 
 // Future unread-scope design:
 //
@@ -61,13 +78,15 @@ const (
 
 // NotificationPayload 通知内容的基础结构
 type NotificationPayload struct {
-	Title          string                     `json:"title,omitempty"`
-	Content        string                     `json:"content,omitempty"`
-	TemplateKey    string                     `json:"templateKey,omitempty"`
-	TemplateParams NotificationTemplateParams `json:"templateParams"`
+	HasDirectMention bool                       `json:"hasDirectMention,omitempty"`
+	Title            string                     `json:"title,omitempty"`
+	Content          string                     `json:"content,omitempty"`
+	TemplateKey      string                     `json:"templateKey,omitempty"`
+	TemplateParams   NotificationTemplateParams `json:"templateParams"`
 	// 通用字段
-	ActorId   uint64 `json:"actorId"`             // 触发者ID
-	ActorName string `json:"actorName,omitempty"` // 触发者名称
+	ActorPersonaUID string `json:"actorPersonaUid,omitempty"`
+	ActorId         uint64 `json:"actorId"`             // 触发者ID
+	ActorName       string `json:"actorName,omitempty"` // 触发者名称
 	// Topic / post references
 	TopicId    uint64 `json:"topicId,omitempty"`
 	TopicTitle string `json:"topicTitle,omitempty"`
@@ -92,8 +111,10 @@ type Extra struct {
 }
 
 type Entity struct {
-	Id     uint64 `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_user_id_desc,priority:2;index:idx_user_read_id,priority:3" json:"id"`
-	UserId uint64 `gorm:"column:user_id;type:bigint;index:idx_user_id_event_type_read;index:idx_user_read;index:idx_user_id_desc,priority:1;index:idx_user_read_id,priority:1" json:"userId"` // 接收通知的用户ID
+	HasDirectMention bool   `gorm:"not null;default:false;index:idx_user_mention_id,priority:2" json:"-"`
+	PrivateActorID   uint64 `gorm:"not null;default:0" json:"-"`
+	Id               uint64 `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_user_id_desc,priority:2;index:idx_user_read_id,priority:3;index:idx_user_mention_id,priority:3" json:"id"`
+	UserId           uint64 `gorm:"column:user_id;type:bigint;index:idx_user_id_event_type_read;index:idx_user_read;index:idx_user_id_desc,priority:1;index:idx_user_read_id,priority:1;index:idx_user_mention_id,priority:1" json:"userId"` // 接收通知的用户ID
 	// TopicID 冗余列：与 Payload.TopicId 同步维护，供删除联动按 SQL 过滤而非全表扫描。
 	// 非话题类通知（badge/follow）该列为 0。跨库 JSON 查询语法不一致，SQL 过滤需要此列。
 	TopicID   uint64              `gorm:"column:topic_id;not null;default:0;index:idx_event_notification_topic" json:"-"`
@@ -107,4 +128,18 @@ type Entity struct {
 
 func (itself *Entity) TableName() string {
 	return tableName
+}
+
+// RedactReviewRejectedPayload also sanitizes historical snapshots at read/push
+// boundaries. Fixed-length masking is idempotent and does not reveal text length.
+func RedactReviewRejectedPayload(payload NotificationPayload) NotificationPayload {
+	subject := []rune(strings.TrimSpace(payload.TopicTitle))
+	payload.TopicTitle = ""
+	if len(subject) > 0 {
+		payload.TopicTitle = string(subject[0]) + "******" + string(subject[len(subject)-1])
+	}
+	payload.Title = ""
+	payload.Content = ""
+	payload.TemplateParams.Preview = ""
+	return payload
 }

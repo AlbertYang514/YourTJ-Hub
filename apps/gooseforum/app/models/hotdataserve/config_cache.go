@@ -31,7 +31,8 @@ var siteSettingsConfigCache = &localcache.Cache[pageConfig.SiteSettingsConfig]{M
 
 func GetSiteSettingsConfigCache() pageConfig.SiteSettingsConfig {
 	return siteSettingsConfigCache.GetOrLoad("", func() (pageConfig.SiteSettingsConfig, error) {
-		return pageConfig.GetConfigByPageType(pageConfig.SiteSettings, defaultconfig.GetDefaultSiteSettingsConfig()), nil
+		// 读取走 GetSiteSettingsConfig：缺键补默认白名单、过滤非法条目（issue #1200）。
+		return pageConfig.GetSiteSettingsConfig(defaultconfig.GetDefaultSiteSettingsConfig()), nil
 	}, configFastCacheTTL)
 }
 
@@ -235,6 +236,16 @@ func GetHttpNotifyConfigCache() pageConfig.HttpNotifyConfig {
 		storage := jsonopt.Decode[pageConfig.HttpNotifyStorageConfig](entity.Config)
 		cfg := storage.ToConfig()
 		for i := range cfg.Endpoints {
+			// 凭据型 URL（飞书 webhook，issue #1049）只落库密文；解密失败时置空，
+			// 端点因 URL 为空不再投递（fail closed），管理员重新填写后恢复。
+			if sealedURL := storage.Endpoints[i].URLEncrypted; sealedURL != "" {
+				if plain, err := securestore.DecryptPurpose(sealedURL, securestore.HttpNotifyURLPurpose); err == nil {
+					cfg.Endpoints[i].URL = plain
+				} else {
+					slog.Warn("http notify url decrypt failed (signing key rotated?)", "err", err)
+					cfg.Endpoints[i].URL = ""
+				}
+			}
 			secret := cfg.Endpoints[i].Secret
 			if secret == "" {
 				continue
@@ -274,6 +285,18 @@ func GetMCPSettingsConfigCache() pageConfig.MCPSettingsConfig {
 
 func ClearMCPSettingsConfigCache() {
 	mcpSettingsConfigCache.Clear()
+}
+
+var agentCommentPolicyConfigCache = &localcache.Cache[pageConfig.AgentCommentPolicyConfig]{MaxEntries: cacheconfig.Current().PageConfig}
+
+func GetAgentCommentPolicyConfigCache() pageConfig.AgentCommentPolicyConfig {
+	return agentCommentPolicyConfigCache.GetOrLoad("", func() (pageConfig.AgentCommentPolicyConfig, error) {
+		return pageConfig.GetConfigByPageType(pageConfig.AgentCommentPolicy, defaultconfig.GetDefaultAgentCommentPolicyConfig()), nil
+	}, configFastCacheTTL)
+}
+
+func ClearAgentCommentPolicyConfigCache() {
+	agentCommentPolicyConfigCache.Clear()
 }
 
 var aiSummarySettingsConfigCache = &localcache.Cache[pageConfig.AiSummaryConfig]{MaxEntries: cacheconfig.Current().PageConfig}

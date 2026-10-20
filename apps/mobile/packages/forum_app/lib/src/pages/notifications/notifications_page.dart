@@ -1,3 +1,4 @@
+import '../../widgets/user_decoration.dart';
 import 'package:dio/dio.dart';
 
 import '../../private_notes.dart';
@@ -36,6 +37,15 @@ class NotificationsPage extends ConsumerStatefulWidget {
 class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   AsyncValue<NotificationListResponse> _list = const AsyncValue.loading();
   String _filter = 'all';
+  String _category = 'all';
+  static const _categories = [
+    'all',
+    'mentions',
+    'replies',
+    'likes',
+    'following',
+    'system',
+  ];
   String? _swipeLoadingFilter;
   int _cursor = 0;
   final List<NotificationPayload> _items = [];
@@ -52,7 +62,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   final _scrolls = <String, GfScrollToTopController>{};
   GfScrollToTopController _scrollFor(String filter) =>
       _scrolls.putIfAbsent(filter, GfScrollToTopController.new);
-  GfScrollToTopController get _scroll => _scrollFor(_filter);
+  GfScrollToTopController get _scroll => _scrollFor('$_category:$_filter');
   late final GfTabScrollRegistry _registry;
   int _seenRealtimeRevision = 0;
   bool _realtimeDirty = false;
@@ -101,6 +111,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     final generation = ++_generation;
     final epoch = ref.read(offlineCacheEpochProvider);
     final filter = _filter;
+    final category = _category;
     _refreshing = true;
     _loadingMore = false;
     if (!silent) {
@@ -112,7 +123,12 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     try {
       final resp = await ref
           .read(notificationRepositoryProvider)
-          .fetchNotifications(filter: filter, cursor: 0, cancelToken: cancel);
+          .fetchNotifications(
+            filter: filter,
+            category: category,
+            cursor: 0,
+            cancelToken: cancel,
+          );
       if (!_current(generation, epoch)) return;
       final confirmedRead = resp.items
           .where((item) => item.isRead)
@@ -169,7 +185,18 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     if (filter == _filter) return;
     _swipeLoadingFilter = fromSwipe ? filter : null;
     setState(() => _filter = filter);
-    _registry.register(GfShellDestination.notifications, _scrollFor(filter));
+    _registry.register(
+      GfShellDestination.notifications,
+      _scrollFor('$_category:$filter'),
+    );
+    _load();
+  }
+
+  void _selectCategory(String category, {bool fromSwipe = false}) {
+    if (_category == category) return;
+    _swipeLoadingFilter = fromSwipe ? _filter : null;
+    setState(() => _category = category);
+    _registry.register(GfShellDestination.notifications, _scroll);
     _load();
   }
 
@@ -182,6 +209,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     final cancel = _loadMoreCancel = CancelToken();
     final cursor = _cursor;
     final filter = _filter;
+    final category = _category;
     setState(() {
       _loadingMore = true;
       _loadMoreError = null;
@@ -191,6 +219,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           .read(notificationRepositoryProvider)
           .fetchNotifications(
             filter: filter,
+            category: category,
             cursor: cursor,
             cancelToken: cancel,
           );
@@ -347,15 +376,16 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       _swipeLoadingFilter = null;
     }
     return RootSurface(
-      swipeTabIndex: _filter == 'all' ? 0 : 1,
-      swipeTabCount: 2,
+      swipeTabIndex: _categories.indexOf(_category),
+      swipeTabCount: _categories.length,
       onSwipeTabChanged: (index) =>
-          _selectFilter(index == 0 ? 'all' : 'unread', fromSwipe: true),
-      swipePageKey: (index) => index == 0 ? 'all' : 'unread',
+          _selectCategory(_categories[index], fromSwipe: true),
+      swipePageKey: (index) => '${_categories[index]}:$_filter',
       swipePageBuilder: (index, top, bottom) =>
           const LogoMotionLoader(showMessage: true),
       title: l10n.notificationsTitle,
       showComposeAction: false,
+      statusBarScrollToTopController: _scroll,
       actions: <Widget>[
         if (_markingAll)
           SizedBox(
@@ -378,18 +408,58 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           ),
       ],
       toolbarHeight: GfTabBar.heightFor(context),
-      toolbar: Container(
-        height: GfTabBar.heightFor(context),
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: GfTabBar(
-          tabs: <GfTab>[
-            GfTab(label: l10n.notificationsAll, value: 'all'),
-            GfTab(label: l10n.notificationsUnread, value: 'unread'),
-          ],
-          selected: _filter,
-          onSelected: (Object value) => _selectFilter(value as String),
-        ),
+      // One row: categories scroll under an edge fade, and the unread filter
+      // stays reachable at the trailing end because it combines with each.
+      toolbar: Row(
+        children: [
+          Expanded(
+            child: GfTabBar(
+              selectedSymbolOnly: true,
+              tabs: <GfTab>[
+                GfTab(
+                  label: l10n.notificationsAll,
+                  value: 'all',
+                  symbol: 'layers-filled',
+                ),
+                GfTab(
+                  label: l10n.notificationsMentions,
+                  value: 'mentions',
+                  symbol: 'at-sign-filled',
+                ),
+                GfTab(
+                  label: l10n.notificationsReplies,
+                  value: 'replies',
+                  symbol: 'message-circle-filled',
+                ),
+                GfTab(
+                  label: l10n.notificationsLikes,
+                  value: 'likes',
+                  symbol: 'heart-filled',
+                ),
+                GfTab(
+                  label: l10n.notificationsFollowing,
+                  value: 'following',
+                  symbol: 'user-round-check-filled',
+                ),
+                GfTab(
+                  label: l10n.notificationsSystem,
+                  value: 'system',
+                  symbol: 'bullhorn-filled',
+                ),
+              ],
+              selected: _category,
+              onSelected: (Object value) => _selectCategory(value as String),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsetsDirectional.only(start: 4, end: 12),
+            child: GfSelectTag(
+              label: l10n.notificationsUnread,
+              selected: _filter == 'unread',
+              onChanged: (value) => _selectFilter(value ? 'unread' : 'all'),
+            ),
+          ),
+        ],
       ),
       body: (top, bottom) => Column(
         children: [
@@ -456,7 +526,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                             itemBuilder: (context, i) {
                               if (i == _items.length) {
                                 return GfListFooter(
-                                  key: ValueKey((_filter, _generation)),
+                                  key: ValueKey((
+                                    _category,
+                                    _filter,
+                                    _generation,
+                                  )),
                                   progressKey: (_cursor, _items.length),
                                   error: _loadMoreError,
                                   loading: _loadingMore,
@@ -468,7 +542,25 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                               final (
                                 String symbol,
                                 GfNotificationTone tone,
-                              ) = switch (notificationEvent(n)) {
+                              ) = switch (notificationAppeal(n).isNotEmpty
+                                  ? notificationAppeal(n)
+                                  : notificationEvent(n)) {
+                                'appealSubmitted' => (
+                                  'undo-2',
+                                  GfNotificationTone.info,
+                                ),
+                                'appealApproved' => (
+                                  'circle-check',
+                                  GfNotificationTone.success,
+                                ),
+                                'appealRejected' => (
+                                  'circle-alert',
+                                  GfNotificationTone.warning,
+                                ),
+                                'appealStale' => (
+                                  'circle',
+                                  GfNotificationTone.info,
+                                ),
                                 'like' => (
                                   'heart-filled',
                                   GfNotificationTone.like,
@@ -482,6 +574,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                   GfNotificationTone.warning,
                                 ),
                                 'system' => ('info', GfNotificationTone.info),
+                                'review_pending' => (
+                                  'clock',
+                                  GfNotificationTone.info,
+                                ),
                                 'review_approved' => (
                                   'circle-check',
                                   GfNotificationTone.success,
@@ -501,28 +597,68 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                 displayName: (id, name) =>
                                     privateDisplayName(context, id, name),
                               );
-                              return Column(
-                                key: ValueKey(n.id),
-                                children: [
-                                  GfNotificationRow(
-                                    symbol: symbol,
-                                    actorName: notificationActorName(
+                              final hasActor =
+                                  n.actor.id > 0 || n.actor.publicUid != null;
+                              final actorName = hasActor
+                                  ? notificationActorName(
                                       n,
                                       l10n,
                                       displayName: (id, name) =>
                                           privateDisplayName(context, id, name),
-                                    ),
-                                    avatarUrl: n.actor.id > 0
+                                    )
+                                  : '';
+                              return Column(
+                                key: ValueKey(n.id),
+                                children: [
+                                  GfNotificationRow(
+                                    avatarFrameColors: n.actor.publicUid != null
+                                        ? const []
+                                        : decorationColors(
+                                            context,
+                                            n.actor.decoration?.avatarFrame,
+                                          ),
+                                    avatarFrameAssetUrl:
+                                        n.actor.publicUid != null
+                                        ? ''
+                                        : decorationFrameAssetUrl(
+                                            n.actor.decoration?.avatarFrame,
+                                          ),
+                                    avatarFrameScale:
+                                        n
+                                            .actor
+                                            .decoration
+                                            ?.avatarFrame
+                                            ?.assetScale ??
+                                        1.25,
+                                    nicknameColors: n.actor.publicUid != null
+                                        ? const []
+                                        : decorationColors(
+                                            context,
+                                            n.actor.decoration?.nicknameStyle,
+                                          ),
+                                    symbol: symbol,
+                                    actorName: actorName,
+                                    avatarUrl: hasActor
                                         ? resolveApiAssetUrl(
                                             n.actor.avatarUrl ?? '',
                                           )
                                         : null,
-                                    onActorTap: n.actor.id > 0
+                                    onActorTap: n.actor.publicUid != null
+                                        ? () => context.push(
+                                            '/a/${n.actor.publicUid}',
+                                          )
+                                        : n.actor.id > 0
                                         ? () => context.push('/u/${n.actor.id}')
                                         : null,
                                     tone: tone,
                                     title: title,
                                     subtitle: subtitle,
+                                    subtitleMaxLines:
+                                        notificationEvent(
+                                          n,
+                                        ).startsWith('review_')
+                                        ? null
+                                        : 3,
                                     time: timeAgo(n.createdAt, l10n: l10n),
                                     unread: !n.isRead,
                                     onMarkRead:
@@ -552,11 +688,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                             ),
                                             const SizedBox(width: 8),
                                             Expanded(
-                                              child: Text(l10n.commonLoading),
+                                              child: GfText(l10n.commonLoading),
                                             ),
                                           ] else ...[
                                             Expanded(
-                                              child: Text(
+                                              child: GfText(
                                                 _readErrors[n.id]!,
                                                 style: TextStyle(
                                                   color: GfTheme.colorsOf(
@@ -567,7 +703,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                             ),
                                             TextButton(
                                               onPressed: () => _markRead(n),
-                                              child: Text(l10n.commonRetry),
+                                              child: GfText(l10n.commonRetry),
                                             ),
                                           ],
                                         ],

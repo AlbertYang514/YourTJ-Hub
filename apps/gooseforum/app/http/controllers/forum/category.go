@@ -3,6 +3,7 @@ package forum
 import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/feedservice"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cast"
 )
@@ -23,7 +24,10 @@ func Category(c *gin.Context) {
 	if page <= 0 {
 		page = 1
 	}
-	topicPage := hotdataserve.GetTopicsByCategorySimpleVo(id, sort, page)
+	if foregroundPage(c) {
+		feedservice.CaptureActivity(component.LoginUserId(c))
+	}
+	topicPage := hotdataserve.GetTopicsByCategorySimpleVo(component.LoginUserId(c), id, sort, page)
 
 	payload := PagePayload{
 		Component: PageComponentCategory,

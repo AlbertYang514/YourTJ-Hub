@@ -1,4 +1,4 @@
-import type { LayoutPayload } from '@gooseforum/client'
+import type { components, LayoutPayload } from '@gooseforum/client'
 
 export interface AdminPayload<TProps = unknown> {
   component: string
@@ -111,8 +111,19 @@ export interface AdminTopic {
   replyCount: number
   likeCount: number
   pinWeight: number
+  /** 该主题是否禁止 Agent 评论（Agent 评论策略面板）。 */
+  agentCommentDisabled: boolean
   createdAt: string
   updatedAt?: string
+}
+
+export interface AdminAgentCommentPolicy {
+  allowAgentComments: boolean
+}
+
+export interface AdminAgentCommentTopicPolicy {
+  topicId: number
+  agentCommentDisabled: boolean
 }
 
 export interface AdminOptRecord {
@@ -220,6 +231,8 @@ export interface SiteSettings {
   siteDescription: string
   siteKeywords: string
   externalLinks?: string
+  /** 外链免确认白名单（issue #1200）：小写主机名，条目覆盖其全部子域。 */
+  trustedExternalDomains?: string[]
 }
 
 export interface SiteChromeItem {
@@ -383,6 +396,8 @@ export interface StorageSettings {
   accessKey: string
   secretKey: string
   publicUrlPrefix: string
+  /** 运维开关：S3 模式下也强制帖子图片走服务端代理上传。 */
+  forceProxyUpload: boolean
   /** GET 回显（issue #324 S3）：凭据是否已配置（服务端加密存储，不回显凭据）。 */
   accessKeyConfigured?: boolean
   secretKeyConfigured?: boolean
@@ -410,6 +425,9 @@ export interface AdminTaskRow {
 }
 
 export interface ReviewQueueItem {
+  revisionId?: number
+  content?: string
+  reviewReason?: string
   id: number
   title: string
   excerpt: string
@@ -571,11 +589,18 @@ export interface PostingSettings {
   }
 }
 
+/** 通道类型（issue #1049）：generic 原样 JSON；feishu 飞书自定义机器人审批卡片。 */
+export type HttpNotifyChannelType = 'generic' | 'feishu' | 'astrbot'
+
 export interface HttpNotifyEndpoint {
   id: string
   name: string
+  channelType: HttpNotifyChannelType
   enabled: boolean
+  /** 飞书 webhook 地址按凭据加密存储，GET 恒为空；留空保存保留已配置地址。 */
   url: string
+  /** 通道内的接收目标：AstrBot 为会话 umo（/sid 显示的 SID），其他通道为空。 */
+  target?: string
   secret: string
   events: string[]
   timeoutSeconds: number
@@ -584,6 +609,8 @@ export interface HttpNotifyEndpoint {
   abnormalTerminated: boolean
   /** GET 回显（issue #324 S1）：端点密钥是否已配置（服务端加密存储，不回显密钥）。 */
   secretConfigured?: boolean
+  /** GET 回显（issue #1049）：webhook 地址是否已配置（飞书地址不回显明文）。 */
+  urlConfigured?: boolean
 }
 
 export interface HttpNotifySettings {
@@ -640,6 +667,11 @@ export interface GithubRelease {
 }
 
 export interface AdminAgent {
+  profileCoverUrl: string
+  bio: string
+  signature: string
+  website: string
+  websiteName: string
   agentId: number
   username: string
   nickname: string
@@ -647,11 +679,83 @@ export interface AdminAgent {
   email: string
   tokenPrefix: string
   webhookEndpoint: string
+  configVersion: number
+  eventsEnabled: boolean
+  eventTypes: string[]
+  webhookEnabled: boolean
+  endpointGeneration: number
+  subscriptionGeneration: number
+  secretConfigured: boolean
+  secretVersion: number
+  /** Whether a static Authorization header is stored; the value is never returned. */
+  webhookAuthorizationConfigured: boolean
+  latestAcceptedAt: string | null
+  pendingCount: number
+  pauseReason: string
+  summaryUnavailable: boolean
   enabled: number
   createdBy: number
   lastUsedAt?: number | null
   createdAt: number
   updatedAt: number
+}
+
+export interface AdminAgentWebhookSecretResult {
+  secret: string
+  secretVersion: number
+  configVersion: number
+}
+
+export interface AdminAgentWebhookAttempt {
+  id: string
+  deliveryId: number
+  round: number
+  number: number
+  httpStatus?: number | null
+  errorClass?: string | null
+  durationMs?: number | null
+  authorizedAt?: string | null
+  completedAt?: string | null
+}
+
+export interface AdminAgentWebhookDelivery {
+  id: number
+  instanceId: string
+  eventId: string
+  agentId: number
+  endpointGeneration: number
+  schemaVersion: number
+  status: string
+  reason?: string | null
+  taskId?: number | null
+  round: number
+  attemptCount: number
+  totalAttempts: number
+  deadline?: string | null
+  expiresAt?: string | null
+  nextRunAt?: string | null
+  createdBy?: number | null
+  lastRedeliveredBy?: number | null
+  acceptedAt?: string | null
+  createdAt: string
+  updatedAt: string
+  attempts: AdminAgentWebhookAttempt[]
+}
+
+export interface AdminAgentWebhookDeliveryPage {
+  list: AdminAgentWebhookDelivery[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export type AdminAgentInteractionIntent = components['schemas']['AgentInteractionIntent']
+
+export interface AdminAgentInteractionIntentPage {
+  list: AdminAgentInteractionIntent[]
+  total: number
+  page: number
+  pageSize: number
 }
 
 export interface AdminAgentCreateResult {
@@ -690,3 +794,14 @@ export interface WikiNamespaceTree {
 
 /** Completed local course materialization (the API returns only after commit). */
 export type PkMaterializeResult = import('@gooseforum/client/openapi').components['schemas']['PkMaterializeResult']
+
+export interface BotContentSource {
+  topicId: number
+  postId: number
+  title: string
+  content: string
+  categoryId: number[]
+  revisionNo: number
+  botUserId: number
+  botName: string
+}

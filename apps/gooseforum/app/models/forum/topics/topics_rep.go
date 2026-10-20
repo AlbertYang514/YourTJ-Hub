@@ -5,17 +5,15 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/feedconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/pageutil"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
-
-// firstPostVisibleSQL 首楼可见性半连接条件，与详情页/GetPublished 的公开
-// 口径一致：首楼需 process_status 正常且未软删。首楼被删除/擦除后主题无
-// 正文，继续公开展示会产生「有标题无正文」的孤儿条目（issue #492）。
-// 所有公开列表/导出入口应统一附加本条件。
-const firstPostVisibleSQL = "EXISTS (SELECT 1 FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.process_status = ? AND posts.deleted_at IS NULL)"
 
 func SaveOrCreateById(entity *Entity) int64 {
 	if entity.Id == 0 {
@@ -132,6 +130,19 @@ func GetSimple(id any) (entity Entity) {
 	return
 }
 
+// GetForUpdateTx serializes reply publication and immediate topic settings.
+func GetForUpdateTx(tx *gorm.DB, id uint64) (entity Entity, err error) {
+	err = tx.Table(tableName).Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND deleted_at IS NULL", id).Take(&entity).Error
+	return
+}
+
+func UpdateAgentRepliesDisabledTx(tx *gorm.DB, id uint64, disabled bool) error {
+	return tx.Table(tableName).Where("id = ?", id).Updates(map[string]any{
+		"agent_replies_disabled": disabled,
+		"updated_at":             time.Now(),
+	}).Error
+}
+
 func GetMaxId() uint64 {
 	var entity Entity
 	builder().Order(queryopt.Desc("id")).Limit(1).First(&entity)
@@ -187,11 +198,8 @@ func GetMapByIdsUnscoped(ids []uint64) map[uint64]Entity {
 
 func GetLatestPublished(limit int) (entities []*Entity, err error) {
 	err = builder().
-		Where(queryopt.Eq("status", 1)).
-		Where(queryopt.Eq("process_status", 0)).
-		Where(queryopt.Eq("visibility_status", VisibilityActive)).
-		Where(queryopt.Eq("topic_type", TopicTypeForum)).
-		Where(firstPostVisibleSQL, ProcessStatusNormal).
+		Where(PublicScopePredicate(tableName)).
+		Where(FirstPostVisiblePredicate(tableName)).
 		Order(queryopt.Desc("updated_at")).
 		Order(queryopt.Desc("id")).
 		Limit(limit).
@@ -207,24 +215,22 @@ func GetPublishedBeforeID(beforeID uint64, limit int) (entities []*Entity, err e
 	}
 	err = builder().
 		Where(queryopt.Lt("id", beforeID)).
-		Where(queryopt.Eq("status", 1)).
-		Where(queryopt.Eq("process_status", ProcessStatusNormal)).
-		Where(queryopt.Eq("visibility_status", VisibilityActive)).
-		Where(queryopt.Eq("topic_type", TopicTypeForum)).
-		Where(firstPostVisibleSQL, ProcessStatusNormal).
+		Where(PublicScopePredicate(tableName)).
+		Where(FirstPostVisiblePredicate(tableName)).
 		Order(queryopt.Desc("id")).
 		Limit(limit).
 		Find(&entities).Error
 	return
 }
 
-func GetPublished(id uint64) (entity Entity, err error) {
+// GetPublishedForExport 读取单篇可导出主题（llms 单篇 Markdown 导出入口）：
+// issue #1166 决定恢复 wiki 页面单篇导出，因此用不限制 topic_type 的 ExportScopePredicate，
+// 其余条件与公开口径一致（含首楼可见，首楼被删/未过审时同样不导出）。
+func GetPublishedForExport(id uint64) (entity Entity, err error) {
 	err = builder().
 		Where(queryopt.Eq("id", id)).
-		Where(queryopt.Eq("status", 1)).
-		Where(queryopt.Eq("process_status", ProcessStatusNormal)).
-		Where(queryopt.Eq("visibility_status", VisibilityActive)).
-		Where(firstPostVisibleSQL, ProcessStatusNormal).
+		Where(ExportScopePredicate(tableName)).
+		Where(FirstPostVisiblePredicate(tableName)).
 		First(&entity).Error
 	return
 }
@@ -232,12 +238,9 @@ func GetPublished(id uint64) (entity Entity, err error) {
 func GetLatestPublishedByUserId(userId uint64, limit int) ([]*Entity, error) {
 	var entities []*Entity
 	err := builder().
-		Where(queryopt.Eq("user_id", userId)).
-		Where(queryopt.Eq("status", 1)).
-		Where(queryopt.Eq("process_status", 0)).
-		Where(queryopt.Eq("visibility_status", VisibilityActive)).
-		Where(queryopt.Eq("topic_type", TopicTypeForum)).
-		Where(firstPostVisibleSQL, ProcessStatusNormal).
+		Where(queryopt.Eq("user_id", userId)).Where("persona_uid = ?", "").
+		Where(PublicScopePredicate(tableName)).
+		Where(FirstPostVisiblePredicate(tableName)).
 		Order(queryopt.Desc("updated_at")).
 		Order(queryopt.Desc("id")).
 		Limit(limit).
@@ -245,15 +248,21 @@ func GetLatestPublishedByUserId(userId uint64, limit int) ([]*Entity, error) {
 	return entities, err
 }
 
-func GetPublishedByUserBeforeId(userId uint64, beforeId uint64, limit int) ([]*Entity, error) {
+// GetProfileTopicsBeforeID includes private pending topics only for the author.
+// Filter before applying the cursor/limit so private entries paginate normally.
+func GetProfileTopicsBeforeID(userId uint64, beforeId uint64, limit int, includePending bool) ([]*Entity, error) {
 	var entities []*Entity
 	query := builder().
-		Where(queryopt.Eq("user_id", userId)).
+		Where(queryopt.Eq("user_id", userId)).Where("persona_uid = ?", "").
 		Where(queryopt.Eq("status", 1)).
-		Where(queryopt.Eq("process_status", 0)).
 		Where(queryopt.Eq("visibility_status", VisibilityActive)).
-		Where(queryopt.Eq("topic_type", TopicTypeForum)).
-		Where(firstPostVisibleSQL, ProcessStatusNormal)
+		Where(queryopt.Eq("topic_type", TopicTypeForum))
+	if includePending {
+		query = query.Where("process_status IN ?", []int8{ProcessStatusNormal, ProcessStatusPending}).
+			Where("EXISTS (SELECT 1 FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.process_status IN ? AND posts.deleted_at IS NULL)", []int8{ProcessStatusNormal, ProcessStatusPending})
+	} else {
+		query = query.Where("process_status = ?", ProcessStatusNormal).Where(FirstPostVisiblePredicate(tableName))
+	}
 	if beforeId > 0 {
 		query = query.Where(queryopt.Lt("id", beforeId))
 	}
@@ -331,17 +340,24 @@ type PageQuery struct {
 	Page, PageSize int
 	Search         string
 	UserId         uint64
+	PersonaUID     string
 	FilterStatus   bool
 	CategoryId     uint64
 	Sort           string
 	// TopicType 按话题类型过滤；nil=不过滤（兼容既有调用）。
 	TopicType *int8
+	// ExcludeBlockedViewerID 非零时排除与观看者存在任一方向屏蔽关系的作者。
+	// 过滤下沉到 SQL 以保证分页正确；其结果只属于该观看者，调用方不得
+	// 复用无用户维度的公开列表缓存（见 hotdataserve 的绕过策略）。
+	ExcludeBlockedViewerID uint64
 }
 
 type AdminPageQuery struct {
 	Page, PageSize int
 	Search         string
 	UserId         uint64
+	// AgentCommentDisabled 非空时按「Agent 评论策略」标记过滤（管理面板用）。
+	AgentCommentDisabled *bool
 }
 
 type ModerationPageQuery struct {
@@ -368,6 +384,15 @@ func Page(q PageQuery) struct {
 	if q.UserId != 0 {
 		b.Where(queryopt.Eq("user_id", q.UserId))
 	}
+	if q.ExcludeBlockedViewerID != 0 {
+		b.Where("user_id NOT IN (?)", users.BlockedPeerIDsQuery(q.ExcludeBlockedViewerID))
+	}
+	if q.PersonaUID != "" {
+		b.Where("persona_uid = ?", q.PersonaUID).Where("retention_status <> ?", RetentionPurged).Where("EXISTS (SELECT 1 FROM posts p WHERE p.id=topics.first_post_id AND p.topic_id=topics.id AND p.visibility_status=? AND p.retention_status<>?)", VisibilityActive, RetentionPurged)
+	}
+	if q.UserId != 0 && q.FilterStatus {
+		b.Where("persona_uid = ?", "")
+	}
 	if q.TopicType != nil {
 		b.Where(queryopt.Eq("topic_type", *q.TopicType))
 	}
@@ -378,9 +403,9 @@ func Page(q PageQuery) struct {
 		// 删除（MODERATOR_REMOVED）的话题一律不进首页/分类/Agent 列表，
 		// 避免删除后仍公开泄露标题与正文摘录。
 		b.Where(queryopt.Eq("visibility_status", VisibilityActive))
-		// 且首楼仍可见（与 GetPublished/GetPublishedBeforeID 口径一致）：首楼被
+		// 且首楼仍可见（与 GetPublishedForExport/GetPublishedBeforeID 口径一致）：首楼被
 		// 删除/擦除后主题无正文，继续展示会产生「有标题无正文」的孤儿条目（issue #492）。
-		b.Where(firstPostVisibleSQL, ProcessStatusNormal)
+		b.Where(FirstPostVisiblePredicate(tableName))
 	}
 	if q.CategoryId != 0 {
 		b.Where(
@@ -418,7 +443,10 @@ func PageForAdmin(q AdminPageQuery) struct {
 		b.Where(queryopt.Like("title", q.Search))
 	}
 	if q.UserId != 0 {
-		b.Where(queryopt.Eq("user_id", q.UserId))
+		b.Where(queryopt.Eq("user_id", q.UserId)).Where("persona_uid = ?", "")
+	}
+	if q.AgentCommentDisabled != nil {
+		b.Where(queryopt.Eq("agent_comment_disabled", *q.AgentCommentDisabled))
 	}
 	b.Limit(queryLimit).Offset(q.PageSize * q.Page).Order(queryopt.Desc("pin_weight")).Order(queryopt.Desc("updated_at")).Order(queryopt.Desc("id")).Find(&list)
 	hasNext := len(list) > q.PageSize
@@ -503,11 +531,15 @@ func PagePendingReviewInCategories(page, pageSize int, categoryIDs []uint64) str
 	page = max(page-1, 0)
 	pageSize = pageutil.BoundPageSize(pageSize)
 	b := builder().
-		Where(queryopt.Eq("process_status", ProcessStatusPending)).
+		Where("(process_status = ? OR first_post_id IN (SELECT p.id FROM posts p JOIN post_revisions r ON r.id = p.latest_revision_id WHERE r.process_status = ?))", ProcessStatusPending, ProcessStatusPending).
+		Where("status = ? AND visibility_status = ?", 1, VisibilityActive).
 		Where(queryopt.Eq("topic_type", TopicTypeForum)).
 		Where(queryopt.IsNull("deleted_at"))
 	if len(categoryIDs) > 0 {
 		b = b.Where("id IN (SELECT topic_id FROM topic_category_index WHERE category_id IN ? AND effective = ?)", categoryIDs, 1)
+		// Filter the candidate before counting/pagination, so a category move cannot
+		// expose its private snapshot to a moderator of only the old category.
+		b = filterReviewCandidateCategories(b, categoryIDs)
 	}
 	b = b.Order(queryopt.Desc("updated_at")).Order(queryopt.Desc("id"))
 	var total int64
@@ -521,6 +553,17 @@ func PagePendingReviewInCategories(page, pageSize int, categoryIDs []uint64) str
 	}{Page: page + 1, PageSize: pageSize, Total: total, Data: list}
 }
 
+func filterReviewCandidateCategories(b *gorm.DB, categoryIDs []uint64) *gorm.DB {
+	values := "json_each(COALESCE(r.category_ids, '[]')) AS candidate_category"
+	if b.Name() == "postgres" {
+		values = "jsonb_array_elements_text(COALESCE(NULLIF(NULLIF(r.category_ids, ''), 'null'), '[]')::jsonb) AS candidate_category(value)"
+	}
+	return b.Where(`NOT EXISTS (SELECT 1 FROM posts p WHERE p.id = topics.first_post_id AND p.latest_revision_id <> 0)
+		OR EXISTS (SELECT 1 FROM posts p JOIN post_revisions r ON r.id = p.latest_revision_id
+		WHERE p.id = topics.first_post_id AND EXISTS (SELECT 1 FROM `+values+`
+		WHERE CAST(candidate_category.value AS BIGINT) IN ?))`, categoryIDs)
+}
+
 func UpdateProcessStatus(id uint64, processStatus int8) error {
 	return builder().Where(queryopt.Eq("id", id)).UpdateColumn("process_status", processStatus).Error
 }
@@ -528,24 +571,42 @@ func UpdateProcessStatus(id uint64, processStatus int8) error {
 // UpdateProcessStatusTx updates moderation state and lets callers enqueue an
 // outbox task in the same transaction.
 func UpdateProcessStatusTx(tx *gorm.DB, id uint64, processStatus int8) error {
-	return tx.Table(tableName).Where(queryopt.Eq("id", id)).UpdateColumn("process_status", processStatus).Error
+	result := tx.Table(tableName).Where(queryopt.Eq("id", id)).UpdateColumn("process_status", processStatus)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return feed.MarkTx(tx, id)
+
 }
 
 // UpdateStatusTx updates publish status inside a caller-owned transaction.
 func UpdateStatusTx(tx *gorm.DB, id uint64, status int8) error {
-	return tx.Table(tableName).Where(queryopt.Eq("id", id)).UpdateColumn("status", status).Error
+	if err := tx.Table(tableName).Where(queryopt.Eq("id", id)).UpdateColumn("status", status).Error; err != nil {
+		return err
+	}
+	return feed.MarkTx(tx, id)
 }
 
 // ResetPendingReview 作废待审状态：将 process_status 复位为正常。
 // 内容被删除后不应继续停留在管理审核队列（PRD R1），避免"已删除+待审"
 // 语义叠加导致审核队列出现幽灵项。
 func ResetPendingReview(id uint64) error {
-	return builder().Unscoped().Where(queryopt.Eq("id", id)).UpdateColumn("process_status", ProcessStatusNormal).Error
+	return builder().Unscoped().Where(queryopt.Eq("id", id)).Where("first_post_id NOT IN (SELECT id FROM posts WHERE latest_revision_id <> 0)").UpdateColumn("process_status", ProcessStatusNormal).Error
 }
 
 func UpdatePinWeight(id uint64, pinWeight int) error {
 	return builder().Where(queryopt.Eq("id", id)).Updates(map[string]any{
 		"pin_weight": pinWeight,
+	}).Error
+}
+
+// UpdateAgentCommentDisabled 管理端「Agent 评论策略」按主题启停 Agent 评论。
+func UpdateAgentCommentDisabled(id uint64, disabled bool) error {
+	return builder().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"agent_comment_disabled": disabled,
 	}).Error
 }
 
@@ -652,6 +713,16 @@ func ReservePostSequenceTx(tx *gorm.DB, topicId uint64) (uint64, error) {
 }
 
 func applyPageSort(b *gorm.DB, sort string) {
+	if feedconfig.RankReady() && (sort == "hot" || sort == "popular") {
+		b.Where("rank_ready = ? AND rank_params_hash = ?", true, feedconfig.Current().RankHash).Where("user_id IN (?)", users.EligibleIDsQuery(b.Statement.Context))
+		if sort == "popular" {
+			b.Where("daily_score > 0 AND (rank_due_at IS NULL OR rank_due_at >= ?)", time.Now().Add(-10*time.Minute)).Order("daily_score DESC")
+		} else {
+			b.Order("rank_score DESC")
+		}
+		b.Order("id DESC")
+		return
+	}
 	switch sort {
 	case "hot":
 		b.Order(queryopt.Desc("reply_count")).Order(queryopt.Desc("id"))
@@ -794,3 +865,43 @@ func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
 
 // TopicTypePtr 返回话题类型指针，供 PageQuery.TopicType 显式过滤使用。
 func TopicTypePtr(t int8) *int8 { return &t }
+
+// GetUnscopedTx locks the topic until the enclosing source authorization or
+// lifecycle transaction commits. Missing/deleted content is never public.
+func GetUnscopedTx(tx *gorm.DB, id uint64) (Entity, error) {
+	var e Entity
+	err := tx.Unscoped().Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).Take(&e).Error
+	return e, err
+}
+
+// MarkDeletedTx commits deletion with dependent event-copy revocation.
+func MarkDeletedTx(tx *gorm.DB, id uint64, visibility string, deletedBy uint64, reason string) error {
+	result := tx.Unscoped().Model(&Entity{}).Where("id = ? AND retention_status <> ?", id, RetentionPurged).Updates(map[string]any{"deleted_at": time.Now(), "process_status": ProcessStatusNormal, "visibility_status": visibility, "retention_status": RetentionRecoverable, "deleted_by": deletedBy, "delete_reason": reason})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+// PendingByAuthor is an owner-only overlay; never put it into a shared cache.
+func PendingByAuthor(userID uint64, limit int) (entities []*Entity) {
+	builder().Where("user_id = ? AND status = 1 AND topic_type = ? AND visibility_status = ? AND process_status <> ?", userID, TopicTypeForum, VisibilityActive, ProcessStatusBlocked).
+		Where("process_status = ? OR first_post_id IN (SELECT p.id FROM posts p JOIN post_revisions r ON r.id = p.latest_revision_id WHERE r.process_status = ?)", ProcessStatusPending, ProcessStatusPending).
+		Order("updated_at desc").Limit(limit).Find(&entities)
+	return
+}
+
+// GetPushSource returns only currently public topic metadata.
+func GetPushSource(id uint64) (Entity, error) {
+	var topic Entity
+	err := builder().
+		Select("id", "title").
+		Where(queryopt.Eq("id", id)).
+		Where(PublicScopePredicate(tableName)).
+		Where(FirstPostVisiblePredicate(tableName)).
+		First(&topic).Error
+	return topic, err
+}

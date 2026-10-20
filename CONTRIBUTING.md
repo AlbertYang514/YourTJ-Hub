@@ -26,6 +26,11 @@ make hooks
 `go vet` + `golangci-lint` + `pnpm typecheck` + web i18n 门禁 `pnpm check`）。每个新建的
 worktree 都需要重新执行一次。
 
+pre-push 会通过 GitHub CLI（`gh`）读取已存在 PR 的目标仓库与分支；确认尚无 PR 时使用
+`YourTongji/YourTJ-Hub:dev`。未安装 `gh`，或 PR 计划指向其他分支时，push 前设置
+`YOURTJ_LINT_BASE=owner/repo:branch`。已能读取的 PR 实际 base 优先于此设置；基线无法获取时 hook
+会失败并要求修正访问或配置，不会跳过 lint。
+
 ## 首次构建与验证
 
 ```bash
@@ -61,6 +66,12 @@ make test       # 后端 vet+test、契约检查、前端 typecheck+test+i18n；
 - 修 bug 先写最小失败测试（先红后绿），机械改动（重命名/格式化/依赖升级/纯文档）豁免；红测保留为回归测试。
 - 代码内 TODO 标记分三档：`FIXME`（阻塞发布）/ `TODO`（近期）/ `XXX`（远期），
   见 [coding-conventions.md](docs/development/coding-conventions.md)。
+- 向本仓库提交原创代码或文档，即表示你授权项目按 GPL-3.0-only 发布该贡献。
+  通过 Hub 课评功能提交课程评价，或向独立的 [YourTongji/YourTJ-Wiki 仓库](https://github.com/YourTongji/YourTJ-Wiki)
+  提交 Wiki 页面时，即表示你授权相应内容按 CC BY-NC-SA 4.0 发布。
+  提交前请确认自己有权授予对应许可，并保留第三方内容原有的许可证和署名。
+- 新增第三方依赖或资源时，提交说明应列出来源、版本和许可证；将其与 GPLv3 代码组合前，确认许可证兼容。
+  具体范围见[许可说明](docs/development/licensing.md)。
 
 ## 提问与讨论
 

@@ -9,6 +9,12 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get agentRepliesDisabled => '作者已关闭机器人回复';
+
+  @override
+  String get agentRepliesHelp => '关闭后，本站的机器人账号不能在这里回复，已有回复不受影响。';
+
+  @override
   String get campusCourseReviews => '课程评价';
 
   @override
@@ -275,7 +281,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authOidcLogin => '使用 yourtj 统一登录';
 
   @override
-  String get authRegisterEmailVerify => '注册成功，验证邮件已发送，请前往邮箱完成验证。';
+  String get authRegisterEmailVerify =>
+      '注册成功，验证邮件已发送，请前往邮箱完成验证。未收到邮件？登录后可在账号安全中重发验证邮件。';
+
+  @override
+  String get authActivationRequired => '请先到邮箱激活账号';
+
+  @override
+  String get authResendActivationEmail => '重发验证邮件';
 
   @override
   String get authRegisterSuccess => '注册成功,请登录';
@@ -586,19 +599,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get notificationsUnread => '未读';
 
   @override
-  String get searchTitle => '搜索';
-
-  @override
   String get searchHint => '搜索帖子、用户、分类…';
-
-  @override
-  String get searchEmpty => '输入关键词开始搜索';
-
-  @override
-  String get searchNoUsers => '没有匹配的用户';
-
-  @override
-  String get searchNoCategories => '没有匹配的分类';
 
   @override
   String get searchUnavailable => '搜索暂不可用';
@@ -630,7 +631,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsTabProfile => '资料';
 
   @override
-  String get settingsTabAccount => '账户';
+  String get settingsTabAccount => '账户、安全与隐私';
 
   @override
   String get settingsTabPrivacy => '隐私';
@@ -1434,10 +1435,40 @@ class AppLocalizationsZh extends AppLocalizations {
   String get publishBodyDragHint => '长按正文图片，可拖动到任意段落位置';
 
   @override
+  String get publishMomentTitleHint => '标题（可留空）';
+
+  @override
+  String get publishCategoryLabel => '分区';
+
+  @override
+  String publishCategoryLimit(int count) {
+    return '最多选 $count 个';
+  }
+
+  @override
+  String get publishCategoryPickOne => '选择一个分区';
+
+  @override
+  String get publishImageOrderTitle => '图片顺序';
+
+  @override
+  String get publishImageOrderHint => '长按拖动，调整图片在正文中的先后';
+
+  @override
+  String publishImageOrderPosition(int index) {
+    return '第 $index 张图片';
+  }
+
+  @override
+  String publishStepOf(int current, int total) {
+    return '第 $current 步，共 $total 步';
+  }
+
+  @override
   String get publishFormatting => '文字格式';
 
   @override
-  String get publishClassification => '选择分区与标签';
+  String get publishClassification => '选择分区';
 
   @override
   String get publishLeaveTitle => '保留这次创作？';
@@ -1467,7 +1498,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileTrash => '回收站';
 
   @override
-  String get profileSecurity => '账号、安全与隐私';
+  String get profileSecurity => '账户、安全与隐私';
 
   @override
   String get profileAdmin => '管理工作台';
@@ -1807,13 +1838,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mentionTagParticipant => '参与者';
 
   @override
+  String get mentionAgentLabel => '机器人';
+
+  @override
   String notificationPostReply(String actor) {
     return '$actor 回复了你';
   }
 
   @override
   String notificationTopicPost(String actor) {
-    return '$actor 在你关注的主题中发表了回复';
+    return '$actor 在你关注的主题中发表了新回复';
   }
 
   @override
@@ -1827,17 +1861,15 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String notificationWikiUpdated(String actor) {
-    return '$actor 更新了你关注的 Wiki 页面';
-  }
+  String get notificationWikiUpdated => '你订阅的 Wiki 页面有更新';
 
   @override
   String notificationBadge(String badge) {
-    return '你获得了“$badge”徽章';
+    return '你获得了「$badge」徽章';
   }
 
   @override
-  String get notificationNew => '新通知';
+  String get notificationNew => '你有一条新的系统通知';
 
   @override
   String get notificationSomeone => '有人';
@@ -2317,9 +2349,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get campusCoursesEmpty => '还没有课程评价，去课程目录逛逛吧';
 
   @override
-  String get searchDiscoveryDescription => '搜索帖子、同学与板块，也可以直接打开常用的校园工具。';
-
-  @override
   String get notificationsEmptyDescription => '新的回复、提及和关注会出现在这里。先去看看校园里的新鲜事吧。';
 
   @override
@@ -2375,6 +2404,38 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get searchWiki => '搜索 Wiki';
+
+  @override
+  String get searchIdleHint => '搜索帖子、用户和分类，最近的搜索会显示在这里。';
+
+  @override
+  String searchFor(String query) {
+    return '搜索“$query”';
+  }
+
+  @override
+  String searchCoursesFor(String query) {
+    return '在课程中搜索“$query”';
+  }
+
+  @override
+  String searchWikiFor(String query) {
+    return '在 Wiki 中搜索“$query”';
+  }
+
+  @override
+  String get searchRemoveRecent => '从最近搜索中移除';
+
+  @override
+  String get searchSeeAll => '查看全部';
+
+  @override
+  String searchNoResults(String query) {
+    return '没有找到“$query”的相关结果';
+  }
+
+  @override
+  String get searchNoResultsHint => '换个关键词试试，或者在课程和 Wiki 中搜索。';
 
   @override
   String get refreshFailedRetained => '刷新失败，已保留当前内容';
@@ -2468,6 +2529,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get campusUnavailable => '学校暂未提供可用数据，请稍后重试。';
+
+  @override
+  String get campusUpstreamUnavailable => '学校服务暂时不可用，请稍后重试。';
+
+  @override
+  String get campusRulesAIUnavailable => 'AI 暂不可用，请检查“AI 课程总结”的模型连接配置，或手动添加规则。';
+
+  @override
+  String get campusRulesAIOutput => 'AI 未生成有效规则，请补充完整日期和教学对应关系后重试，或手动编辑。';
+
+  @override
+  String get campusRulesLimited => 'AI 调用较频繁，请稍后再试。';
 
   @override
   String get campusNoData => '暂无记录';
@@ -2597,10 +2670,35 @@ class AppLocalizationsZh extends AppLocalizations {
   String get linkPreviewContinue => '继续访问';
 
   @override
+  String linkPreviewAuthorArtist(String author) {
+    return '艺术家：$author';
+  }
+
+  @override
+  String linkPreviewAuthorUploader(String author) {
+    return 'UP主：$author';
+  }
+
+  @override
   String get linkPreviewCampusFallbackTitle => '校园网';
 
   @override
   String get linkPreviewCampusFallbackDescription => '需校园网络访问';
+
+  @override
+  String get linkPreviewPlatformAppleMusic => 'Apple Music';
+
+  @override
+  String get linkPreviewPlatformBilibili => '哔哩哔哩';
+
+  @override
+  String get linkPreviewResourceTypeAlbum => '专辑';
+
+  @override
+  String get linkPreviewResourceTypeSong => '歌曲';
+
+  @override
+  String get linkPreviewResourceTypeVideo => '视频';
 
   @override
   String campusTodayMakeup(String name, String date) {
@@ -3282,4 +3380,595 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get topicPendingReviewReply => '审核中 · 通过审核前，只有你和审核员能看到这条回复。';
+
+  @override
+  String get contentReviewBlocked => '未通过审核';
+
+  @override
+  String get contentReviewRetry => '修改并重新提交';
+
+  @override
+  String get contentReviewLive => '之前公开的版本仍然可见，这次修改没有公开。';
+
+  @override
+  String get contentReviewView => '查看内容';
+
+  @override
+  String get contentReviewPending => '审核中';
+
+  @override
+  String get notificationReviewPending => '你的内容正在等待人工审核';
+
+  @override
+  String get notificationReviewPendingDetail =>
+      '我们会尽快处理，审核结果会通知你。等待期间你可以查看或修改内容。';
+
+  @override
+  String get notificationReviewRejectedDetail =>
+      '它不会公开显示。你可以在内容管理修改后重新提交。如果认为判断有误，可申诉的条目会显示「申诉」按钮；Wiki 首楼和冻结账号不支持申诉。';
+
+  @override
+  String get contentReviewReasonLabel => '审核说明';
+
+  @override
+  String get contentReviewSheetTitle => '审核结果';
+
+  @override
+  String get appealAction => '申诉';
+
+  @override
+  String get appealFormTitle => '申诉这次审核结果';
+
+  @override
+  String get appealFormIntro => '觉得判断有误？版主会对照原文重新复核。申诉不会改动内容，想修改请用「修改并重新提交」。';
+
+  @override
+  String get appealReasonLabel => '申诉理由';
+
+  @override
+  String get appealReasonPlaceholder => '例如：这段话引用的是课程原文，并不是针对任何人。';
+
+  @override
+  String get appealOncePerVersion => '每个版本只能申诉一次。';
+
+  @override
+  String get appealSubmit => '提交申诉';
+
+  @override
+  String get appealSubmitted => '申诉已提交，结果会通过通知告诉你。';
+
+  @override
+  String get appealSubmitFailed => '申诉没有提交成功。检查网络后再试一次，你写的理由还在。';
+
+  @override
+  String get appealYourReason => '你的申诉理由';
+
+  @override
+  String get appealReviewerNote => '版主说明';
+
+  @override
+  String get appealNoReviewerNote => '版主没有填写说明。';
+
+  @override
+  String appealSubmittedAt(String time) {
+    return '提交于 $time';
+  }
+
+  @override
+  String appealDecidedAt(String time) {
+    return '处理于 $time';
+  }
+
+  @override
+  String get appealStatePendingTitle => '申诉复核中';
+
+  @override
+  String get appealStatePendingBody =>
+      '版主会对照原文复核，结果会通过通知告诉你。在此期间修改并重新提交，这次申诉会失效。';
+
+  @override
+  String get appealStateApprovedTitle => '申诉已通过';
+
+  @override
+  String get appealStateApprovedBody => '内容已经公开，所有人都能看到。';
+
+  @override
+  String get appealStateRejectedTitle => '申诉未通过';
+
+  @override
+  String get appealStateRejectedBody => '这个版本不能再申诉了。修改后重新提交，会进入新的审核。';
+
+  @override
+  String get appealStateStaleTitle => '申诉已失效';
+
+  @override
+  String get appealStateStaleBody => '复核前内容已修改或不再可见，这次申诉不会再处理。';
+
+  @override
+  String get appealEditWarning => '修改并重新提交后，正在复核的申诉会失效。';
+
+  @override
+  String get appealEditAnyway => '继续修改';
+
+  @override
+  String get notificationAppealSubmitted => '申诉已提交，等待版主复核';
+
+  @override
+  String get notificationAppealApproved => '申诉通过，内容已公开';
+
+  @override
+  String get notificationAppealRejected => '申诉未通过';
+
+  @override
+  String get notificationAppealStale => '申诉已失效';
+
+  @override
+  String get notificationAppealSubmittedDetail =>
+      '复核结果会通知你。在此期间修改并重新提交，这次申诉会失效。';
+
+  @override
+  String get notificationAppealApprovedDetail => '现在所有人都能看到它。';
+
+  @override
+  String get notificationAppealRejectedDetail => '可以在内容管理查看版主的说明，修改后重新提交。';
+
+  @override
+  String get notificationAppealStaleDetail => '复核前内容已修改或不再可见，这次申诉不再处理。';
+
+  @override
+  String get anonymousIdentity => '匿名身份';
+
+  @override
+  String get anonymousBoundary =>
+      '每个账号只有一个匿名身份，花名确认后一年内不能更改。匿名身份不能登录、私信或关注他人；点赞和投票仍按账号计算，切换身份不会多算一次。';
+
+  @override
+  String get anonymousRetry => '重试';
+
+  @override
+  String get anonymousUnavailable => '匿名身份暂时不可用';
+
+  @override
+  String get anonymousPublishAs => '发布身份';
+
+  @override
+  String get anonymousMember => '主账号';
+
+  @override
+  String get anonymousSetup => '设置匿名身份';
+
+  @override
+  String get anonymousNext => '下一页';
+
+  @override
+  String get anonymousPersonaLabel => '匿名身份';
+
+  @override
+  String get anonymousManage => '管理匿名身份';
+
+  @override
+  String get sortForYou => '为你推荐';
+
+  @override
+  String get feedReasonFollowing => '来自你关注的人';
+
+  @override
+  String get feedReasonCategory => '你参与过的分类';
+
+  @override
+  String get feedReasonNewReply => '有新回复';
+
+  @override
+  String get feedReasonRecent => '最近发布';
+
+  @override
+  String get sortDaily => '今日热榜';
+
+  @override
+  String get anonymousPurpose => '用一个固定的花名发帖和回复，别人看不到你的主账号。';
+
+  @override
+  String get anonymousSettingsHint => '用固定花名发言，不显示主账号';
+
+  @override
+  String get anonymousIntroTitle => '先选一个花名';
+
+  @override
+  String get anonymousConfirmHint => '每个账号只有一个匿名身份。确认后一年内不能换花名。';
+
+  @override
+  String get anonymousPrivacySummary =>
+      '其他用户和普通版主看不到你的主账号。少数获授权的管理员处理违规时可以查看，每次都要填写理由并留下记录。注销账号后，这条对应关系仍会保留。';
+
+  @override
+  String get anonymousRules => '查看完整规则';
+
+  @override
+  String get anonymousChooseName => '选一个花名';
+
+  @override
+  String get anonymousRefreshNames => '换一批';
+
+  @override
+  String anonymousDrawsRemaining(int remaining) {
+    return '今天还能换 $remaining 批';
+  }
+
+  @override
+  String anonymousBatchNumber(int number) {
+    return '第 $number 批';
+  }
+
+  @override
+  String get anonymousPreviousBatches => '已生成的批次';
+
+  @override
+  String get anonymousNamePreview => '你将使用的花名';
+
+  @override
+  String get anonymousConfirmName => '使用这个花名';
+
+  @override
+  String get anonymousInactive => '已停用';
+
+  @override
+  String get anonymousReady => '可用';
+
+  @override
+  String anonymousLockedUntil(String date) {
+    return '$date 后可以换花名';
+  }
+
+  @override
+  String get anonymousNameLockHint => '确认后一年内不能换花名。';
+
+  @override
+  String get anonymousShowContent => '在主页展示我的发言';
+
+  @override
+  String get anonymousShowContentDescription =>
+      '关闭后，匿名主页只显示花名和头像。帖子和回复在原处照常显示。';
+
+  @override
+  String get anonymousProfileContentHidden => '这位成员的发言不在主页展示';
+
+  @override
+  String get agentRepliesAllow => '允许机器人回复';
+
+  @override
+  String get agentRepliesOff => '已关闭机器人回复';
+
+  @override
+  String get anonymousTag => '匿名';
+
+  @override
+  String get anonymousTagOwn => '你的匿名身份';
+
+  @override
+  String get anonymousIntroBody => '花名和头像会代替你的主账号，显示在帖子和回复上。';
+
+  @override
+  String get anonymousGenerateNames => '生成花名';
+
+  @override
+  String anonymousBatchOf(int number, int total) {
+    return '第 $number 批，共 $total 批';
+  }
+
+  @override
+  String get anonymousPreviewCaption => '别人会这样看到你';
+
+  @override
+  String get anonymousPreviewPlaceholder => '从下面挑一个花名';
+
+  @override
+  String get anonymousRestricted => '已被限制';
+
+  @override
+  String anonymousQuota(String date) {
+    return '今天的次数用完了，$date 恢复。已生成的花名仍可选择。';
+  }
+
+  @override
+  String get anonymousProfileContentHiddenOwn => '主页上的发言已隐藏';
+
+  @override
+  String get anonymousProfileContentHiddenOwnDescription =>
+      '包括你在内，所有人都看不到这里的发言列表。帖子和回复在原处照常显示。';
+
+  @override
+  String get anonymousProfileOwnerHint =>
+      '这是你的匿名身份。别人只能看到花名、头像和公开的发言，看不到你的主账号。';
+
+  @override
+  String get anonymousProfileMemberHint => '这位成员以匿名身份发言，主账号不公开。';
+
+  @override
+  String get anonymousProfileGuestHint => '本站成员的匿名身份，主账号不对外公开。';
+
+  @override
+  String get anonymousActiveLabel => '启用匿名身份';
+
+  @override
+  String get anonymousDisabledHint => '停用后不能用它发言，已发布的内容不受影响。';
+
+  @override
+  String get anonymousStatusRestricted => '已被管理员限制，暂时不能用它发言';
+
+  @override
+  String get anonymousStatusDisabled => '已停用，暂时不能用它发言';
+
+  @override
+  String get anonymousLinkabilityHint =>
+      '用这个身份发的内容会集中在它的主页上，别人可能把它们联系起来；内容本身也可能透露你是谁。';
+
+  @override
+  String get anonymousViewProfile => '查看匿名主页';
+
+  @override
+  String get profilePrivacyTitle => '个人主页可见范围';
+
+  @override
+  String get profilePrivacyDescription => '选择谁能在你的个人主页上看到这些内容。';
+
+  @override
+  String get profilePrivacyScope =>
+      '这里只控制个人主页的展示。你发布的内容和回复仍会出现在版块、搜索和原讨论中，关注数、粉丝数等统计也会继续显示。';
+
+  @override
+  String get profilePrivacyViewProfile => '查看我的主页';
+
+  @override
+  String get profilePrivacyTopics => '内容';
+
+  @override
+  String get profilePrivacyTopicsDescription => '你发布的内容列表';
+
+  @override
+  String get profilePrivacyActivity => '动态';
+
+  @override
+  String get profilePrivacyActivityDescription =>
+      '回复等动态记录；其中的发布、点赞和关注记录还会分别遵循对应设置';
+
+  @override
+  String get profilePrivacyLikes => '赞过的内容';
+
+  @override
+  String get profilePrivacyLikesDescription => '你点赞过的内容列表';
+
+  @override
+  String get profilePrivacyFollowing => '关注列表';
+
+  @override
+  String get profilePrivacyFollowingDescription => '你关注的人';
+
+  @override
+  String get profilePrivacyFollowers => '粉丝列表';
+
+  @override
+  String get profilePrivacyFollowersDescription => '关注你的人';
+
+  @override
+  String get profilePrivacyBookmarksDescription => '你收藏的内容，始终只有你能看到';
+
+  @override
+  String get profilePrivacyEveryone => '所有人';
+
+  @override
+  String get profilePrivacyMembers => '登录用户';
+
+  @override
+  String get profilePrivacyFollowersOnly => '关注我的人';
+
+  @override
+  String get profilePrivacyMutual => '互相关注的人';
+
+  @override
+  String get profilePrivacySelf => '仅自己';
+
+  @override
+  String profilePrivacyAudienceTitle(String section) {
+    return '谁能看到$section';
+  }
+
+  @override
+  String get profilePrivacyLoadFailed => '无法加载个人主页可见范围。';
+
+  @override
+  String get profilePrivacySaved => '可见范围已保存到你的账号';
+
+  @override
+  String get profilePrivacySaveFailed => '未能保存，设置保持不变。请检查网络后重试。';
+
+  @override
+  String get profilePrivacyWidenTitle => '扩大可见范围？';
+
+  @override
+  String profilePrivacyWidenDescription(String section, String audience) {
+    return '「$section」将改为「$audience」可见，之前隐藏期间的记录也会一并显示。';
+  }
+
+  @override
+  String get profilePrivacyWidenConfirm => '扩大可见范围';
+
+  @override
+  String get profileHiddenTitle => '这部分内容未公开';
+
+  @override
+  String profileHiddenPrivate(String name) {
+    return '$name 选择不在个人主页展示这部分内容。';
+  }
+
+  @override
+  String profileHiddenSignin(String name) {
+    return '$name 只向登录用户展示这部分内容。';
+  }
+
+  @override
+  String profileHiddenFollowers(String name) {
+    return '$name 只向关注者展示这部分内容，关注后即可查看。';
+  }
+
+  @override
+  String profileHiddenFollowersGuest(String name) {
+    return '$name 只向关注者展示这部分内容，登录并关注后即可查看。';
+  }
+
+  @override
+  String profileHiddenMutual(String name) {
+    return '$name 只向互相关注的人展示这部分内容。';
+  }
+
+  @override
+  String get profileHiddenSignIn => '登录';
+
+  @override
+  String get profileOwnerMembers => '只有登录用户能看到这部分内容。';
+
+  @override
+  String get profileOwnerFollowers => '只有关注你的人能看到这部分内容。';
+
+  @override
+  String get profileOwnerMutual => '只有和你互相关注的人能看到这部分内容。';
+
+  @override
+  String get profileOwnerSelf => '只有你能看到这部分内容。';
+
+  @override
+  String get notificationsMentions => '提及';
+
+  @override
+  String get notificationsReplies => '回复';
+
+  @override
+  String get notificationsLikes => '赞';
+
+  @override
+  String get notificationsFollowing => '关注';
+
+  @override
+  String get notificationsSystem => '系统';
+
+  @override
+  String get pushChat => '私信';
+
+  @override
+  String get pushMentionsAndReplies => '提及和回复';
+
+  @override
+  String get pushActivity => '赞';
+
+  @override
+  String get pushFollowing => '关注动态';
+
+  @override
+  String get pushSystem => '系统与审核';
+
+  @override
+  String notificationMentionTopic(String actor, String topic) {
+    return '$actor 在《$topic》中提到了你';
+  }
+
+  @override
+  String notificationCommentTopic(String actor, String topic) {
+    return '$actor 评论了《$topic》';
+  }
+
+  @override
+  String notificationTopicPostTopic(String actor, String topic) {
+    return '$actor 在你关注的《$topic》中发表了新回复';
+  }
+
+  @override
+  String notificationWikiTopic(String topic) {
+    return '《$topic》有更新';
+  }
+
+  @override
+  String get authPasskey => '使用通行密钥登录';
+
+  @override
+  String get authPasskeyUnavailable => '此设备暂不支持通行密钥。';
+
+  @override
+  String get authPasskeyFailed => '通行密钥登录失败，请重试或使用密码登录。';
+
+  @override
+  String get authPasskeyCancelled => '未选择或没有可用的通行密钥，请重试或使用密码登录。';
+
+  @override
+  String get settingsPasskeyTitle => '通行密钥';
+
+  @override
+  String get settingsPasskeyManage => '管理通行密钥';
+
+  @override
+  String get settingsPasskeyDescription =>
+      '使用设备通行密钥免密码登录。即使开启两步验证，仍可直接使用通行密钥登录。';
+
+  @override
+  String get settingsPasskeyReauthHint =>
+      '添加、重命名或移除通行密钥都需要登录密码；若已启用两步验证，还需输入当前验证码。';
+
+  @override
+  String get settingsPasskeyName => '通行密钥名称';
+
+  @override
+  String get settingsPasskeyPassword => '登录密码';
+
+  @override
+  String get settingsPasskeyAdd => '添加通行密钥';
+
+  @override
+  String get settingsPasskeyAddedAt => '添加时间';
+
+  @override
+  String get settingsPasskeyLastUsed => '最近使用';
+
+  @override
+  String get settingsPasskeyNeverUsed => '尚未使用';
+
+  @override
+  String get settingsPasskeySyncCapable => '可同步';
+
+  @override
+  String get settingsPasskeyDeviceBound => '仅此设备';
+
+  @override
+  String get settingsPasskeyBackedUp => '已同步';
+
+  @override
+  String get settingsPasskeyRevokedHint => '从 YourTJ 移除通行密钥不会删除密码管理器中保存的凭据。';
+
+  @override
+  String get settingsPasskeyRename => '重命名';
+
+  @override
+  String get settingsPasskeyRevoke => '移除';
+
+  @override
+  String get settingsPasskeyAdded => '已添加通行密钥';
+
+  @override
+  String get settingsPasskeyRevoked => '已移除通行密钥';
+
+  @override
+  String get settingsPasskeyEmpty => '尚未添加通行密钥。';
+
+  @override
+  String get settingsPasskeyUnavailable => '此服务器尚未启用通行密钥。';
+
+  @override
+  String get previewUpdateInstructions =>
+      '这是测试版本，请通过本次发布记录中的 Android 下载链接或指定 TestFlight 测试组更新。';
+
+  @override
+  String get previewStale => '此预发版本已不是当前候选。请查看发布状态，获取当前测试版本或返回正式版。';
+
+  @override
+  String get previewStatusUnknown => '暂时无法确认此预发版本的状态，测试前请与发布负责人核对。';
+
+  @override
+  String get previewStatusLink => '预发状态';
 }

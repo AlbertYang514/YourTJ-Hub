@@ -1,7 +1,10 @@
 <script setup lang="ts">import { adminText } from '@/admin/runtime/i18n-text'
 
+import { useI18n } from 'vue-i18n'
+import BadgeStylePreview from '@/admin/components/BadgeStylePreview.vue'
+import AdminSelect from '@/admin/components/AdminSelect.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Edit3, Plus, RefreshCw, Trash2 } from '@lucide/vue'
+import { Edit3, Plus, RefreshCw, Trash2, Loader2, Upload } from '@lucide/vue'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
 import AdminConfirmDialog from '@/admin/components/AdminConfirmDialog.vue'
 import { BasicPage } from '@/admin/components/global-layout'
@@ -18,13 +21,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/admin/components/ui/dialog'
-import { deleteBadge, getBadges, saveBadge } from '@/admin/runtime/api'
+import { deleteBadge, getBadges, saveBadge, uploadBadgeAsset } from '@/admin/runtime/api'
 import { adminToast } from '@/admin/runtime/toast'
 import type { AdminBadge, AdminPayload, ManageHomeProps } from '@/admin/types'
 
 defineProps<{
   payload: AdminPayload<ManageHomeProps>
 }>()
+
+const { t } = useI18n()
+const uploading = ref(false)
+const uploadError = ref('')
+const uploadInput = ref<HTMLInputElement>()
 
 const emptyBadge: AdminBadge = {
   code: '',
@@ -76,20 +84,20 @@ const stats = computed(() => ({
 function toneClass(badge: AdminBadge) {
   const color = colorOptions.includes(badge.color) ? badge.color : 'blue'
   const classes: Record<string, string> = {
-    blue: 'bg-blue-100 text-blue-700 ring-blue-200',
-    emerald: 'bg-emerald-100 text-emerald-700 ring-emerald-200',
-    teal: 'bg-teal-100 text-teal-700 ring-teal-200',
-    sky: 'bg-sky-100 text-sky-700 ring-sky-200',
-    cyan: 'bg-cyan-100 text-cyan-700 ring-cyan-200',
-    rose: 'bg-rose-100 text-rose-700 ring-rose-200',
-    violet: 'bg-violet-100 text-violet-700 ring-violet-200',
-    purple: 'bg-purple-100 text-purple-700 ring-purple-200',
-    fuchsia: 'bg-fuchsia-100 text-fuchsia-700 ring-fuchsia-200',
-    indigo: 'bg-indigo-100 text-indigo-700 ring-indigo-200',
-    amber: 'bg-amber-100 text-amber-700 ring-amber-200',
-    orange: 'bg-orange-100 text-orange-700 ring-orange-200',
-    yellow: 'bg-yellow-100 text-yellow-700 ring-yellow-200',
-    slate: 'bg-slate-100 text-slate-700 ring-slate-200',
+    blue: 'bg-blue-100 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
+    emerald: 'bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
+    teal: 'bg-teal-100 text-teal-700 ring-teal-200 dark:bg-teal-500/15 dark:text-teal-300 dark:ring-teal-500/30',
+    sky: 'bg-sky-100 text-sky-700 ring-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/30',
+    cyan: 'bg-cyan-100 text-cyan-700 ring-cyan-200 dark:bg-cyan-500/15 dark:text-cyan-300 dark:ring-cyan-500/30',
+    rose: 'bg-rose-100 text-rose-700 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30',
+    violet: 'bg-violet-100 text-violet-700 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
+    purple: 'bg-purple-100 text-purple-700 ring-purple-200 dark:bg-purple-500/15 dark:text-purple-300 dark:ring-purple-500/30',
+    fuchsia: 'bg-fuchsia-100 text-fuchsia-700 ring-fuchsia-200 dark:bg-fuchsia-500/15 dark:text-fuchsia-300 dark:ring-fuchsia-500/30',
+    indigo: 'bg-indigo-100 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30',
+    amber: 'bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
+    orange: 'bg-orange-100 text-orange-700 ring-orange-200 dark:bg-orange-500/15 dark:text-orange-300 dark:ring-orange-500/30',
+    yellow: 'bg-yellow-100 text-yellow-700 ring-yellow-200 dark:bg-yellow-500/15 dark:text-yellow-300 dark:ring-yellow-500/30',
+    slate: 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/30',
   }
   return classes[color]
 }
@@ -107,16 +115,41 @@ async function loadBadges() {
 }
 
 function openCreate() {
+  uploadError.value = ''
   Object.assign(form, { ...emptyBadge })
   editing.value = { ...emptyBadge }
 }
 
 function openEdit(badge: AdminBadge) {
+  uploadError.value = ''
   Object.assign(form, { ...emptyBadge, ...badge })
   editing.value = badge
 }
 
+function closeEditor(open: boolean) {
+  if (!open && !saving.value && !uploading.value) editing.value = null
+}
+
+async function uploadAsset(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file || uploading.value || saving.value) return
+  uploading.value = true
+  uploadError.value = ''
+  try {
+    const result = await uploadBadgeAsset(file)
+    form.iconUrl = result.url
+    form.iconType = 'asset'
+  } catch (err) {
+    uploadError.value = err instanceof Error ? err.message : t('badgeAdmin.uploadFailed')
+  } finally {
+    uploading.value = false
+    input.value = ''
+  }
+}
+
 async function submitBadge() {
+  if (saving.value || uploading.value) return
   if (!form.name.trim()) {
     adminToast.warning(adminText('k0035'))
     return
@@ -192,7 +225,7 @@ onMounted(() => {
               <img :src="badge.iconUrl || '/static/badges/contributor.svg'" :alt="badge.name" class="size-6 object-contain" />
             </div>
             <div class="mt-1 flex max-w-full items-center gap-1">
-              <span class="truncate text-xs font-semibold leading-5" :class="badge.type === 'custom' ? 'text-blue-600' : 'text-foreground'">
+              <span class="truncate text-xs font-semibold leading-5" :class="badge.type === 'custom' ? 'text-blue-600 dark:text-blue-400' : 'text-foreground'">
                 {{ badge.name }}
               </span>
             </div>
@@ -211,13 +244,15 @@ onMounted(() => {
         </div>
       </div>
 
-      <Dialog :open="editing !== null" @update:open="(open) => !open && (editing = null)">
-        <DialogContent class="sm:max-w-2xl">
+      <Dialog :open="editing !== null" @update:open="closeEditor">
+        <DialogContent class="max-h-[92dvh] grid-rows-[auto_minmax(0,1fr)] overflow-hidden sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>{{ form.code ? adminText('k005e') : adminText('k005a') }}</DialogTitle>
             <DialogDescription>{{ adminText('k00bb') }}</DialogDescription>
           </DialogHeader>
-          <form class="grid max-h-[68vh] gap-4 overflow-y-auto pr-2 sm:grid-cols-2" @submit.prevent="submitBadge">
+          <form class="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-6" :aria-busy="saving || uploading" @submit.prevent="submitBadge">
+            <div class="grid min-h-0 gap-8 overflow-y-auto md:grid-cols-[minmax(0,1fr)_minmax(17rem,.85fr)]">
+            <fieldset :disabled="saving || uploading" class="grid min-w-0 content-start gap-4 sm:grid-cols-2">
             <label class="grid gap-2 text-sm font-medium">
               {{ adminText('k00bc') }}
               <Input v-model="form.code" :disabled="Boolean(editing?.code)" :placeholder="adminText('k005k')" />
@@ -230,15 +265,20 @@ onMounted(() => {
               {{ adminText('k00ag') }}
               <Textarea v-model="form.description" />
             </label>
-            <label class="grid gap-2 text-sm font-medium">
-              {{ adminText('k00bd') }}
-              <Input v-model="form.iconUrl" />
-            </label>
+            <section class="space-y-3 sm:col-span-2">
+              <label for="badge-artwork" class="block text-sm font-medium">{{ adminText('k00bd') }}</label>
+              <Input id="badge-artwork" v-model="form.iconUrl" class="text-base sm:text-sm" aria-describedby="badge-artwork-hint" placeholder="/static/badges/contributor.svg" />
+              <div class="flex flex-wrap items-center gap-3">
+                <Button type="button" variant="outline" :disabled="saving || uploading" @click="uploadInput?.click()"><Loader2 v-if="uploading" class="size-4 animate-spin" /><Upload v-else class="size-4" />{{ t(uploading ? 'decoration.uploading' : 'badgeAdmin.uploadAsset') }}</Button>
+                <span class="text-xs text-muted-foreground">SVG · PNG · WebP · GIF</span>
+              </div>
+              <input ref="uploadInput" type="file" accept="image/svg+xml,image/png,image/webp,image/gif" class="sr-only" tabindex="-1" :disabled="saving || uploading" :aria-label="t('badgeAdmin.uploadAsset')" @change="uploadAsset" />
+              <p id="badge-artwork-hint" class="text-sm leading-relaxed text-muted-foreground">{{ t('badgeAdmin.assetHint') }}</p>
+              <p v-if="uploadError" role="alert" class="text-sm leading-relaxed text-destructive">{{ uploadError }}</p>
+            </section>
             <label class="grid gap-2 text-sm font-medium">
               {{ adminText('k00ad') }}
-              <select v-model="form.color" class="h-9 rounded-md border bg-background px-3 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <option v-for="color in colorOptions" :key="color" :value="color">{{ color }}</option>
-              </select>
+              <AdminSelect v-model="form.color" :options="colorOptions.map((color) => ({ value: color, label: color }))" class="w-full" />
             </label>
             <label class="grid gap-2 text-sm font-medium">
               {{ adminText('k00be') }}
@@ -250,28 +290,36 @@ onMounted(() => {
             </label>
             <label class="grid gap-2 text-sm font-medium">
               {{ adminText('k00bg') }}
-              <select v-model="form.grantMode" class="h-9 rounded-md border bg-background px-3 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring" :disabled="form.type === 'system'">
-                <option value="auto">{{ adminText('k005b') }}</option>
-                <option value="manual">{{ adminText('k005c') }}</option>
-              </select>
+              <AdminSelect
+                v-model="form.grantMode"
+                :disabled="form.type === 'system'"
+                :options="[{ value: 'auto', label: adminText('k005b') }, { value: 'manual', label: adminText('k005c') }]"
+                class="w-full"
+              />
             </label>
             <div class="grid gap-2 text-sm font-medium">
               {{ adminText('k00bh') }}
-              <div class="flex h-9 items-center justify-between rounded-md border bg-background px-3">
+              <div class="flex min-h-9 items-center justify-between gap-3 rounded-md border bg-background px-3 py-2">
                 <span class="text-sm text-muted-foreground">{{ adminText('k00bi') }}</span>
                 <Switch v-model="form.isEnabled" />
               </div>
             </div>
             <div class="grid gap-2 text-sm font-medium">
               {{ adminText('k00d7') }}
-              <div class="flex h-9 items-center justify-between rounded-md border bg-background px-3">
+              <div class="flex min-h-9 items-center justify-between gap-3 rounded-md border bg-background px-3 py-2">
                 <span class="text-sm text-muted-foreground">{{ adminText('k00d8') }}</span>
                 <Switch v-model="form.isWearable" />
               </div>
             </div>
-            <DialogFooter class="sm:col-span-2">
-              <Button variant="outline" type="button" @click="editing = null">{{ adminText('k009q') }}</Button>
-              <Button type="submit" :disabled="saving">{{ saving ? adminText('k005f') : adminText('k005g') }}</Button>
+            </fieldset>
+            <aside class="order-first min-w-0 space-y-3 md:order-last md:sticky md:top-0 md:self-start">
+              <h3 class="text-sm font-semibold">{{ t('decoration.configAdmin.preview') }}</h3>
+              <BadgeStylePreview :badge="form" />
+            </aside>
+            </div>
+            <DialogFooter class="bg-background">
+              <Button variant="outline" type="button" @click="closeEditor(false)" :disabled="saving || uploading">{{ adminText('k009q') }}</Button>
+              <Button type="submit" :disabled="saving || uploading">{{ saving ? adminText('k005f') : adminText('k005g') }}</Button>
             </DialogFooter>
           </form>
         </DialogContent>

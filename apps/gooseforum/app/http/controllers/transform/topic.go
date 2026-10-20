@@ -1,6 +1,8 @@
 package transform
 
 import (
+	"context"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/anonymousidentityservice"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
@@ -12,6 +14,10 @@ import (
 )
 
 func Topics2Vo(data []*topics.Entity, categoryMap map[uint64]*category.Entity) []*vo.TopicsSimpleVo {
+	return Topics2VoContext(context.Background(), data, categoryMap)
+}
+
+func Topics2VoContext(ctx context.Context, data []*topics.Entity, categoryMap map[uint64]*category.Entity) []*vo.TopicsSimpleVo {
 	userIDs := make([]uint64, 0, len(data)*2)
 	seenUserIDs := make(map[uint64]struct{}, len(data)*2)
 	for _, topic := range data {
@@ -30,11 +36,15 @@ func Topics2Vo(data []*topics.Entity, categoryMap map[uint64]*category.Entity) [
 			userIDs = append(userIDs, poster.UserID)
 		}
 	}
-	userMap := users.GetMapByIds(userIDs)
-	return TopicsWithUser2Vo(data, categoryMap, userMap)
+	userMap := users.GetMapByIdsContext(ctx, userIDs)
+	return topicsWithUser2VoContext(ctx, data, categoryMap, userMap)
 }
 
 func TopicsWithUser2Vo(data []*topics.Entity, categoryMap map[uint64]*category.Entity, userMap map[uint64]*users.EntityComplete) []*vo.TopicsSimpleVo {
+	return topicsWithUser2VoContext(context.Background(), data, categoryMap, userMap)
+}
+
+func topicsWithUser2VoContext(ctx context.Context, data []*topics.Entity, categoryMap map[uint64]*category.Entity, userMap map[uint64]*users.EntityComplete) []*vo.TopicsSimpleVo {
 	// Collect first post IDs to fetch content types
 	firstPostIDs := make([]uint64, 0, len(data))
 	for _, t := range data {
@@ -43,8 +53,15 @@ func TopicsWithUser2Vo(data []*topics.Entity, categoryMap map[uint64]*category.E
 		}
 	}
 	// Fetch first posts to get content types
-	firstPostMap := posts.GetMapByIds(firstPostIDs)
+	firstPostMap := posts.GetMapByIdsContext(ctx, firstPostIDs)
 
+	uids := make([]string, 0, len(data))
+	for _, t := range data {
+		if t != nil && t.PersonaUID != "" {
+			uids = append(uids, t.PersonaUID)
+		}
+	}
+	personas := anonymousidentityservice.LookupContext(ctx, uids)
 	res := make([]*vo.TopicsSimpleVo, 0, len(data))
 	for _, t := range data {
 		if t == nil {
@@ -69,6 +86,14 @@ func TopicsWithUser2Vo(data []*topics.Entity, categoryMap map[uint64]*category.E
 			avatarUrl = user.GetWebAvatarUrl()
 		}
 
+		authorID := t.UserId
+		if t.PersonaUID != "" {
+			p := personas[t.PersonaUID]
+			authorID = 0
+			username = p.Name
+			nickname = ""
+			avatarUrl = p.AvatarURL
+		}
 		posters := t.GetPosters()
 		postersVo := make([]vo.PosterVo, 0, len(posters))
 		for _, poster := range posters {
@@ -104,7 +129,8 @@ func TopicsWithUser2Vo(data []*topics.Entity, categoryMap map[uint64]*category.E
 			ImageUrls:      t.ImageUrls,
 			LastUpdateTime: t.UpdatedAt.Format(time.RFC3339),
 			CreateTime:     t.CreatedAt.Format(time.RFC3339),
-			AuthorId:       t.UserId,
+			AuthorId:       authorID,
+			PersonaUID:     t.PersonaUID,
 			Username:       username,
 			Nickname:       nickname,
 			AvatarUrl:      avatarUrl,

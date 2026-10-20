@@ -46,7 +46,7 @@ func SendCommentNotification(userId uint64, topicId uint64, commentContent strin
 }
 
 // SendPostReplyNotification 发送 post 回复通知
-func SendPostReplyNotification(userId uint64, postId uint64, postNo uint64, topicId uint64, replyContent string, replierId uint64) error {
+func SendPostReplyNotification(userId uint64, postId uint64, postNo uint64, topicId uint64, replyContent string, replierId uint64, directMention ...bool) error {
 	payload := eventNotification.NotificationPayload{
 		Content:     replyContent,
 		TemplateKey: eventNotification.TemplatePostReply,
@@ -64,6 +64,11 @@ func SendPostReplyNotification(userId uint64, postId uint64, postNo uint64, topi
 		EventType: eventNotification.EventTypePostReply,
 		TopicID:   topicId,
 		Payload:   payload,
+	}
+
+	if len(directMention) > 0 && directMention[0] {
+		notification.HasDirectMention = true
+		notification.Payload.HasDirectMention = true
 	}
 
 	created, err := persistInteractions(db.Connect(), []*eventNotification.Entity{notification})
@@ -132,13 +137,18 @@ func SendMentionNotifications(userIds []uint64, topicId uint64, postId uint64, p
 		if userId == 0 {
 			continue
 		}
+		// 行级 has_direct_mention 只用于「回复里同时 @ 了我」这类需要从回复分类
+		// 提升到 mention 分类的行（分类查询里 event_type='mention' 已经能选中
+		// 纯 mention 行）；纯 mention 行不再冗余写该列，payload 上的标记保留作
+		// 推送文案优先级的判据。
 		notifications = append(notifications, &eventNotification.Entity{
 			UserId:    userId,
 			EventType: eventNotification.EventTypeMention,
 			TopicID:   topicId,
 			Payload: eventNotification.NotificationPayload{
-				Content:     preview,
-				TemplateKey: eventNotification.TemplateMention,
+				HasDirectMention: true,
+				Content:          preview,
+				TemplateKey:      eventNotification.TemplateMention,
 				TemplateParams: eventNotification.NotificationTemplateParams{
 					Preview: preview,
 				},
@@ -156,7 +166,12 @@ func SendMentionNotifications(userIds []uint64, topicId uint64, postId uint64, p
 	created, err := persistInteractions(db.Connect(), notifications)
 	if err == nil {
 		for _, notification := range created {
+			if notification == nil {
+				continue
+			}
 			notificationCommitted(notification.UserId)
+			webpushservice.EnqueueNotification(notification.UserId, notification.Id)
+			nativepushservice.EnqueueNotification(notification.UserId, notification.Id)
 		}
 	}
 	return err
@@ -213,20 +228,22 @@ func SendSystemAlert(userID uint64, title string, content string) error {
 	return err
 }
 
-// SendReviewResultNotification 通知作者人工审核结果（issue #975）。待审期间作者只看到
-// “已提交审核”，审核完成后必须得到结论：通过时通知链接到内容（回复带楼层号）；
-// 拒绝时内容对作者同样不可见，只保留标题快照、不生成链接，避免跳到 404。
-// TopicID 冗余列始终写入，话题删除联动时随之清理。
+// SendReviewResultNotification notifies the author of a human decision.
+// Rejected content is recoverable in content management; its subject is masked.
 func SendReviewResultNotification(userID uint64, approved bool, topicID uint64, topicTitle string, postID uint64, postNo uint64) error {
 	payload := eventNotification.NotificationPayload{
 		TemplateKey: eventNotification.TemplateReviewRejected,
 		TopicTitle:  topicTitle,
+		TopicId:     topicID,
+		PostId:      postID,
+		PostNo:      postNo,
 	}
 	eventType := eventNotification.EventTypeReviewRejected
 	if approved {
 		payload.TemplateKey = eventNotification.TemplateReviewApproved
-		payload.TopicId, payload.PostId, payload.PostNo = topicID, postID, postNo
 		eventType = eventNotification.EventTypeReviewApproved
+	} else {
+		payload = eventNotification.RedactReviewRejectedPayload(payload)
 	}
 	notification := &eventNotification.Entity{
 		UserId:    userID,
@@ -337,7 +354,11 @@ func persistInteractions(conn *gorm.DB, notifications []*eventNotification.Entit
 		}
 		allowed := make(map[uint64]map[uint64]bool)
 		for actor, ids := range recipients {
-			filtered, err := users.FilterInteractionRecipientsTx(tx, actor, ids)
+			humanIDs, err := users.ExcludeBotRecipientsTx(tx, ids)
+			if err != nil {
+				return err
+			}
+			filtered, err := users.FilterInteractionRecipientsTx(tx, actor, humanIDs)
 			if err != nil {
 				return err
 			}
@@ -350,6 +371,9 @@ func persistInteractions(conn *gorm.DB, notifications []*eventNotification.Entit
 			if n != nil && allowed[n.Payload.ActorId][n.UserId] {
 				committed = append(committed, n)
 			}
+		}
+		if err := redactAnonymousActors(tx, committed); err != nil {
+			return err
 		}
 		return eventNotification.CreateBatchTx(tx, committed, 100)
 	})

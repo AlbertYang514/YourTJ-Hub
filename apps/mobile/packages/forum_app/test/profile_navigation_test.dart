@@ -124,13 +124,21 @@ class _ContentActions extends _FollowActions {
   final writes = <(int, bool, int)>[];
   final write = Completer<bool>();
   @override
-  Future<bool> likeTopic({required int topicId, required int action}) {
+  Future<bool> likeTopic({
+    required int topicId,
+    required int action,
+    TopicPayload? feedTopic,
+  }) {
     writes.add((topicId, false, action));
     return write.future;
   }
 
   @override
-  Future<bool> bookmarkTopic({required int topicId, required int action}) {
+  Future<bool> bookmarkTopic({
+    required int topicId,
+    required int action,
+    TopicPayload? feedTopic,
+  }) {
     writes.add((topicId, true, action));
     return write.future;
   }
@@ -265,15 +273,16 @@ Future<ProviderContainer> _pump(
   return container;
 }
 
+/// A profile tab by its label. Locked tabs (issue #1124) add the reason on
+/// a second tooltip line, so match the first line only.
+Finder _tab(String label) => find.byWidgetPredicate(
+  (w) => w is Tooltip && w.message?.split('\n').first == label,
+);
+
 void _select(WidgetTester tester, String label) {
   tester
       .widget<InkWell>(
-        find
-            .descendant(
-              of: find.byTooltip(label),
-              matching: find.byType(InkWell),
-            )
-            .first,
+        find.descendant(of: _tab(label), matching: find.byType(InkWell)).first,
       )
       .onTap!();
 }
@@ -548,10 +557,10 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(GfGlassSurface), findsNothing);
-    expect(tester.getRect(find.byTooltip('动态')).top, greaterThanOrEqualTo(103));
+    expect(tester.getRect(_tab('动态')).top, greaterThanOrEqualTo(103));
     _select(tester, '徽章');
     await tester.pumpAndSettle();
-    expect(tester.getRect(find.byTooltip('徽章')).top, greaterThanOrEqualTo(103));
+    expect(tester.getRect(_tab('徽章')).top, greaterThanOrEqualTo(103));
     expect(tester.takeException(), isNull);
   });
 
@@ -1208,11 +1217,12 @@ void main() {
     (tester) async {
       await _pump(tester, _Profiles());
       void expectLabel(String label, {required bool expanded}) {
-        final tab = find.byTooltip(label);
+        final tab = _tab(label);
         expect(tab, findsOneWidget);
+        // The tab icon, plus the lock badge on a restricted section.
         expect(
           find.descendant(of: tab, matching: find.byType(GfSymbol)),
-          findsOneWidget,
+          findsWidgets,
         );
         final opacity = find.descendant(
           of: tab,
@@ -1251,10 +1261,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 110));
     expect(tester.getRect(indicator), rect);
     final opacity = tester.widget<AnimatedOpacity>(
-      find.descendant(
-        of: find.byTooltip('赞过'),
-        matching: find.byType(AnimatedOpacity),
-      ),
+      find.descendant(of: _tab('赞过'), matching: find.byType(AnimatedOpacity)),
     );
     expect(opacity.duration, Duration.zero);
     expect(opacity.opacity, 1);
@@ -1267,7 +1274,7 @@ void main() {
       await _pump(tester, _Profiles());
       const labels = ['动态', '内容', '赞过', '收藏', '徽章'];
       Finder cell(String label) => find
-          .descendant(of: find.byTooltip(label), matching: find.byType(InkWell))
+          .descendant(of: _tab(label), matching: find.byType(InkWell))
           .first;
       void expectNoGaps() {
         final rects = [for (final label in labels) tester.getRect(cell(label))];
@@ -1300,8 +1307,8 @@ void main() {
     tester,
   ) async {
     await _pump(tester, _Profiles());
-    final from = find.byTooltip('动态').first;
-    final to = find.byTooltip('赞过').first;
+    final from = _tab('动态').first;
+    final to = _tab('赞过').first;
     final indicator = find.byKey(const ValueKey('profile-tab-indicator')).first;
     final start = tester.getRect(indicator).center.dx;
 
@@ -1349,7 +1356,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 16));
 
-    final nextTab = find.byTooltip('内容').first;
+    final nextTab = _tab('内容').first;
     final label = tester.widget<AnimatedOpacity>(
       find
           .descendant(of: nextTab, matching: find.byType(AnimatedOpacity))
@@ -1380,7 +1387,7 @@ void main() {
       final semantics = tester.ensureSemantics();
       await _pump(tester, _Profiles());
       final tabText = find.descendant(
-        of: find.byTooltip('赞过'),
+        of: _tab('赞过'),
         matching: find.text('赞过'),
       );
       Focus.of(tester.element(tabText)).requestFocus();
@@ -1443,7 +1450,7 @@ void main() {
       );
       expect(tester.getRect(find.byType(GfUserCard)), card);
       expect(find.byType(GfGlassSurface), findsWidgets);
-      expect(find.byTooltip('赞过'), findsOneWidget);
+      expect(_tab('赞过'), findsOneWidget);
       expect(find.byType(GfSkeleton), findsWidgets);
       expect(find.byType(GfLoadingIndicator), findsNothing);
       expect(find.text('like-0'), findsNothing);
@@ -1594,7 +1601,7 @@ void main() {
       );
       addTearDown(router.dispose);
       await _pump(tester, repo, router: router);
-      expect(find.byTooltip('收藏'), findsNothing);
+      expect(_tab('收藏'), findsNothing);
       final stat = find.descendant(
         of: find.byType(GfUserCard),
         matching: find.text('关注'),
@@ -1794,8 +1801,8 @@ void main() {
       final scroll = _innerPosition(tester);
       scroll.jumpTo(1000);
       await tester.pump();
-      await tester.ensureVisible(find.byTooltip('徽章'));
-      await tester.tap(find.byTooltip('徽章'));
+      await tester.ensureVisible(_tab('徽章'));
+      await tester.tap(_tab('徽章'));
       await tester.pumpAndSettle();
       expect(find.text('暂无徽章'), findsOneWidget);
       expect(tester.takeException(), isNull);

@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
@@ -452,16 +455,8 @@ func TestReviewActionApprovedPendingPostEventCarriesPostNo(t *testing.T) {
 		}
 	}
 
-	captured := make(chan *eventhandlers.CommentCreatedEvent, 4)
-	handler := cqrs.NewEventHandler("TestReviewActionCommentCapture", func(_ context.Context, event *eventhandlers.CommentCreatedEvent) error {
-		// 非阻塞投递：路由器是进程级单例，测试结束后仍会收到其他测试发布的事件，直接丢弃。
-		select {
-		case captured <- event:
-		default:
-		}
-		return nil
-	})
-	startReviewActionEventBus(t, handler, captured)
+	captured := reviewCommentEvents
+	startReviewActionEventBus(t)
 
 	res := ReviewAction(component.BetterRequest[ReviewActionReq]{
 		Params: ReviewActionReq{Kind: "post", Id: pendingPostID, Approve: true},
@@ -485,22 +480,86 @@ func TestReviewActionApprovedPendingPostEventCarriesPostNo(t *testing.T) {
 
 // startReviewActionEventBus 启动事件总线路由器并注册捕获 handler，然后通过哨兵事件
 // 回环确认路由器已订阅 CommentCreatedEvent 主题（发布早于订阅的事件会被丢弃）。
-func startReviewActionEventBus(t *testing.T, handler cqrs.EventHandler, captured chan *eventhandlers.CommentCreatedEvent) {
+var reviewEventBusOnce sync.Once
+var reviewCommentEvents = make(chan *eventhandlers.CommentCreatedEvent, 16)
+var reviewUpdatedEvents = make(chan *eventhandlers.PostUpdatedEvent, 16)
+
+// Register both capture handlers before starting the process-wide router once.
+func startReviewActionEventBus(t *testing.T) {
 	t.Helper()
-	eventbus.Start(handler)
+	reviewEventBusOnce.Do(func() {
+		eventbus.Start(
+			cqrs.NewEventHandler("TestReviewActionCommentCapture", func(_ context.Context, event *eventhandlers.CommentCreatedEvent) error {
+				select {
+				case reviewCommentEvents <- event:
+				default:
+				}
+				return nil
+			}),
+			cqrs.NewEventHandler("Test1042ApprovedEditCapture", func(_ context.Context, event *eventhandlers.PostUpdatedEvent) error {
+				select {
+				case reviewUpdatedEvents <- event:
+				default:
+				}
+				return nil
+			}),
+		)
+	})
 	const sentinel = uint64(0xDEADBEEF)
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
 		eventbus.Publish(context.Background(), &eventhandlers.CommentCreatedEvent{PostNo: sentinel})
 		select {
-		case event := <-captured:
-			if event.PostNo != sentinel {
-				t.Fatalf("unexpected event during readiness probe: %#v", event)
+		case event := <-reviewCommentEvents:
+			if event.PostNo == sentinel {
+				return
 			}
-			return
-		case <-time.After(300 * time.Millisecond):
-			// 路由器尚未就绪，重试探针。
+		case <-time.After(100 * time.Millisecond):
 		}
 	}
 	t.Fatal("event bus router did not become ready")
+}
+
+func TestReviewActionVersionedDatabaseFailureIsRetryable(t *testing.T) {
+	conn := setupAdminTopicTestDB(t)
+	if err := conn.AutoMigrate(&postRevisions.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	seedAdminTopic(t, conn, 946201)
+	postID := topics.Get(946201).FirstPostId
+	revision := postRevisions.Entity{PostId: postID, ProcessStatus: posts.ProcessStatusPending}
+	if err := conn.Create(&revision).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Model(&posts.Entity{}).Where("id = ?", postID).Update("latest_revision_id", revision.Id).Error; err != nil {
+		t.Fatal(err)
+	}
+	const callback = "test:review_database_failure"
+	if err := conn.Callback().Query().Before("gorm:query").Register(callback, func(tx *gorm.DB) {
+		if tx.Statement.Table == "post_revisions" {
+			_ = tx.AddError(errors.New("temporary database failure"))
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Callback().Query().Remove(callback) })
+	result := ReviewAction(component.BetterRequest[ReviewActionReq]{Params: ReviewActionReq{Kind: "post", Id: postID, RevisionId: revision.Id, Approve: true}})
+	if result.Data.MessageCode != component.MessageOperationFailed {
+		t.Fatalf("database failure returned %v, want operation failure", result.Data.MessageCode)
+	}
+	if err := conn.Callback().Query().Remove(callback); err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.First(&revision, revision.Id).Error; err != nil {
+		t.Fatal(err)
+	}
+	if revision.ProcessStatus != posts.ProcessStatusPending {
+		t.Fatal("failed review consumed the pending revision")
+	}
+	if err := conn.Model(&revision).Update("process_status", posts.ProcessStatusNormal).Error; err != nil {
+		t.Fatal(err)
+	}
+	result = ReviewAction(component.BetterRequest[ReviewActionReq]{Params: ReviewActionReq{Kind: "post", Id: postID, RevisionId: revision.Id, Approve: true}})
+	if result.Data.MessageCode != component.MessageAdminReviewProcessed {
+		t.Fatalf("terminal revision returned %v", result.Data.MessageCode)
+	}
 }

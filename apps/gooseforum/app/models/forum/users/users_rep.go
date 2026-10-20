@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userPasskeys"
 	"math/rand"
 	"strings"
 	"time"
@@ -37,6 +39,12 @@ var ErrInvalidCredentials = errors.New("invalid username or password")
 
 func Get(id any) (entity EntityComplete, err error) {
 	err = builder().Where(pid, id).First(&entity).Error
+	return
+}
+
+// GetActorTx reads account identity from the transaction, never request flags.
+func GetActorTx(tx *gorm.DB, id uint64) (entity EntityComplete, err error) {
+	err = tx.Table(tableName).Select("id", "actor_type").Where("id = ? AND deleted_at IS NULL", id).Take(&entity).Error
 	return
 }
 
@@ -101,6 +109,12 @@ func GetByUsername(username string) (entity EntityComplete, err error) {
 	return
 }
 
+// GetByUsernameWithContext is the cancellable worker/request variant of GetByUsername.
+func GetByUsernameWithContext(ctx context.Context, username string) (entity EntityComplete, err error) {
+	err = dbconnect.ConnectContext(ctx).Table(tableName).Where("username = ?", username).First(&entity).Error
+	return
+}
+
 func MakeUser(name string, password string, email string) *EntityComplete {
 	user := EntityComplete{Username: name, Email: email}
 	user.SetPassword(password)
@@ -126,7 +140,15 @@ func Save(entity *EntityComplete) error {
 // must be used for request-scoped edits so a stale EntityComplete cannot
 // overwrite a concurrent password change or token-version increment.
 func UpdateFields(userID uint64, fields map[string]any) error {
-	return builder().Where(queryopt.Eq(pid, userID)).Updates(fields).Error
+	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&EntityComplete{}).Where("id = ?", userID).Updates(fields).Error; err != nil {
+			return err
+		}
+		if _, changes := fields["is_frozen"]; changes {
+			return feed.MarkActorTx(tx, userID)
+		}
+		return nil
+	})
 }
 
 func UpdateWornBadgeCode(userID uint64, badgeCode string) error {
@@ -160,12 +182,22 @@ func CloseAccount(userID uint64) error {
 // CloseAccountTx lets the owning service coordinate account deletion and other
 // required private-state cleanup in one primary-database transaction.
 func CloseAccountTx(tx *gorm.DB, userID uint64) error {
+	if err := userPasskeys.DeleteUserState(tx, userID); err != nil {
+		return err
+	}
+	if err := feed.MarkActorTx(tx, userID); err != nil {
+		return err
+	}
 	if err := tx.Unscoped().Model(&EntityComplete{}).Where("id = ?", userID).Updates(map[string]any{
 		"deleted_at": time.Now(), "worn_badge_code": "",
 	}).Error; err != nil {
 		return err
 	}
 	if err := tx.Where("owner_id = ? OR target_user_id = ?", userID, userID).Delete(&PrivateNoteEntity{}).Error; err != nil {
+		return err
+	}
+	// A closed profile is gone for every viewer, so its audiences are inert.
+	if err := tx.Where("user_id = ?", userID).Delete(&PrivacySettingsEntity{}).Error; err != nil {
 		return err
 	}
 	return tx.Where("owner_id = ? OR target_user_id = ?", userID, userID).Delete(&BlockEntity{}).Error
@@ -259,9 +291,32 @@ func GetActiveUserIdsByRoleIds(roleIds []uint64) []uint64 {
 }
 
 func GetMapByIds(userIds []uint64) map[uint64]*EntityComplete {
-	return lo.KeyBy(GetByIds(userIds), func(v *EntityComplete) uint64 {
+	return GetMapByIdsContext(context.Background(), userIds)
+}
+
+func GetMapByIdsContext(ctx context.Context, userIds []uint64) map[uint64]*EntityComplete {
+	var entities []*EntityComplete
+	if len(userIds) > 0 {
+		builder().WithContext(ctx).Where(queryopt.In(pid, userIds)).Find(&entities)
+	}
+	return lo.KeyBy(entities, func(v *EntityComplete) uint64 {
 		return v.Id
 	})
+}
+
+// GetMapByIdsWithError 是 GetMapByIdsContext 的可报错变体，供需要失败可见性的调用方
+// 使用（与静默吞错的 GetMapByIdsContext 区分——统计排行身份回填在 DB 故障时应当报错
+// 而不是返回空身份，issue #1166）。
+func GetMapByIdsWithError(ctx context.Context, userIds []uint64) (map[uint64]*EntityComplete, error) {
+	var entities []*EntityComplete
+	if len(userIds) > 0 {
+		if err := builder().WithContext(ctx).Where(queryopt.In(pid, userIds)).Find(&entities).Error; err != nil {
+			return nil, err
+		}
+	}
+	return lo.KeyBy(entities, func(v *EntityComplete) uint64 {
+		return v.Id
+	}), nil
 }
 
 // GetMentionTargetIds 批量解析 @mention 目标用户（username → userId）。
@@ -341,4 +396,14 @@ func ChatIdentitiesByIDs(tx *gorm.DB, ids []uint64) (map[uint64]PublicChatIdenti
 		result[user.Id] = PublicChatIdentity{Name: name, AvatarURL: user.GetWebAvatarUrl()}
 	}
 	return result, nil
+}
+
+// WearRobotBadgeIfEmptyTx never replaces an explicit badge selection.
+func WearRobotBadgeIfEmptyTx(tx *gorm.DB, userID uint64) error {
+	return tx.Model(&EntityComplete{}).Where("id = ? AND actor_type = ? AND worn_badge_code = ''", userID, ActorTypeBot).Update("worn_badge_code", "robot").Error
+}
+func BotBadgeBackfillBatch(after uint64, limit int) ([]EntityComplete, error) {
+	var rows []EntityComplete
+	err := builder().Where("id > ? AND actor_type = ? AND worn_badge_code = ''", after, ActorTypeBot).Order("id asc").Limit(limit).Find(&rows).Error
+	return rows, err
 }

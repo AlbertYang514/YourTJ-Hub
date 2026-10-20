@@ -1,10 +1,13 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
-import 'package:markdown_widget/markdown_widget.dart' show MarkdownConfig, MarkdownWidget;
+import 'package:html/parser.dart' show parseFragment;
+import 'package:markdown_widget/markdown_widget.dart'
+    show MarkdownConfig, MarkdownWidget;
 import 'package:forum_app/src/reading_preferences.dart';
 import 'package:forum_app/src/widgets/markdown_view.dart';
 import 'package:forum_app/src/widgets/rich_content/gf_code_block.dart';
@@ -33,6 +36,15 @@ const String _longCodeLine =
     'final veryLongIdentifierNameThatNeverWraps = '
     "'https://example.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';";
 
+bool _isTwemojiAsset(Widget widget, [String? suffix]) {
+  if (widget is! Image) return false;
+  final image = widget.image;
+  final provider = image is ResizeImage ? image.imageProvider : image;
+  return provider is AssetImage &&
+      provider.package == 'ui_kit' &&
+      (suffix == null || provider.assetName.endsWith(suffix));
+}
+
 const String _markdownFixture =
     '''
 # 一级标题 heading
@@ -47,7 +59,7 @@ const String _markdownFixture =
 
 ###### 六级标题 heading
 
-正文段落一，包含**粗体**、*斜体* 与 `inline code`，以及一个很长的链接 $_longUrl。
+正文段落一，包含**粗体**、*斜体* 与 `inline code 🔥`，还有 🐦‍🔥，以及一个很长的链接 $_longUrl。
 
 正文段落二，连续段落用于确认段间距与自动换行在窄屏下仍然自然。
 
@@ -63,7 +75,7 @@ const String _markdownFixture =
 
 ```dart
 final int answer = 42;
-final String label = 'answer';
+final String label = 'answer 🔥';
 ```
 
 ```python
@@ -86,20 +98,22 @@ $_longCodeLine
 ![图片](https://example.com/image.png)
 ''';
 
-const String _htmlFixture = '''
+const String _htmlFixture =
+    '''
 <h1 id="h1">一级标题 heading</h1>
 <h2 id="h2">二级标题 heading</h2>
 <h3 id="h3">三级标题 heading</h3>
 <h4 id="h4">四级标题 heading</h4>
 <h5 id="h5">五级标题 heading</h5>
 <h6 id="h6">六级标题 heading</h6>
-<p>正文段落一，包含<strong>粗体</strong>、<em>斜体</em> 与 <code>inline code</code>，
+<p>正文段落一，包含<strong>粗体</strong>、<em>斜体</em> 与 <code>inline code 🔥</code>，还有 🐦‍🔥，
 以及一个很长的链接 <a href="$_longUrl">$_longUrl</a>。</p>
 <p>正文段落二，连续段落用于确认段间距与自动换行在窄屏下仍然自然。</p>
 <blockquote><p>引用块第一行<br>引用块第二行</p></blockquote>
 <ul><li>列表项一<ul><li>嵌套列表项</li></ul></li><li>列表项二</li></ul>
 <ol><li>有序项一</li><li>有序项二</li></ol>
-<pre><code class="language-dart">final int answer = 42;</code></pre>
+<pre><code class="language-dart">final int answer = 42;
+final String label = 'answer 🔥';</code></pre>
 <pre><code class="language-python">def solve():
     return 42</code></pre>
 <pre><code class="language-notalanguage">plain text body</code></pre>
@@ -172,9 +186,9 @@ Future<void> _pumpFixture(
       child: MaterialApp(
         theme: gfThemeData(brightness),
         builder: (BuildContext context, Widget? child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            textScaler: textScaler ?? TextScaler.linear(systemScale),
-          ),
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: textScaler ?? TextScaler.linear(systemScale)),
           child: child!,
         ),
         home: Scaffold(
@@ -182,6 +196,23 @@ Future<void> _pumpFixture(
             key: const ValueKey('rich-content-page'),
             child: _contentFor(path, userScale),
           ),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+/// Renders one HTML snippet through the shared rich-content shell, for cases
+/// that need their own markup instead of the full fixture.
+Future<void> _pumpHtml(WidgetTester tester, String html) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: gfThemeData(Brightness.light),
+      home: Scaffold(
+        body: GfHtmlContent(
+          html: html,
+          profile: _profileFor(_Path.wikiHtml, 1),
         ),
       ),
     ),
@@ -221,13 +252,126 @@ void _expectOnlyRichContentScrolls({required bool html}) {
     expect(
       inCode || inTable,
       isTrue,
-      reason: '${html ? 'html' : 'markdown'} horizontal scroll must live in '
+      reason:
+          '${html ? 'html' : 'markdown'} horizontal scroll must live in '
           'a code block or a table',
     );
   }
 }
 
 void main() {
+  testWidgets('Markdown uses Twemoji in prose and keeps code emoji as text', (
+    tester,
+  ) async {
+    await _pumpFixture(
+      tester,
+      path: _Path.postMarkdown,
+      width: 390,
+      userScale: 1,
+      brightness: Brightness.light,
+    );
+
+    expect(
+      find.byWidgetPredicate(
+        (Widget widget) => _isTwemojiAsset(widget, '1f426-200d-1f525.png'),
+      ),
+      findsOneWidget,
+    );
+    // 行内代码与围栏代码保持原始 Unicode（MADR 0089 skip-code），不出 Twemoji 图。
+    expect(
+      find.byWidgetPredicate(
+        (Widget widget) => _isTwemojiAsset(widget, '/1f525.png'),
+      ),
+      findsNothing,
+    );
+    await _dispose(tester);
+  });
+
+  testWidgets(
+    'Wiki/course HTML uses Twemoji in prose and keeps code emoji as text',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      await _pumpFixture(
+        tester,
+        path: _Path.wikiHtml,
+        width: 390,
+        userScale: 1,
+        brightness: Brightness.light,
+      );
+
+      final birdOnFire = find.byWidgetPredicate(
+        (Widget widget) => _isTwemojiAsset(widget, '1f426-200d-1f525.png'),
+      );
+      expect(birdOnFire, findsOneWidget);
+      expect(find.byType(RichText), findsWidgets);
+      expect(find.bySemanticsLabel('🐦‍🔥'), findsOneWidget);
+      // 行内 <code> 与 <pre> 代码保持原始 Unicode（MADR 0089 skip-code）。
+      expect(
+        find.byWidgetPredicate(
+          (Widget widget) => _isTwemojiAsset(widget, '/1f525.png'),
+        ),
+        findsNothing,
+      );
+      semantics.dispose();
+      await _dispose(tester);
+    },
+  );
+
+  testWidgets('HTML inline code keeps emoji as source text inside prose', (
+    tester,
+  ) async {
+    // Pin for the mixed-paragraph shape: it passed before the style rule too,
+    // because the old code-context marker matched the `code` element. Keeping
+    // it guards the style detection that replaced that marker.
+    await _pumpHtml(tester, '<p>起点 <code>代码 🔥</code> 与 🐦‍🔥</p>');
+
+    final plainTexts = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((richText) => richText.text.toPlainText())
+        .toList();
+    expect(plainTexts.any((text) => text.contains('代码 🔥')), isTrue);
+    expect(
+      find.byWidgetPredicate(
+        (Widget widget) => _isTwemojiAsset(widget, '/1f525.png'),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (Widget widget) => _isTwemojiAsset(widget, '1f426-200d-1f525.png'),
+      ),
+      findsOneWidget,
+    );
+    await _dispose(tester);
+  });
+
+  testWidgets('HTML keyboard and sample tags keep emoji as source text', (
+    tester,
+  ) async {
+    await _pumpHtml(
+      tester,
+      '<p>起点 <kbd>按键 🔥</kbd> 与 <samp>样本 🔥</samp> 与 <tt>终端 🔥</tt>'
+      ' 与 🐦‍🔥</p>',
+    );
+
+    final plainTexts = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((richText) => richText.text.toPlainText())
+        .toList();
+    expect(plainTexts.any((text) => text.contains('按键 🔥')), isTrue);
+    expect(plainTexts.any((text) => text.contains('样本 🔥')), isTrue);
+    expect(plainTexts.any((text) => text.contains('终端 🔥')), isTrue);
+    // 同段正文 emoji 仍出图：三处代码上下文没有替换，正文替换照常。
+    expect(
+      find.byWidgetPredicate(
+        (Widget widget) => _isTwemojiAsset(widget, '1f426-200d-1f525.png'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byWidgetPredicate(_isTwemojiAsset), findsOneWidget);
+    await _dispose(tester);
+  });
+
   for (final _Path path in _Path.values) {
     for (final double width in _widths) {
       for (final double scale in _scales) {
@@ -247,7 +391,9 @@ void main() {
 
               expect(tester.takeException(), isNull);
               expect(
-                tester.getSize(find.byKey(const ValueKey('rich-content-page'))).width,
+                tester
+                    .getSize(find.byKey(const ValueKey('rich-content-page')))
+                    .width,
                 lessThanOrEqualTo(width),
               );
               // Non-vacuous: the fixture really rendered code and a table, and
@@ -283,8 +429,7 @@ void main() {
     RichText paragraphOf(WidgetTester tester) => tester.widget<RichText>(
       find.byWidgetPredicate(
         (Widget widget) =>
-            widget is RichText &&
-            widget.text.toPlainText().startsWith('正文段落一'),
+            widget is RichText && widget.text.toPlainText().startsWith('正文段落一'),
       ),
     );
 
@@ -441,10 +586,7 @@ void main() {
       // Markdown wraps the table in our viewport; the HTML renderer wraps it
       // from outside, so the scroll view is an ancestor there.
       final Finder scrollable = path == _Path.postMarkdown
-          ? find.descendant(
-              of: tableArea,
-              matching: find.byType(Scrollable),
-            )
+          ? find.descendant(of: tableArea, matching: find.byType(Scrollable))
           : find.ancestor(of: tableArea, matching: find.byType(Scrollable));
       expect(scrollable, findsWidgets);
       expect(
@@ -509,9 +651,9 @@ void main() {
 
   test('the app never disables or pins system text scaling', () {
     final List<String> offenders = <String>[];
-    for (final FileSystemEntity entity in Directory('lib').listSync(
-      recursive: true,
-    )) {
+    for (final FileSystemEntity entity in Directory(
+      'lib',
+    ).listSync(recursive: true)) {
       if (entity is! File || !entity.path.endsWith('.dart')) continue;
       final String source = entity.readAsStringSync();
       if (source.contains('TextScaler.noScaling') ||
@@ -549,9 +691,7 @@ void main() {
     expect(
       tester
           .widget<Align>(
-            find
-                .ancestor(of: cell('右'), matching: find.byType(Align))
-                .first,
+            find.ancestor(of: cell('右'), matching: find.byType(Align)).first,
           )
           .alignment,
       Alignment.centerRight,
@@ -566,10 +706,7 @@ void main() {
       brightness: Brightness.light,
     );
     expect(tester.widget<RichText>(cell('中')).textAlign, TextAlign.center);
-    expect(
-      tester.widget<RichText>(cell('右')).textAlign,
-      TextAlign.right,
-    );
+    expect(tester.widget<RichText>(cell('右')).textAlign, TextAlign.right);
     await _dispose(tester);
   });
 
@@ -587,15 +724,11 @@ void main() {
     final RichText h2 = tester.widget<RichText>(
       find.byWidgetPredicate(
         (Widget widget) =>
-            widget is RichText &&
-            widget.text.toPlainText().startsWith('二级标题'),
+            widget is RichText && widget.text.toPlainText().startsWith('二级标题'),
       ),
     );
     expect(h2.text.style?.fontSize, closeTo(profile.h2.fontSize!, .001));
-    expect(
-      h2.text.style?.fontSize,
-      greaterThan(profile.body.fontSize!),
-    );
+    expect(h2.text.style?.fontSize, greaterThan(profile.body.fontSize!));
     await _dispose(tester);
   });
 
@@ -609,12 +742,10 @@ void main() {
         systemScale: systemScale,
         brightness: Brightness.light,
       );
-      final double height = tester.getSize(
-        switch (path) {
-          _Path.postMarkdown => find.byType(GfMarkdownView),
-          _ => find.byType(GfHtmlContent),
-        },
-      ).height;
+      final double height = tester.getSize(switch (path) {
+        _Path.postMarkdown => find.byType(GfMarkdownView),
+        _ => find.byType(GfHtmlContent),
+      }).height;
       await _dispose(tester);
       return height;
     }
@@ -652,6 +783,72 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.byType(GfCodeBlock), findsOneWidget);
+    await _dispose(tester);
+  });
+
+  testWidgets('HTML Emoji copy protects source across text nodes', (
+    tester,
+  ) async {
+    const html =
+        '<p>🐦‍🔥</p><p>&#xE000; raw <span>❤️</span></p><p>flag 🇺🇸</p>';
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String?;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: gfThemeData(Brightness.light),
+        home: Scaffold(
+          body: GfHtmlContent(
+            html: html,
+            profile: _profileFor(_Path.wikiHtml, 1),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<GfSelectionArea>(find.byType(GfSelectionArea))
+          .selectionSource,
+      parseFragment(html).text,
+    );
+    final region = tester.state<SelectableRegionState>(
+      find.byType(SelectableRegion),
+    );
+    region.selectAll(SelectionChangedCause.keyboard);
+    await tester.pump();
+    Actions.invoke(
+      tester.element(
+        find
+            .descendant(
+              of: find.byType(GfHtmlContent),
+              matching: find.byType(RichText),
+            )
+            .first,
+      ),
+      CopySelectionTextIntent.copy,
+    );
+    await tester.pump();
+
+    expect(copied, contains('🐦‍🔥'));
+    expect(copied, contains('\uE000'));
+    expect(copied, contains('❤️'));
+    expect(copied, contains('🇺🇸'));
     await _dispose(tester);
   });
 }

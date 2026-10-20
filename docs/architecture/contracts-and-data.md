@@ -6,14 +6,15 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-25
+> Last verified: 2026-10-13
 
 ## Contract status
 
 The contract capability is **Partial** (all JSON routes are described; generated Dart and a few
 protocol surfaces remain open). The controlled OpenAPI 3.1 entry point is
 `packages/api-contract/openapi.yaml`. Every `/api` JSON route is covered by an OpenAPI operation —
-the generated `packages/api-contract/coverage-matrix.md` is the authoritative route-by-route list,
+the [coverage report entry](../../packages/api-contract/coverage-matrix.md) explains how to generate
+the route-by-route list and find the report for a CI run,
 and CI rejects any route that is neither contracted nor listed. By domain:
 
 - auth and account: password login, login public key, TOTP (verify + management), logout,
@@ -28,7 +29,9 @@ and CI rejects any route that is neither contracted nor listed. By domain:
   TypeScript is generated into `apps/status/src/generated/`, with fixture and handler validation in
   that application's tests. This API is outside Gin and the forum/mobile client contract.
 - admin console (`/api/admin/*`): user/role/category/moderator management, topic/post moderation,
-  agent administration, operation records, traffic overview, page settings, site settings, and
+  agent administration, operation records, traffic overview, content contribution statistics
+  (`paths/admin-stats.yaml`: `/api/admin/stats/{category-summary,category-trend,user-ranking,user-detail}`,
+  admin-only reads over published content and like relations), page settings, site settings, and
   data import/export;
 - Agent public API (`/api/v1/agent/*`), course catalog + reviews + moderation, and the PK
   scheduler (`/api/pk/*`: public read-only dictionaries/catalog/details plus the login-gated
@@ -265,9 +268,13 @@ packages/api-contract/fixtures/      @gooseforum/client/openapi types
   then requires every snapshot route to be either an OpenAPI operation or listed in
   `packages/api-contract/route-coverage.json` (`excluded` for non-JSON-API routes such as SSR pages and
   static assets, `knownUncovered` with an owning slice for pending `/api` routes), rejects stale or
-  dangling list entries and contract operations with no matching route, and regenerates the committed
-  `packages/api-contract/coverage-matrix.md` — CI rejects an uncommitted matrix diff, same as the
-  generated TypeScript types. Net effect: a new route that is neither contracted nor listed turns CI red.
+  dangling list entries and contract operations with no matching route, and generates the ignored
+  `packages/api-contract/.tmp/coverage-matrix.md`. CI publishes this report in the contract job summary
+  and `api-route-coverage` artifact with the checked-out source commit. Only generated TypeScript
+  types require a committed diff; route snapshots, coverage exceptions and contracts remain committed
+  inputs. Independent route changes may still require merging those inputs; regenerate the report
+  after merging rather than resolving generated rows. A failed coverage check removes the previous
+  local report. Net effect: a new route that is neither contracted nor listed turns CI red.
 
 Breaking-change comparison is not a current gate. Enable a base-versus-head bundled-spec breaking
 gate (for example `oasdiff` against the bundled base and head specs) in a separate change; that gate
@@ -280,22 +287,34 @@ complete operation coverage and the precondition for such a gate is met.
 - Migrations: upstream `app/migration` (Go migrations, run at startup/CLI); PostgreSQL is the
   default deployment database and SQLite the local development/test default; MySQL is not
   supported; the file db stays SQLite.
-- Post content revisions: `post_revisions` is an append-only snapshot table (post_id, version,
-  editor_id, content, rendered_html, process_status, created_at). Every content edit — first post
-  (post_no = 1) and replies alike, by the author — appends a new version inside the edit
-  transaction and updates `posts.last_editor_id` / `last_edited_at`; post creation seeds version 1
-  (editor = author). A row lock serializes concurrent edits so (post_id, version) stays monotonic.
-  History is read-only (`GET /api/forum/posts/revisions?postId=`): deleted/anonymized posts
-  blank all version bodies, and blocked posts plus pending-review versions hide their bodies from
-  non-moderators — the same visibility rules the post window applies. Permanent deletion and
-  privacy erasure blank revision bodies so the snapshot table cannot bypass the deletion lifecycle.
+- Post revisions: `post_revisions` retains immutable body/rendered HTML, content type and first-post
+  title/categories/gallery snapshots. Review status, reason, actor and time are mutable results.
+  `posts.latest_revision_id` selects the latest submission; `published_revision_id` records the approved
+  version. Normal public rows remain unchanged while a new candidate is pending or rejected. The
+  owner overlay is built on copies and never enters a shared public cache. Legacy public rows get a
+  baseline from the current row on their next moderated edit; existing active pending rows are adopted
+  by data migration 31, in bounded batches, idempotently. A legacy overwritten public version is not
+  reconstructed from incomplete history.
+- Moderated saves commit the revision, private `post_revision` file usages and `content-review` task
+  atomically. The worker and human review use the same version-checked transaction, locking post then
+  topic; only the latest active pending revision can change publication. Approval replaces all fields,
+  public file references and search/counter projections together. Transfer to human review, human approval,
+  and rejection each record an owner notification in that transaction; automatic approval is quiet.
+  Pending revisions with `reviewed_at` already have a human-queue receipt, so retries do not repeat it
+  and late automatic results cannot override the handoff. `content-published` tasks deliver existing publication events/pushes after commit;
+  realtime `content.changed` carries no content and asks the author to reconcile via authenticated REST.
+- Revision history remains read-only. Pending/rejected bodies are excluded from public history;
+  the author reads the latest rejected candidate through content management. Deletion/retention guards
+  apply to revision projections and files as well as ordinary posts. Final deletion retains audit bodies
+  under [the retention decision](../decisions/0021-deletion-final-state-data-retention.md), while normal
+  read/export/review paths cannot expose or republish them.
 - State machines: business lifecycles use explicit state machines (e.g. topic:
   draft/published/archived/deleted), not ambiguous boolean combinations (product principle 9).
 - Soft/hard delete policy is decided with the database migration decision; record in the note.
 - Agent model: `users.actor_type` (0 human / 1 bot) plus `agents` (user_id PK-join, token_prefix,
   token_hash, webhook_endpoint, enabled, created_by, last_used_at); `users.username` has one database
-  unique index shared by human and bot accounts. The token hash is the only stored secret material,
-  the prefix is a non-secret lookup key. Token rotation is a compare-and-swap on the current prefix
+  unique index shared by human and bot accounts. Bearer tokens are stored only as hashes; independent Webhook signing keys are encrypted.
+  The token prefix is a non-secret lookup key. Token rotation is a compare-and-swap on the current prefix
   (concurrent rotations fail loudly); disable clears the token hash, so re-enabling requires an
   explicit rotation. Rotation, disablement, and profile changes use column-scoped updates rather
   than saving stale snapshots; successful authentication touches `last_used_at` at most once per
@@ -306,8 +325,11 @@ complete operation coverage and the precondition for such a gate is met.
   tests assert all six operations plus the canonical `auth.required` 401 envelope shared by every
   failed Agent credential. Agent writes reuse the human topic/post rate limits; browser-only
   honeypot, captcha, and new-user cooldown gates are skipped.
-- Agent mention parsing and webhook sending remain `Planned`; they are not part of the covered
-  contract surface.
+- `Current`: Agent mention candidates, durable interaction and broadcast events, cursor/ACK,
+  signed Webhooks, and source-linked idempotent writes are covered by the Agent event contract.
+  Content transactions freeze source intents and subscription generations; workers materialize
+  events and bounded delivery tasks. The [Agent runbook](../operations/agents.md) owns activation,
+  retry, retention and restore rules. External-runner and device acceptance remain `Partial`.
 - SQL connections enable GORM error translation so uniqueness races map to stable domain errors. The
   structured GORM logger implements `ParamsFilter`; parameterized logging therefore keeps bind values
   out of rendered SQL instead of relying on an otherwise inert configuration flag.
@@ -351,9 +373,19 @@ complete operation coverage and the precondition for such a gate is met.
   - `import` (staged, checksum-addressed JSON import)
   - `file-migrate` (BLOB → object storage migration)
   - `topic-search.*`, `user-search.*`, `category-search.*`, and `course-search.*` (search projections)
-  - `webpush.*` (Web Push browser-channel notifications; VAPID endpoints, 404/410 cleanup)
-  - `nativepush.*` (native APNs/FCM push; same enqueue points as `webpush.*`, terminal-task
+  - `webpush.*` (Web Push notification/chat-message sources; VAPID endpoints, 404/410 cleanup)
+  - `nativepush.*` (native APNs/JPush/FCM notification/chat-message sources; terminal-task
     cleanup cron at `12 3 * * *`)
+
+Push tasks carry a recipient and a typed committed source (`notification` or `chat_message`).
+Nullable unique `dedup_key` values bind channel/source/id/recipient without constraining other task
+families. Chat queue rows participate in the message/forward transaction; a savepoint isolates queue
+failure, and workers cannot see rolled-back rows. Activity enqueue follows persisted notification IDs.
+Delivery rechecks ownership, visibility, blocks, read state, mute and account policy. Sparse user
+`push_preferences` JSON distinguishes selective defaults from explicit group choices. New notification
+rows persist a separate direct-mention reason for portable SQL filtering; historical rows default false.
+Push is a best-effort projection, not a read or delivery fact. Clients reconcile through REST/SSE.
+
 - Task claiming is **atomic with a lease** (issue #138): a worker claims a row via a CAS update
   (`pending/retrying → running`, `RowsAffected = 1`), so concurrent workers/processes never execute
   the same task simultaneously from the queue's perspective. Each claim generates a fresh,
@@ -421,9 +453,21 @@ Principle: projections must be rebuildable from the fact source; never treat a p
 
 The AI-readable exports are public text representations, not JSON API operations in the controlled
 OpenAPI surface. Their visibility boundary is the existing forum publication and moderation state:
-draft, blocked, pending-review, soft-deleted, or first-post-blocked content is excluded. The index follows
+draft, blocked, pending-review, soft-deleted, or first-post-blocked content is excluded. The index and
+full-text exports cover forum topics only and never list wiki pages (`topics.topic_type = 1`), whose
+content is the read-only GitHub-synced projection served under `/wiki` (MADR-0005); content statistics
+also keep that boundary and never count wiki pages. The per-topic document (`GET /p/posts/{id}.md`)
+is the exception: it exports wiki pages again (issue #1166, restoring what #1160 turned into a 404),
+so a wiki page with a visible first post is served as Markdown, while the same publication,
+moderation and first-post conditions still apply. The index follows
 the llms.txt Markdown structure (site heading, optional description, and a `Topics` link list); full-text
-and per-topic documents preserve the stored Markdown source.
+and per-topic documents preserve the stored Markdown source. After the first post's content fence, full-text and
+per-topic documents list the topic gallery (`topics.image_urls`, or the legacy `first_image_url` when empty;
+at most nine) in an `Images` section at the same heading
+level as reply headings. Each entry is a `- ![image N](<absolute URL>)` line. Site-relative paths are joined to
+the configured site URL, absolute http(s) URLs are kept, and unsafe or unresolvable entries are skipped.
+It lists at most the first nine images, like the Agent API. The web topic page can show more for
+older topics or galleries extracted from the body. The section is counted in the output byte budget. When the first post is excluded, so is the gallery.
 
 ## Contract change discipline
 
@@ -438,6 +482,14 @@ and per-topic documents preserve the stored Markdown source.
 - Automated Dart generation remains Planned; route coverage is a current contract gate as described
   above and is not a Planned capability.
 - Docs status words updated in step (docs/README.md).
+
+`Current`: the read-only admin contribution statistics operations ship through that same chain — the
+four `/api/admin/stats/*` operations are defined in `paths/admin-stats.yaml`, with generated
+TypeScript types, committed fixtures and route-level HTTP tests in the same change, so a new field,
+filter or validation rule cannot land backend-only. They read published content rows and like
+relations only: feed analytics events, exposure/seen records and experiment data are not an input,
+and that telemetry's 30-day retention is unchanged. Product rules and the counting definitions live
+in [forum](../product/forum.md#content-contribution-statistics).
 
 PK plan synchronization is `Current` and follows [issue #714](https://github.com/YourTongji/YourTJ-Hub/issues/714):
 `pk_plan_item` is keyed by numeric user ID and plan ID, with payload JSON, independent integer revision
@@ -505,6 +557,19 @@ each batch checks ownership. Jobs bind to the configured server origin and requi
 `meilisearch.maintenance_enabled`, preventing main snapshot tasks from running on dev.
 Status responses omit raw errors, document bodies and the instance fingerprint.
 See the [maintenance decision](../decisions/0024-admin-search-index-maintenance.md).
+
+## Profile section privacy
+
+`Current`: `user_privacy_settings` keeps one row per member (`user_id` primary key) with a
+`varchar(16)` audience for each profile section, defaulting to `everyone`; a missing row reads as
+all defaults, so existing accounts need no backfill. Writes lock the row, merge a validated partial
+update and upsert only the supplied columns in one transaction, so two first saves of different
+sections both persist; the response is re-read from storage. `profileprivacyservice` evaluates the viewer once per
+profile request (follow state in one query, blocks fail closed) before section queries, and the
+timeline query filters `action IN (...)` so hidden actions cannot surface through rows or cursors.
+Account closure deletes the row in the same transaction as private notes and blocks. Anonymous
+profiles never read it, so a persona's page cannot echo its owner's audiences.
+See [0088](../decisions/0088-profile-section-privacy.md).
 
 ## Private user-name overlays
 
@@ -644,3 +709,75 @@ OpenAPI、TypeScript 和 Dart 镜像同步维护，路由覆盖包含此操作�
 用户生命周期：`DeleteUserDataTx`（硬删该用户的投递与领取）与 `AnonymizeUserDataTx`
 （保留事实行、剥离身份并轮换唯一键）是预留的清理边界；接入账号关闭与保留期限策略由 #787 负责。
 该域不扩展 `event_notification` 或私信表，存量通知/私信的行与表结构不因升级改变。
+
+## Persistent anonymous personas
+
+`Current`: `anonymous_personas` owns public UID/name, server-persisted `show_content` (default true),
+and private avatar seed/lock/status. The owner-only `POST /api/forum/anonymous/privacy` accepts
+a required boolean `showContent`, infers the persona through the authenticated binding and keeps
+privacy management available under publishing restrictions. `/a/` exposes the display flag but
+omits streams, counts and pagination when false; its public query never joins private bindings.
+`anonymous_bindings` maps a numeric owner primary key to a unique persona UID.
+`anonymous_name_quotas` uses owner/day as its composite key; batches have a unique owner/day/request
+key and persist the exact ten-word sample. Owner-row write locks serialize quota and confirmation
+on PostgreSQL and SQLite. The account, persona and content writer checks share that lock for
+anonymous writes. `anonymous_reveal_audits` stores restricted reveal and governance facts. Bindings
+and audits survive closure; cleanup removes expired candidate batches and old daily quotas while
+retaining the current quota and the seven-day cutoff window.
+
+`Current`: topics/posts keep their internal numeric owner plus an optional `persona_uid`. Public
+DTOs project the persona with numeric ID zero and a `/a/` URL. Public main-profile, Following and
+participation queries exclude anonymous ownership. Persona participant queries batch and bound their
+results. Notification `private_actor_id` supports private eligibility; payload actor ID zero and
+`actorPersonaUid` support safe hydration and pushes. Public exports redact anonymous authors and
+editors and cannot reconstruct private ownership. Missing personas never resolve through users.
+
+Admin contribution statistics follow the same attribution boundary: per-user figures resolve public
+human ownership only — persona-owned and legacy anonymous rows are excluded from contributor counts,
+ranking and detail, while still counting toward aggregate category and site content volumes. The
+report exposes no owner binding and adds no reveal path beyond the audited one above.
+
+The private anonymous settings/governance and restricted admin list/governance operations live in
+the controlled OpenAPI contract. The admin list paginates at most 50 private mappings and commits
+one restricted `admin.list` audit per returned mapping (or one access audit for an empty page).
+Current-role user management and explicit reveal grants are checked inside the transaction.
+List and governance responses are no-store and excluded from ordinary access/panic logging context;
+Web generated types and Dart mirrors change together. `/a/` is a three-mode page and its SVG avatar
+is a static response, recorded as route-coverage exclusions. Product semantics live in
+[anonymous identity](../product/anonymous-identity.md); permissions, retention and consistent backup
+recovery live in [operations](../operations/anonymous-identity.md).
+## Feed ranking projection and observation boundary
+
+`Current`: publication time is stamped only at actual first public approval; legacy timestamps are
+explicit estimates. Ranking columns and internal anonymous-contributor projections are rebuildable,
+with one serving worker, bounded owner queries and transactionally coalesced dirtiness. Account-close
+fences raw ingestion before cleanup. The default parameter and period records contain no credentials.
+
+The page protocol negotiates exact feed capability v2 and carries optional actualSort/degradeReason,
+feedTrace/position/reason, snapshotId and grouped seenProofs. Seen proofs bind owner, public topic positions,
+process epoch and displayed-content cutoff, independently of analytics. The shared events transport
+commits functional seen claims before ACK; legacy metric-only requests still return boolean acceptance.
+Refresh confirms pending claims before creating a new snapshot; reconciliation hydrates only loaded IDs
+and never applies seen suppression to them. `feed_seen_state` stores one owner/topic aggregate, expires
+30 days after qualified exposure, participates in account-close fencing/cleanup and is excluded from
+regular backups. It neither extends the global detail-visit unread state nor creates public rank credits.
+Personal cursors bind account, hash, offset and process epoch. New observation
+and admin aggregate routes are covered in OpenAPI, route snapshots, TS and Dart mirrors. Native actions
+carry optional signed source headers; absent context remains unclassified or separately inferred.
+[Feed product](../product/feed-ranking.md) and [operations](../operations/feed-ranking.md) own the
+behavior and lifecycle; schema definitions remain in models/migrations.
+
+## Moderation appeal audit
+
+`Current`: one `moderation_appeals` row binds an explanation and terminal review to one immutable
+post revision. The database unique revision key prevents duplicate submissions. Owner history and
+moderator queue/action routes are covered by OpenAPI, generated Web types and Dart mirrors; responses
+omit internal author identity and are private. Publication and appeal resolution share the existing
+revision transaction, including lifecycle/version/scope fences, attachment promotion, search and
+notification tasks. A stale appeal never restores deleted content or publishes a later submission.
+My-content items expose `canAppeal` and the owner's `appeal` summary for the latest revision; queue
+items include the `originalReviewReason`. Failures use specific `content.appeal.*` and
+`moderation.appeal.*` message codes. Appeal receipts and outcomes keep the review event types and
+set `notifications.templates.appeal{Submitted,Approved,Rejected,Stale}` template keys.
+Audit records follow [governance retention](../decisions/0021-deletion-final-state-data-retention.md);
+product limits and tradeoffs live in [0098](../decisions/0098-moderation-appeals.md).

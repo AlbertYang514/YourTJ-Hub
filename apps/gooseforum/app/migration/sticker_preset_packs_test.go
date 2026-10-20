@@ -6,8 +6,12 @@ import (
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userBadges"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -15,7 +19,8 @@ import (
 
 func TestVersionedMigrationBackfillsPresetPacks(t *testing.T) {
 	conn := dbconnect.Connect()
-	if err := conn.AutoMigrate(&pageConfig.Entity{}, &sticker.Entity{}); err != nil {
+	// Later data migrations need their own schema even in this sticker regression.
+	if err := conn.AutoMigrate(&pageConfig.Entity{}, &sticker.Entity{}, &posts.Entity{}, &users.EntityComplete{}, &badges.Entity{}, &userBadges.Entity{}); err != nil {
 		t.Fatal(err)
 	}
 	rows := seedLegacyPresetPacks(t, conn)
@@ -27,8 +32,8 @@ func TestVersionedMigrationBackfillsPresetPacks(t *testing.T) {
 			t.Fatal(err)
 		}
 		assertPresetPacks(t, conn, rows)
-		if got := pageConfig.GetMigrationVersion(); got != 30 {
-			t.Fatalf("migration version=%d, want 30", got)
+		if got := pageConfig.GetMigrationVersion(); got != 33 {
+			t.Fatalf("migration version=%d, want 33", got)
 		}
 	}
 }
@@ -82,7 +87,7 @@ func assertPresetPacks(t *testing.T, conn *gorm.DB, rows []sticker.Entity) {
 
 func TestVersionedPresetPackMigrationFailureDoesNotAdvance(t *testing.T) {
 	conn := dbconnect.Connect()
-	if err := conn.AutoMigrate(&pageConfig.Entity{}, &sticker.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&pageConfig.Entity{}, &sticker.Entity{}, &posts.Entity{}); err != nil {
 		t.Fatal(err)
 	}
 	rows := seedLegacyPresetPacks(t, conn)

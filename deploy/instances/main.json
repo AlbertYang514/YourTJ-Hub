@@ -1,7 +1,29 @@
 {
   "instance": "main",
   "server_url": "https://f.yourtj.de",
-  "trusted_proxies": ["172.16.0.0/12"],
+  "trusted_proxies": [
+    "172.16.0.0/12"
+  ],
   "pg_dbname": "yourtj_main",
-  "search_maintenance_enabled": true
+  "search_maintenance_enabled": true,
+  "feed": {
+    "ranking_enabled": false,
+    "for_you_enabled": false,
+    "metrics_enabled": false,
+    "rollout_percent": 20,
+    "experiment_period": "main-default-entry-v1",
+    "experiment_salt": "main-default-entry-v1"
+  },
+  "passkeys": {
+    "enabled": false,
+    "rp_id": "f.yourtj.de",
+    "display_name": "YourTJ",
+    "web_origins": [
+      "https://f.yourtj.de"
+    ],
+    "apple_team_id": "",
+    "ios_bundle_id": "tj.yourtj.forumApp",
+    "android_package_name": "tj.yourtj.forum_app",
+    "android_sha256_cert_fingerprints": []
+  }
 }

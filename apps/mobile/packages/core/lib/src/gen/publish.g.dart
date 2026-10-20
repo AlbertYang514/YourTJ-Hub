@@ -25,8 +25,13 @@ Map<String, dynamic> _$$PublishCategoryPayloadImplToJson(
 _$PublishTopicPayloadImpl _$$PublishTopicPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$PublishTopicPayloadImpl(
+  agentRepliesDisabled: json['agentRepliesDisabled'] as bool? ?? false,
+  identity: json['identity'] as String? ?? "member",
   title: json['title'] as String,
   content: json['content'] as String,
+  images:
+      (json['images'] as List<dynamic>?)?.map((e) => e as String).toList() ??
+      const <String>[],
   categoryIds:
       (json['categoryIds'] as List<dynamic>?)
           ?.map((e) => (e as num).toInt())
@@ -39,8 +44,11 @@ _$PublishTopicPayloadImpl _$$PublishTopicPayloadImplFromJson(
 Map<String, dynamic> _$$PublishTopicPayloadImplToJson(
   _$PublishTopicPayloadImpl instance,
 ) => <String, dynamic>{
+  'agentRepliesDisabled': instance.agentRepliesDisabled,
+  'identity': instance.identity,
   'title': instance.title,
   'content': instance.content,
+  'images': instance.images,
   'categoryIds': instance.categoryIds,
   'topicStatus': instance.topicStatus,
   'contentType': instance.contentType,
@@ -154,6 +162,15 @@ Map<String, dynamic> _$$AnnouncementPayloadImplToJson(
 
 _$HomePropsImpl _$$HomePropsImplFromJson(Map<String, dynamic> json) =>
     _$HomePropsImpl(
+      snapshotId: json['snapshotId'] as String?,
+      seenProofs:
+          (json['seenProofs'] as List<dynamic>?)
+              ?.map((e) => FeedSeenProof.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+      actualSort: json['actualSort'] as String?,
+      degradeReason: json['degradeReason'] as String?,
+      feedTrace: json['feedTrace'] as String?,
       sort: json['sort'] as String,
       tabs: (json['tabs'] as List<dynamic>)
           .map((e) => TabItemPayload.fromJson(e as Map<String, dynamic>))
@@ -171,6 +188,11 @@ _$HomePropsImpl _$$HomePropsImplFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$$HomePropsImplToJson(_$HomePropsImpl instance) =>
     <String, dynamic>{
+      'snapshotId': instance.snapshotId,
+      'seenProofs': instance.seenProofs,
+      'actualSort': instance.actualSort,
+      'degradeReason': instance.degradeReason,
+      'feedTrace': instance.feedTrace,
       'sort': instance.sort,
       'tabs': instance.tabs,
       'topics': instance.topics,

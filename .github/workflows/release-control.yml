@@ -30,7 +30,6 @@ permissions:
   deployments: write
   pull-requests: read
   issues: read
-  checks: write
 concurrency:
   group: instance-mutate-dev
   cancel-in-progress: false
@@ -121,13 +120,20 @@ jobs:
     needs: [control, refresh]
     if: ${{ !cancelled() && (needs.control.result == 'success' || needs.refresh.result == 'success') }}
     runs-on: ubuntu-latest
+    # Job-level permissions replace the workflow defaults: rerunning release-freeze needs actions: write.
+    permissions:
+      contents: write
+      actions: write
+      deployments: write
+      pull-requests: read
+      issues: read
     # Retain the workflow-wide dev lock. Retrying this job cannot repeat a sealed transition.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Re-evaluate dev PRs and queued merge groups
+      - name: Re-run release-freeze for dev PRs and queued merge groups
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/release/cycle_control.py checks

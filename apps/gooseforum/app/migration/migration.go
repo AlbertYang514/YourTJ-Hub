@@ -15,17 +15,24 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imUserChatConfigs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agentEvents"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agentWebhook"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agentWrites"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agents"
+	identity "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/anonymousIdentity"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/campus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/contentDeleteEvent"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/decoration"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/inboxmail"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/migrationMapping"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationAppeals"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
@@ -54,6 +61,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userBadges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userOAuth"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userPasskeys"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userPoints"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userSessions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
@@ -116,6 +124,15 @@ func migrateSchema() error {
 	}
 	if err = upgradePkAudienceSchema(db); err != nil {
 		return fmt.Errorf("dbconnect pk audience schema upgrade failed: %w", err)
+	}
+	if err = upgradeTopicAgentCommentPolicy(db); err != nil {
+		return fmt.Errorf("dbconnect topic agent comment policy upgrade failed: %w", err)
+	}
+	if err = upgradePostAgentEventDepth(db); err != nil {
+		return err
+	}
+	if err = upgradeAnonymousProfilePrivacy(db); err != nil {
+		return err
 	}
 	if err = db.AutoMigrate(SchemaModels()...); err != nil {
 		// 迁移失败必须上层按非零码退出，否则服务会带着残缺 schema 继续启动，
@@ -355,6 +372,36 @@ func upgradeImportRunCompositeIndex(db *gorm.DB) error {
 			return fmt.Errorf("drop legacy course_import_run unique index: %w", err)
 		}
 		slog.Info("dbconnect course_import_run legacy unique index dropped, will be recreated as (kind, manifest_hash)")
+	}
+	return nil
+}
+
+// upgradeTopicAgentCommentPolicy 为存量库补 topics.agent_comment_disabled 列
+// （管理端「Agent 评论策略」按主题禁止 Agent 评论）。全新库由 AutoMigrate 建列；
+// SQLite 存量库依赖 AutoMigrate 补列会整表重建，必须显式 ALTER TABLE。
+// 默认 false（允许 Agent 评论），存量行语义不变。
+func upgradeTopicAgentCommentPolicy(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&topics.Entity{}) {
+		return nil
+	}
+	if db.Migrator().HasColumn(&topics.Entity{}, "agent_comment_disabled") {
+		return nil
+	}
+	if err := db.Exec("ALTER TABLE topics ADD COLUMN agent_comment_disabled BOOLEAN NOT NULL DEFAULT FALSE").Error; err != nil {
+		return fmt.Errorf("add topics.agent_comment_disabled column: %w", err)
+	}
+	slog.Info("dbconnect topics.agent_comment_disabled column added (default false)")
+	return nil
+}
+
+// Add the preference without rebuilding SQLite's retained persona table.
+// Existing personas keep their public history until the owner explicitly hides it.
+func upgradeAnonymousProfilePrivacy(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&identity.Persona{}) || db.Migrator().HasColumn(&identity.Persona{}, "show_content") {
+		return nil
+	}
+	if err := db.Exec("ALTER TABLE anonymous_personas ADD COLUMN show_content BOOLEAN NOT NULL DEFAULT TRUE").Error; err != nil {
+		return fmt.Errorf("add anonymous_personas.show_content: %w", err)
 	}
 	return nil
 }
@@ -639,8 +686,10 @@ func validateUniqueUsernames(db *gorm.DB) error {
 // SchemaModels 返回主库（db.default）的全部迁移模型。
 // 迁移与 PostgreSQL 兼容性测试共用同一份清单，避免两处维护漂移。
 func SchemaModels() []any {
-	return []any{
+	return append(feed.Models(), []any{
+		&identity.Persona{}, &identity.Binding{}, &identity.Quota{}, &identity.Batch{}, &identity.RevealAudit{},
 		&badges.Entity{},
+		&decoration.Definition{}, &decoration.Entitlement{}, &decoration.Equipment{}, &decoration.Audit{},
 		&sticker.Entity{},
 		&sticker.LibraryOwner{},
 		&sticker.LibraryEntry{},
@@ -684,6 +733,7 @@ func SchemaModels() []any {
 		&fileUsage.Entity{},
 		&moderationLog.Entity{},
 		&moderationDecision.Entity{},
+		&moderationAppeals.Entity{},
 		&migrationMapping.Entity{},
 		&moderators.Entity{},
 		&optRecord.Entity{},
@@ -691,6 +741,7 @@ func SchemaModels() []any {
 		&pointsRecord.Entity{},
 		&reports.Entity{},
 		&agents.Entity{},
+		&agentEvents.ReplayState{}, &agentEvents.Publication{}, &agentEvents.Intent{}, &agentEvents.Entity{}, &agentWrites.Entry{}, &agentWebhook.Delivery{}, &agentWebhook.Attempt{},
 		&topics.Entity{},
 		&posts.Entity{},
 		&postRevisions.Entity{},
@@ -706,6 +757,7 @@ func SchemaModels() []any {
 		&wikiPageRevisions.Entity{},
 		&wikiSyncRuns.Entity{},
 		&topicUserStat.Entity{},
+		&topicUserStat.RankParticipant{},
 		&contentDeleteEvent.Entity{},
 		&role.Entity{},
 		&networkAccessLog.Entity{},
@@ -714,12 +766,15 @@ func SchemaModels() []any {
 		&userFollow.Entity{},
 		&users.PrivateNoteEntity{},
 		&users.BlockEntity{},
+		&users.PrivacySettingsEntity{},
 		&userBadges.Entity{},
 		&oidcAuthRequests.Entity{},
 		&oidcAccessTokens.Entity{},
 		&userOAuth.Entity{},
 		&userPoints.Entity{},
 		&userSessions.Entity{},
+		&userPasskeys.CredentialEntity{},
+		&userPasskeys.ChallengeEntity{},
 		&userTotp.Entity{},
 		&userTotpRecoveryCodes.Entity{},
 		&userTotpChallenges.Entity{},
@@ -740,7 +795,7 @@ func SchemaModels() []any {
 		&inboxmail.CampaignRunEntity{},
 		&inboxmail.DeliveryEntity{},
 		&inboxmail.ClaimEntity{},
-	}
+	}...)
 }
 
 // upgradeCourseReviewLegacySchema 把存量 course_review 表升级到 B3 清理所需
@@ -926,4 +981,12 @@ func dedupeWikiRevisionNumbers(db *gorm.DB) error {
 	}
 	slog.Info("migration: wiki revision dedupe done", "groups", len(dups))
 	return nil
+}
+
+// Preserve legacy SQLite rows when adding immutable Agent causal metadata.
+func upgradePostAgentEventDepth(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&posts.Entity{}) || db.Migrator().HasColumn(&posts.Entity{}, "agent_event_depth") {
+		return nil
+	}
+	return db.Exec("ALTER TABLE posts ADD COLUMN agent_event_depth INTEGER NOT NULL DEFAULT 0").Error
 }

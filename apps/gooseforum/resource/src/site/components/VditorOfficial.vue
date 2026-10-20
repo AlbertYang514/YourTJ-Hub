@@ -21,6 +21,7 @@ import { currentLocale } from '@/runtime/i18n'
 import { loadRuntimeScript } from '@/runtime/runtime-script'
 import { loadMermaid, nextMermaidDiagramId, renderDiagram } from '@/runtime/content-enhancements/mermaid'
 import { useSiteTheme } from '@/runtime/site-theme'
+import { renderTwemojiHtml } from '@/runtime/twemoji'
 import { containsSensitiveText } from '@/site/utils/sensitive-highlight'
 import { useI18n } from 'vue-i18n'
 import { createLinkPreviewHintController, formatLinkPreviewHintDomains, type LinkPreviewHint } from '@/runtime/link-preview-hint'
@@ -1549,6 +1550,13 @@ onMounted(async () => {
       toolbar: resolveToolbar(),
       toolbarConfig: { hide: false, pin: true },
       preview: {
+        // Vditor 管理此 Markdown 预览 DOM，不经过 Vue 的 v-html 指令。排到 afterRender
+        // 微任务中，使代码高亮和其他 Markdown 渲染先完成，再只处理预览子树中的文本。
+        parse(element) {
+          queueMicrotask(() => {
+            if (element.isConnected) renderTwemojiHtml(element)
+          })
+        },
         // hljs/math 走官方默认（enable: true、KaTeX），资源已本地化
         theme: { current: isDark.value ? 'dark' : 'light', path: '' },
       },
@@ -1875,7 +1883,7 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
  * 编辑区图片等比缩放：原图超宽/超高时收拢到适中尺寸（宽 80% / 高 ≤480px），
  * 小图不受影响；emoji 保持官方 20px 特例。
  */
-.vditor-official .vditor-reset img:not(.emoji) {
+.vditor-official .vditor-reset img:not(.emoji):not(.twemoji) {
   max-width: 80%;
   max-height: 480px;
 }

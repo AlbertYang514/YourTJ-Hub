@@ -22,6 +22,10 @@ const (
 const LeaseDuration = 10 * time.Minute
 
 type Entity struct {
+	DedupKey      *string    `gorm:"column:dedup_key;type:varchar(128);uniqueIndex:idx_task_dedup" json:"-"`
+	NextRunAt     *time.Time `gorm:"column:next_run_at;index" json:"nextRunAt,omitempty"`
+	ScheduleGroup string     `gorm:"column:schedule_group;type:varchar(64);not null;default:'';index" json:"-"`
+
 	Id          uint64    `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_search_maintenance_history,where:type = 'search-maintenance';" json:"id"`
 	Type        string    `gorm:"column:type;type:varchar(50);not null;uniqueIndex:idx_search_maintenance_active,where:type = 'search-maintenance' AND (status = 0 OR status = 1 OR status = 4);" json:"type"` // 任务类型
 	Status      uint8     `gorm:"column:status;not null;default:0;index" json:"status"`                                                                                                                        // 任务状态

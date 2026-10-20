@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-28
+> Last verified: 2026-10-07
 
 ## Principles
 
@@ -37,6 +37,13 @@ cd apps/gooseforum
 export YOURTJ_TEST_PG_URL="host=127.0.0.1 port=5432 user=postgres password=postgres dbname=postgres sslmode=disable"
 export TEST_PG_DSN="$YOURTJ_TEST_PG_URL"
 go test -p 1 -parallel 1 ./app/... -run 'PostgreSQL|Postgres' -count=1 -v
+
+# Release archive licenses (from repository root): shipping config with a tiny executable fixture.
+# Install GoReleaser on PATH or set YOURTJ_GORELEASER to its executable path; absent tooling skips this test.
+python3 -m unittest discover -s scripts/release -p test_archive_licenses.py -v
+
+# Action pin consistency (issue #1212): composite actions vs repository-root workflows
+node scripts/verify-action-pins.mjs
 
 # Full
 make test
@@ -78,6 +85,10 @@ make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
 
 模型/迁移测试必须同时满足 PG 门禁（见下方 CI mapping 的 `ci-backend-pg`）。
 
+测试模式的 SQLite 内存库固定使用一个保留的连接，连接生命周期设为无限；
+关闭或轮换唯一连接会丢失全部表，长时间运行的整包测试也必须保留该连接。
+`sqlconnect` 的虚拟时间回归覆盖超过一分钟后仍能读取测试数据的行为。
+
 ## CI mapping
 
 All CI `push` triggers are limited to `dev` and `main`, so a push to an in-repository
@@ -109,6 +120,18 @@ while required-check settings migrate. Docs/governance and current govulncheck r
   which checks the public component registry against Go, including order and exclusion of `admin.shell`.
   Browser regressions live in `resource/test/*.browser.mjs`, render the production Vue components
   and CSS through Vite, and stub API responses. These are separate from happy-dom component tests.
+  The campus-map suite uses a separate temporary Vite `cacheDir` and removes it after closing its
+  server, because its dependency optimizer differs from the other suites. The Node runner caps concurrent suites at two because each suite starts its own Vite server
+  and Chromium, and the map uses software WebGL rendering in CI. This bounds process/memory and
+  screenshot contention without removing cases or extending assertion timeouts. Atlas screenshots
+  capture the viewport with a separate 60-second software-rendering budget; interactive assertions
+  still use 15 seconds. Concurrent suites
+  still need separate caches when optimizer configurations differ: sharing the default cache can
+  replace Vue chunks during imports and prevent another fixture from mounting.
+  The campus-map location regression checks unknown text, pending override status, cross-semester stable matching, scoped prefix/suffix time conditions and multiple-member choices with synthetic public course responses. Place-text candidate recognition is measured separately from map coverage in `resource/test/place-text-match.test.ts`. It writes desktop/375px screenshots and a source receipt
+  to `CAMPUS_MAP_BROWSER_EVIDENCE_DIR` (a temporary directory by default). CI uploads
+  `campus-map-browser-evidence-<workflow SHA>` for 30 days; link the current run's artifact in a PR
+  when reviewing those flows. Captures remain outside Git and are browser evidence, not dev acceptance.
 - ci-contract.yml: changed contract inputs install the locked `packages/api-contract` pnpm tooling, run OpenAPI
   lint + bundle + TypeScript generation, then rejects an uncommitted diff below
   `apps/gooseforum/resource/packages/client/src/gen`. Its inputs are the contract package, generated
@@ -141,6 +164,20 @@ The trade-off between fast source checks and native compile coverage is recorded
 Both mobile workflows pin external actions to full commit SHAs and disable checkout credential
 persistence before running PR-controlled code. `node --test scripts/test-mobile-ci-*.mjs` checks
 the Flutter input selection and these workflow security settings in automation CI.
+
+Pins inside local composite actions are a separate case. Dependabot's `github-actions` ecosystem
+scans only `.github/workflows/**` and the repository-root `action.yml`, so the pins in
+`.github/actions/*/action.yml` need the extra `directories` entry in
+[`.github/dependabot.yml`](../../.github/dependabot.yml) to receive scheduled version-update PRs
+(issue #1212). Dependabot alerts do not cover them: GitHub Actions manifests must live under
+`.github/workflows/`, and alerts are generated only for semantic-version references, not SHA pins.
+`node scripts/verify-action-pins.mjs` reports a composite action whose pinned
+ref differs from the same action's ref in the repository-root workflows, and reports one action
+pinned at two refs inside those workflows; it ignores the nested `apps/gooseforum/.github` tree,
+which GitHub never executes. Automation CI runs it as a blocking step, so a drifted pin fails
+`automation / tools` while the report is still written to the job summary. Run it before changing an
+action pin; the grouped entry in `.github/dependabot.yml` keeps one action upgrade in a single PR, so
+if a workflow and composite-action bump ever arrive separately, both must land for the check to pass.
 
 ## Documentation and governance
 

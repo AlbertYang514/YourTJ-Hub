@@ -6,9 +6,15 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-02
+> Last verified: 2026-10-19
 
 ## 概述
+
+头像框资源由站点管理员在 `/admin/decorations` 上传，沿用当前 local BLOB 或 S3 provider，
+保存定义后通过论坛同源 `/static/decorations/<uuid>.png|webp` 提供。即使配置了
+`publicUrlPrefix`，头像框仍由论坛应用下行，以保持已发布客户端接受的 URL 形状；
+需计入应用服务器带宽。未保存的预览资源 24 小时后清理；更换定义引用时旧资源进入清理队列。
+随机文件名不可覆盖，同名更新会被长缓存保留旧字节。
 
 论坛文件默认存于 SQLite BLOB（`[db.file]`，无外部依赖）。在管理端（设置 → 存储设置）配置
 S3 兼容对象存储（MinIO / Tencent COS / Alibaba OSS / Cloudflare R2）后，**帖子图片**改为
@@ -28,6 +34,7 @@ S3 兼容对象存储（MinIO / Tencent COS / Alibaba OSS / Cloudflare R2）后�
 | `secure` | 是否使用 TLS |
 | `publicUrlPrefix` | 可选公开 URL 前缀（CDN 直读）；未配置时论坛通过 `/file/img/*` 代理读取 |
 | `internalEndpoint` | 可选内网端点，仅 `s3` 模式使用；配置后服务端数据面操作经内网端点访问，浏览器直传仍走公开 `endpoint`。为空或与 `endpoint` 同主机时行为不变，详见「内网 Endpoint（可选）」 |
+| `forceProxyUpload` | 运维开关，默认 `false`；仅 `s3` 模式有效。开启后 `init` 恒回 `mode: proxy`，帖子图片改走服务端代理上传（服务端仍写入同一 bucket），详见「强制服务端代理上传（运维开关）」 |
 
 ### 内网 Endpoint（可选）
 
@@ -59,6 +66,28 @@ VPC 内解析（解析结果形如 `100.100.2.136` / `100.100.2.138` 等 100.100
 - 该用法仅适用于 Alibaba OSS 等提供同地域内网端点形态的厂商；MinIO / Tencent COS /
   Cloudflare R2 / 自建 S3 兼容存储没有对应用法，保持为空即可。
 
+### 强制服务端代理上传（运维开关）
+
+`forceProxyUpload`（管理端：设置 → 存储设置 →「强制服务端代理上传」）用于浏览器直传出现故障时的
+临时兜底，**不切换存储提供方**：
+
+- 开启后 `POST /file/img-upload/init` 在 `s3` 模式下也返回 `mode: proxy`，Web 端随即改走
+  `POST /file/img-upload`；服务端经 `Provider.Save` 把文件写入同一 bucket（配置了
+  `internalEndpoint` 时经内网端点），随后生成变体。已有图片、读取路径与 `publicUrlPrefix` 均不变。
+- **不要用把 `provider` 切回 `local` 的方式代替**：本地提供方只从数据库 BLOB 读取，存量 S3
+  对象会全部 404。
+- 生效方式：保存后清除存储设置缓存，`storageservice.Current()` 按新配置判断，无需重启。
+- 移动端（Flutter）本来就只使用 `POST /file/img-upload`，不受该开关影响。
+
+**取舍与上线检查**：
+
+- 上传字节全部经过应用服务器：上行带宽与 CPU 增加；处理时整份文件被 `io.ReadAll`
+  读入内存（上限为发布设置的图片大小上限），并发上传会放大内存占用，小规格实例需留意。
+- 反向代理（openresty/nginx）的 `client_max_body_size` 必须 **不小于** 图片上传上限（加上
+  multipart 开销），否则大图会在到达论坛前被 413 拒绝。
+- 限流与每日额度沿用 `RateLimitUpload` 与发布设置，校验口径与直传 complete 一致。
+- 直传故障排除后应关闭开关，恢复浏览器直传以节省服务器带宽。
+
 ## 帖子图片直传流程
 
 1. 浏览器 `POST /file/img-upload/init`（JWT + 可写账号校验 + 上传限流），携带
@@ -77,10 +106,17 @@ VPC 内解析（解析结果形如 `100.100.2.136` / `100.100.2.138` 等 100.100
 
 ### Feed 图像元数据与变体
 
-图片保存后，服务端记录原图 intrinsic `width` / `height`。静态 JPEG、PNG、BMP 在宽度
+`Current`：图片保存后，服务端记录显示方向的 `width` / `height`。JPEG 的 EXIF Orientation
+1–8（包括镜像）在缩放前应用到像素读取；方向 5–8 对调元数据宽高。缺失、损坏或非法的方向
+标签按原始像素方向处理。静态 JPEG、PNG、BMP 在显示宽度
 超过 320、640、1280 像素时按比例生成对应宽度的 JPEG 或 PNG 变体；超过 2500 万像素的图像
-只记录尺寸，不做完整解码。GIF、WebP 保留原文件和 intrinsic 尺寸，不生成变体，以避免改写动图
+只记录尺寸（JPEG 仍按 EXIF 对调宽高），不做完整解码。GIF、WebP 保留原文件和 intrinsic 尺寸，不生成变体，以避免改写动图
 或不支持的编码。
+
+原图保存上传时的完整字节，包括原有 EXIF（可能含拍摄位置等隐私信息）；上传服务不承诺剥离
+原图 EXIF。JPEG 变体的旋转／镜像已写入像素，重编码后不携带原图 EXIF，不依赖方向标签显示。
+原图直链的正确方向依赖查看器读取 EXIF；只支持原始像素的查看器可能显示不同方向。此处理仅作用
+于新上传，旧文件的已存尺寸和变体不会自动重建。
 
 本地代理上传直接处理已接收的请求字节。对象存储直传在 complete 校验通过后读取对象一次以生成
 变体；这次读取只发生在上传发布时，不进入 feed GET。原图记录保存变体文件名与尺寸，变体作为
@@ -131,3 +167,15 @@ VPC 内解析（解析结果形如 `100.100.2.136` / `100.100.2.138` 等 100.100
 - **发布与归属记录非事务**：`complete` 的 `MarkFileReady` 与控制器里的 `AddUploadOwner`
   是两次独立写，崩溃窗口可能产生「已 ready 但无 owner 记录」的行（对象可读但归属审计
   缺失）；概率极低，归属记录失败时服务端会同时删除对象与元数据行作为回滚。
+
+### Managed badge artwork
+
+SiteManager badge uploads use `/api/admin/badge-asset` and immutable
+`/static/badges/normalized/<uuid>.<ext>` URLs. They share the decoration asset storage and reference
+cleanup flow, with `badge_asset` usage rows and 24-hour unsaved-preview expiry. Existing
+embedded badge URLs and external links keep their previous behavior. SVG uploads are converted
+to PNG in-process by the embedded WebAssembly renderer; no external SVG renderer is required.
+Regular user uploads continue to reject SVG. Badge PNG/WebP/SVG inputs are optically
+normalized to transparent PNG; GIF is re-encoded with one animation-wide viewport, preserving
+frame timing and loop count. Avatar-frame GIFs retain their original bytes. Legacy badge URLs
+remain valid and retain their existing framing; their cached bytes are never overwritten.

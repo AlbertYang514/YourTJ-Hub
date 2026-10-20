@@ -10,11 +10,59 @@
 // clients.claim: pure push needs neither.
 
 const FALLBACK_URL = '/notifications';
-// 与轮询型浏览器通知（resource/src/runtime/browser-notification.ts）共享去重
-// 频道：Web Push（即时到达）真正弹出后广播时间戳 {at}，轮询通道在同一去重
-// 窗口（60s）内让位，避免同一事件在系统层双弹。频道名与页面端
-// DEDUP_CHANNEL_NAME 保持一致，改动需两侧同步。
+// Share source IDs and a bounded durable ledger with page notifications.
+// The timestamp preserves compatibility with pages running the previous worker.
 const DEDUP_CHANNEL_NAME = 'goose:browser-notifications-dedup';
+// Client id → peer id of the conversation that client currently shows.
+const activeChats = new Map();
+self.addEventListener('message', event => {
+  if (event.source && event.data && event.data.type === 'goose:active-chat') {
+    activeChats.set(event.source.id, Number(event.data.peerId) || 0);
+  }
+});
+// Recipient verification is tri-state: the worker suppresses a push only when
+// the server positively confirms that a *different* account is active in this
+// browser. Anything it cannot determine — transport failure, timeout, non-2xx,
+// unparseable body, or an anonymous/expired session — counts as 'unknown': the
+// notification is still shown, but with the pushed title and body replaced by
+// the server-rendered generic title, so an unverified browser never displays
+// the push copy. See docs/product/forum.md.
+const RECIPIENT_CHECK_TIMEOUT_MS = 5000;
+function recipientCheckSignal() {
+  try {
+    if (self.AbortSignal && typeof self.AbortSignal.timeout === 'function') {
+      return { signal: self.AbortSignal.timeout(RECIPIENT_CHECK_TIMEOUT_MS), cancel() {} };
+    }
+    // AbortSignal.timeout is not universally available; an AbortController keeps
+    // the same bound so an unreachable server cannot delay the notification.
+    if (typeof self.AbortController === 'function' && typeof setTimeout === 'function') {
+      const controller = new self.AbortController();
+      const timer = setTimeout(() => controller.abort(), RECIPIENT_CHECK_TIMEOUT_MS);
+      return { signal: controller.signal, cancel: () => clearTimeout(timer) };
+    }
+  } catch {
+    // A bound we cannot build must not cost the reader the notification: the
+    // request below simply runs unbounded, which the check already treats as
+    // 'unknown' if it never answers.
+  }
+  return { signal: undefined, cancel() {} };
+}
+// The check reads GET /api/forum/push/config (viewerId) rather than the
+// /messages page: the page payload would render the whole chat list, following
+// list and layout for every delivered push (issue #1183, item 8).
+async function recipientState(recipientId) {
+  if (!Number.isSafeInteger(recipientId) || recipientId <= 0) return 'unknown';
+  const { signal, cancel } = recipientCheckSignal();
+  try {
+    const response = await fetch('/api/forum/push/config', {headers: {Accept: 'application/json'}, credentials: 'same-origin', cache: 'no-store', signal});
+    if (!response.ok) return 'unknown';
+    const body = await response.json();
+    const result = body && (body.result || body.data);
+    const viewerId = result && result.viewerId;
+    if (!Number.isSafeInteger(viewerId) || viewerId <= 0) return 'unknown';
+    return viewerId === recipientId ? 'match' : 'mismatch';
+  } catch { return 'unknown'; } finally { cancel(); }
+}
 
 // Show a push notification unless the user is currently looking at a focused
 // window of this site. Whether to push while a page is visible is the
@@ -23,7 +71,8 @@ self.addEventListener('push', (event) => {
   let payload = null;
   if (event.data) {
     try {
-      // Payload shape: {title, body, url, icon, id (numeric, optional)}
+      // Payload shape: {title, body, genericTitle, url, icon, id (numeric,
+      // optional), sourceKind, sourceId, recipientId}
       payload = event.data.json();
     } catch {
       payload = null; // malformed payload: treat as absent
@@ -32,24 +81,71 @@ self.addEventListener('push', (event) => {
   if (!payload || !payload.title) return;
 
   event.waitUntil((async () => {
+    let title = payload.title;
+    let body = payload.body;
+    if (payload.recipientId != null || payload.sourceKind === 'chat_message') {
+      const recipient = await recipientState(payload.recipientId);
+      if (recipient === 'mismatch') return;
+      if (recipient === 'unknown') {
+        // Undecided identity: neither the pushed title nor the body is safe to
+        // display, so use the server's generic copy. A payload from a server
+        // that predates genericTitle carries no safe copy — it is still shown,
+        // with an empty title (browsers render the site name) and no body,
+        // rather than leaking the push or inventing copy in the worker.
+        title = payload.genericTitle || '';
+        body = undefined;
+      }
+    }
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    if (windows.some((client) => client.focused)) return; // reader is watching the site
+    if (windows.some(client => {
+      if (!client.focused) return false;
+      if (payload.sourceKind !== 'chat_message') return true;
+      try {
+        const url = new URL(client.url);
+        const peer = Number(new URL(payload.url, client.url).searchParams.get('userId'));
+        return url.pathname === '/messages' && activeChats.get(client.id) === peer;
+      } catch { return false; }
+    })) return;
+    const source = payload.id != null ? `${payload.sourceKind || 'notification'}:${payload.id}` : '';
     const notificationOptions = {
-      body: payload.body,
+      body,
       icon: payload.icon,
-      data: { url: payload.url },
+      data: { url: payload.url, recipientId: payload.recipientId, sourceKind: payload.sourceKind },
     };
     // 以服务端下发的数字 id 作为独立 tag，新通知不会在系统托盘静默覆盖旧通知；
     // payload 缺 id 时不设 tag，各通知按默认行为分别展示。
-    if (payload.id != null) notificationOptions.tag = 'goose-push-' + payload.id;
-    await self.registration.showNotification(payload.title, notificationOptions);
+    if (source) notificationOptions.tag = 'goose-push-' + source;
+    const show = async () => {
+      let cache;
+      const key = new URL(`/__notification-source/${source}`, self.location.origin).href;
+      try {
+        if (source && typeof caches !== 'undefined') {
+          cache = await caches.open('goose-notification-sources-v1');
+          if (await cache.match(key)) return false;
+        }
+      } catch { cache = undefined; }
+      await self.registration.showNotification(title, notificationOptions);
+      try { if (cache) {
+        await cache.put(key, new Response('1'));
+        // The ledger only needs to cover the replay window; 256 newest entries
+        // are enough for the polling interval. A longer window needs expiry.
+        const keys = await cache.keys();
+        for (const old of keys.slice(0, Math.max(0, keys.length - 256))) await cache.delete(old);
+      } } catch {}
+      return true;
+    };
+    let shown;
+    try { shown = source && self.navigator && self.navigator.locks
+      ? await self.navigator.locks.request(`goose-notification:${source}`, show) : await show(); }
+    catch { shown = await show(); }
+    if (!shown) return;
     // 仅在真正弹出后广播：前台聚焦的窗口会提前 return，不广播（SW 未弹出时
     // 轮询通道应正常兜底）。页面端 browser-notification.ts 模块加载即监听
     // 同一频道，收到 {at} 后在去重窗口内不再重复弹出。
     if (typeof BroadcastChannel !== 'undefined') {
       try {
         const dedupChannel = new BroadcastChannel(DEDUP_CHANNEL_NAME);
-        dedupChannel.postMessage({ at: Date.now() });
+        dedupChannel.postMessage({ at: Date.now(), source });
         dedupChannel.close();
       } catch {
         // 广播失败只影响去重：轮询通道可能重复弹一次，可接受。
@@ -63,20 +159,27 @@ self.addEventListener('push', (event) => {
 // navigated to the deep link before focusing (focusing without navigating
 // would leave the user on an unrelated page), and with no usable window the
 // payload URL is opened — falling back to the notifications page when the
-// payload or its URL is missing.
+// payload or its URL is missing. When the server cannot confirm the recipient
+// as the current account (unknown or explicitly another account), the pushed
+// deep link is not used: the click goes to the generic destination instead.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil((async () => {
     const payloadUrl = event.notification.data && event.notification.data.url;
-    const target = payloadUrl || FALLBACK_URL;
+    let target = FALLBACK_URL;
+    try {
+      const parsed = new URL(payloadUrl || FALLBACK_URL, self.location.origin);
+      if (parsed.origin === self.location.origin) target = parsed.pathname + parsed.search + parsed.hash;
+    } catch {}
+    if (event.notification.data && (event.notification.data.recipientId != null || event.notification.data.sourceKind === 'chat_message') && await recipientState(event.notification.data.recipientId) !== 'match') target = event.notification.data.sourceKind === 'chat_message' ? '/messages' : FALLBACK_URL;
     const windows = await self.clients.matchAll({ type: 'window' });
-    // 第一遍：已有窗口停留在目标页（同 origin + pathname，忽略 query/hash）时只聚焦。
+    // Only focus an existing window when its full target, including the conversation/floor, matches.
     for (const client of windows) {
       if (!('focus' in client)) continue;
       try {
         const clientUrl = new URL(client.url);
         const targetUrl = new URL(target, client.url);
-        if (clientUrl.origin === targetUrl.origin && clientUrl.pathname === targetUrl.pathname) {
+        if (clientUrl.origin === targetUrl.origin && clientUrl.pathname === targetUrl.pathname && clientUrl.search === targetUrl.search && clientUrl.hash === targetUrl.hash) {
           return client.focus();
         }
       } catch {

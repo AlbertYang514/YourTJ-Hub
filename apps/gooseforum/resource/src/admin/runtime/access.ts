@@ -5,18 +5,24 @@ export enum AdminPermission {
   PageManager = 3,
   RoleManager = 4,
   SiteManager = 5,
+  RevealAnonymousIdentity = 7,
 }
 
 const adminPathPermissions: Record<string, AdminPermission> = {
   '/admin': AdminPermission.Admin,
   '/admin/users': AdminPermission.UserManager,
+  '/admin/anonymous-identities': AdminPermission.RevealAnonymousIdentity,
+  '/admin/feed-statistics': AdminPermission.Admin,
   '/admin/agents': AdminPermission.Admin,
+  '/admin/agent-comment-policy': AdminPermission.Admin,
   '/admin/roles': AdminPermission.RoleManager,
   '/admin/categories': AdminPermission.TopicsManager,
   '/admin/posts': AdminPermission.TopicsManager,
   '/admin/links': AdminPermission.PageManager,
   '/admin/wiki': AdminPermission.PageManager,
   '/admin/sponsors': AdminPermission.PageManager,
+  '/admin/decorations': AdminPermission.SiteManager,
+  '/admin/user-decorations': AdminPermission.UserManager,
   '/admin/badges': AdminPermission.SiteManager,
   '/admin/stickers': AdminPermission.SiteManager,
   '/admin/files/resources': AdminPermission.SiteManager,
@@ -47,13 +53,18 @@ const adminPathPermissions: Record<string, AdminPermission> = {
 const adminEntryPaths = [
   '/admin',
   '/admin/users',
+  '/admin/anonymous-identities',
+  '/admin/feed-statistics',
   '/admin/agents',
+  '/admin/agent-comment-policy',
   '/admin/posts',
   '/admin/categories',
   '/admin/roles',
   '/admin/links',
   '/admin/wiki',
   '/admin/sponsors',
+  '/admin/decorations',
+  '/admin/user-decorations',
   '/admin/badges',
   '/admin/stickers',
   '/admin/files/resources',
@@ -82,16 +93,22 @@ const adminEntryPaths = [
 ]
 
 let permissions = new Set<number>()
+let canManageAgents = false
 
-export function configureAdminAccess(values: number[] = []) {
+export function configureAdminAccess(values: number[] = [], agentManagement = false) {
   permissions = new Set(values)
+  canManageAgents = agentManagement
 }
 
 export function hasAdminPermission(permission: AdminPermission) {
-  return permissions.has(AdminPermission.Admin) || permissions.has(permission)
+  return permissions.has(permission) || (permission !== AdminPermission.RevealAnonymousIdentity && permissions.has(AdminPermission.Admin))
 }
 
 export function canVisitAdminPath(path: string) {
+  if (path === '/admin/agents' && canManageAgents) return true
+  if (path === '/admin/anonymous-identities') {
+    return hasAdminPermission(AdminPermission.UserManager) && hasAdminPermission(AdminPermission.RevealAnonymousIdentity)
+  }
   const permission = adminPathPermissions[path]
   return permission !== undefined && hasAdminPermission(permission)
 }

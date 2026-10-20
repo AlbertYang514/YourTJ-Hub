@@ -9,6 +9,12 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
+  String get agentRepliesDisabled => '投稿者がボットの返信をオフにしています';
+
+  @override
+  String get agentRepliesHelp => 'オフにすると、このサイトのボットアカウントはここに返信できません。既存の返信は残ります。';
+
+  @override
   String get campusCourseReviews => '授業評価';
 
   @override
@@ -277,7 +283,14 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authOidcLogin => 'YourTJでログイン';
 
   @override
-  String get authRegisterEmailVerify => '登録が完了しました。確認メールを送信しました。受信箱を確認してください。';
+  String get authRegisterEmailVerify =>
+      '登録が完了しました。確認メールを送信しました。受信箱を確認してください。メールが届かない場合は、ログイン後にアカウントのセキュリティから再送信できます。';
+
+  @override
+  String get authActivationRequired => '先に受信箱からアカウントを有効化してください。';
+
+  @override
+  String get authResendActivationEmail => '確認メールを再送信';
 
   @override
   String get authRegisterSuccess => '登録しました。ログインしてください';
@@ -588,19 +601,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get notificationsUnread => '未読';
 
   @override
-  String get searchTitle => '検索';
-
-  @override
   String get searchHint => 'トピック、ユーザー、カテゴリを検索…';
-
-  @override
-  String get searchEmpty => 'キーワードを入力して検索';
-
-  @override
-  String get searchNoUsers => '該当するユーザーはいません';
-
-  @override
-  String get searchNoCategories => '該当するカテゴリはありません';
 
   @override
   String get searchUnavailable => '検索サービスを利用できません';
@@ -632,7 +633,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsTabProfile => 'プロフィール';
 
   @override
-  String get settingsTabAccount => 'アカウント';
+  String get settingsTabAccount => 'アカウント・セキュリティ・プライバシー';
 
   @override
   String get settingsTabPrivacy => 'プライバシー';
@@ -1437,6 +1438,36 @@ class AppLocalizationsJa extends AppLocalizations {
   String get publishBodyDragHint => '本文の画像を長押しして、任意の段落位置へドラッグできます';
 
   @override
+  String get publishMomentTitleHint => 'タイトル（任意）';
+
+  @override
+  String get publishCategoryLabel => 'カテゴリ';
+
+  @override
+  String publishCategoryLimit(int count) {
+    return '$count 個まで';
+  }
+
+  @override
+  String get publishCategoryPickOne => 'カテゴリを1つ選択';
+
+  @override
+  String get publishImageOrderTitle => '画像の順序';
+
+  @override
+  String get publishImageOrderHint => '長押ししてドラッグすると、本文中の画像の順序を変更できます';
+
+  @override
+  String publishImageOrderPosition(int index) {
+    return '$index 枚目の画像';
+  }
+
+  @override
+  String publishStepOf(int current, int total) {
+    return 'ステップ $current/$total';
+  }
+
+  @override
   String get publishFormatting => '書式設定';
 
   @override
@@ -1778,12 +1809,12 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String notificationComment(String actor) {
-    return '$actorがあなたのトピックにコメントしました';
+    return '$actor があなたのトピックにコメントしました';
   }
 
   @override
   String notificationMention(String actor) {
-    return '$actorがあなたにメンションしました';
+    return '$actor があなたに言及しました';
   }
 
   @override
@@ -1811,29 +1842,30 @@ class AppLocalizationsJa extends AppLocalizations {
   String get mentionTagParticipant => '参加者';
 
   @override
+  String get mentionAgentLabel => 'ボット';
+
+  @override
   String notificationPostReply(String actor) {
-    return '$actorがあなたに返信しました';
+    return '$actor があなたに返信しました';
   }
 
   @override
   String notificationTopicPost(String actor) {
-    return '$actorがフォロー中のトピックに投稿しました';
+    return '$actor がフォロー中のトピックに返信しました';
   }
 
   @override
   String notificationFollow(String actor) {
-    return '$actor さんがあなたをフォローしました';
+    return '$actor があなたをフォローしました';
   }
 
   @override
   String notificationLike(String actor) {
-    return '$actorがあなたの返信に「いいね」しました';
+    return '$actor があなたの返信にいいねしました';
   }
 
   @override
-  String notificationWikiUpdated(String actor) {
-    return '$actorがフォロー中のWikiページを更新しました';
-  }
+  String get notificationWikiUpdated => '購読中の Wiki ページが更新されました';
 
   @override
   String notificationBadge(String badge) {
@@ -1841,7 +1873,7 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get notificationNew => '新しい通知があります';
+  String get notificationNew => '新しいシステム通知があります';
 
   @override
   String get notificationSomeone => '誰か';
@@ -2330,10 +2362,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get campusCoursesEmpty => '授業レビューはまだありません。授業一覧を見てみましょう。';
 
   @override
-  String get searchDiscoveryDescription =>
-      '投稿・ユーザー・カテゴリを検索したり、キャンパスツールを開いたりできます。';
-
-  @override
   String get notificationsEmptyDescription =>
       '返信・メンション・フォローがここに表示されます。キャンパスの新着情報を見てみましょう。';
 
@@ -2390,6 +2418,38 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get searchWiki => 'Wiki を検索';
+
+  @override
+  String get searchIdleHint => 'トピック、ユーザー、カテゴリを検索できます。最近の検索はここに表示されます。';
+
+  @override
+  String searchFor(String query) {
+    return '「$query」を検索';
+  }
+
+  @override
+  String searchCoursesFor(String query) {
+    return '授業で「$query」を検索';
+  }
+
+  @override
+  String searchWikiFor(String query) {
+    return 'Wiki で「$query」を検索';
+  }
+
+  @override
+  String get searchRemoveRecent => '最近の検索から削除';
+
+  @override
+  String get searchSeeAll => 'すべて表示';
+
+  @override
+  String searchNoResults(String query) {
+    return '「$query」に一致する結果はありません';
+  }
+
+  @override
+  String get searchNoResultsHint => '別のキーワードを試すか、授業や Wiki で検索してください。';
 
   @override
   String get refreshFailedRetained => '更新できませんでした。現在の内容を表示しています。';
@@ -2486,6 +2546,20 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get campusUnavailable => '大学のデータを取得できません。後でもう一度お試しください。';
+
+  @override
+  String get campusUpstreamUnavailable => '大学のサービスを一時的に利用できません。後でもう一度お試しください。';
+
+  @override
+  String get campusRulesAIUnavailable =>
+      'AI を利用できません。「AI 授業要約」のモデル設定を確認するか、手動で規則を追加してください。';
+
+  @override
+  String get campusRulesAIOutput =>
+      'AI が有効な規則を生成できませんでした。日付と振替先を明記して再試行するか、手動で編集してください。';
+
+  @override
+  String get campusRulesLimited => 'AI リクエストが多すぎます。後で再試行してください。';
 
   @override
   String get campusNoData => '記録はありません';
@@ -2619,10 +2693,35 @@ class AppLocalizationsJa extends AppLocalizations {
   String get linkPreviewContinue => '続ける';
 
   @override
+  String linkPreviewAuthorArtist(String author) {
+    return 'アーティスト：$author';
+  }
+
+  @override
+  String linkPreviewAuthorUploader(String author) {
+    return 'UP主：$author';
+  }
+
+  @override
   String get linkPreviewCampusFallbackTitle => '学内ネットワーク';
 
   @override
   String get linkPreviewCampusFallbackDescription => '学内ネットワークからのみアクセスできます';
+
+  @override
+  String get linkPreviewPlatformAppleMusic => 'Apple Music';
+
+  @override
+  String get linkPreviewPlatformBilibili => 'ビリビリ';
+
+  @override
+  String get linkPreviewResourceTypeAlbum => 'アルバム';
+
+  @override
+  String get linkPreviewResourceTypeSong => '楽曲';
+
+  @override
+  String get linkPreviewResourceTypeVideo => '動画';
 
   @override
   String campusTodayMakeup(String name, String date) {
@@ -3321,4 +3420,605 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get topicPendingReviewReply =>
       '審査中 · 承認されるまで、この返信はあなたと審査担当者だけに表示されます。';
+
+  @override
+  String get contentReviewBlocked => '承認されませんでした';
+
+  @override
+  String get contentReviewRetry => '編集して再送信';
+
+  @override
+  String get contentReviewLive => '以前に公開した版は引き続き表示されています。今回の編集は公開されていません。';
+
+  @override
+  String get contentReviewView => '内容を見る';
+
+  @override
+  String get contentReviewPending => '審査中';
+
+  @override
+  String get notificationReviewPending => '投稿は手動確認を待っています';
+
+  @override
+  String get notificationReviewPendingDetail =>
+      '確認結果をお知らせします。待っている間も内容を確認・編集できます。';
+
+  @override
+  String get notificationReviewRejectedDetail =>
+      '今回の投稿は公開されません。コンテンツ管理で編集して再送信できます。判断が誤っていると思う場合、対象の項目には「異議を申し立てる」ボタンが表示されます（Wiki の最初の投稿と凍結中のアカウントは対象外）。';
+
+  @override
+  String get contentReviewReasonLabel => '審査の理由';
+
+  @override
+  String get contentReviewSheetTitle => '審査結果';
+
+  @override
+  String get appealAction => '異議を申し立てる';
+
+  @override
+  String get appealFormTitle => 'この審査結果に異議を申し立てる';
+
+  @override
+  String get appealFormIntro =>
+      '判断が誤っていると思う場合、モデレーターが元の内容を確認し直します。申し立てで内容は変わりません。内容を変えるには「編集して再送信」を使ってください。';
+
+  @override
+  String get appealReasonLabel => '申し立ての理由';
+
+  @override
+  String get appealReasonPlaceholder => '例：授業資料の引用で、特定の人に向けたものではありません。';
+
+  @override
+  String get appealOncePerVersion => '各バージョンにつき申し立ては1回までです。';
+
+  @override
+  String get appealSubmit => '申し立てを送信';
+
+  @override
+  String get appealSubmitted => '申し立てを送信しました。結果は通知でお知らせします。';
+
+  @override
+  String get appealSubmitFailed =>
+      '申し立てを送信できませんでした。接続を確認してもう一度お試しください。入力した理由は残っています。';
+
+  @override
+  String get appealYourReason => 'あなたの申し立て理由';
+
+  @override
+  String get appealReviewerNote => 'モデレーターの説明';
+
+  @override
+  String get appealNoReviewerNote => 'モデレーターの説明はありません。';
+
+  @override
+  String appealSubmittedAt(String time) {
+    return '$time に送信';
+  }
+
+  @override
+  String appealDecidedAt(String time) {
+    return '$time に判断';
+  }
+
+  @override
+  String get appealStatePendingTitle => '異議申し立てを確認中';
+
+  @override
+  String get appealStatePendingBody =>
+      'モデレーターが元の内容を確認し、結果をお知らせします。その前に編集して再送信すると、この申し立ては無効になります。';
+
+  @override
+  String get appealStateApprovedTitle => '異議が認められました';
+
+  @override
+  String get appealStateApprovedBody => '投稿は公開され、すべての人に表示されています。';
+
+  @override
+  String get appealStateRejectedTitle => '異議は認められませんでした';
+
+  @override
+  String get appealStateRejectedBody =>
+      'このバージョンにはもう申し立てできません。編集して再送信すると、新しい審査が始まります。';
+
+  @override
+  String get appealStateStaleTitle => '申し立ては無効になりました';
+
+  @override
+  String get appealStateStaleBody => '確認前に投稿が変更されたか表示できなくなったため、この申し立ては処理されません。';
+
+  @override
+  String get appealEditWarning => '編集して再送信すると、確認中の申し立ては無効になります。';
+
+  @override
+  String get appealEditAnyway => '編集を続ける';
+
+  @override
+  String get notificationAppealSubmitted => '異議申し立てを受け付けました';
+
+  @override
+  String get notificationAppealApproved => '異議が認められ、投稿が公開されました';
+
+  @override
+  String get notificationAppealRejected => '異議は認められませんでした';
+
+  @override
+  String get notificationAppealStale => '異議申し立ては無効になりました';
+
+  @override
+  String get notificationAppealSubmittedDetail =>
+      '結果は通知でお知らせします。その前に編集して再送信すると、申し立ては無効になります。';
+
+  @override
+  String get notificationAppealApprovedDetail => 'すべての人に表示されるようになりました。';
+
+  @override
+  String get notificationAppealRejectedDetail =>
+      'モデレーターの説明はコンテンツ管理で確認できます。編集して再送信することもできます。';
+
+  @override
+  String get notificationAppealStaleDetail =>
+      '確認前に投稿が変更されたか表示できなくなったため、この申し立ては処理されません。';
+
+  @override
+  String get anonymousIdentity => '匿名ID';
+
+  @override
+  String get anonymousBoundary =>
+      '匿名IDは1アカウントにつき1つで、確定した名前は1年間変更できません。ログイン、メッセージ送信、フォローはできません。いいねや投票は、どの ID を使ってもアカウントごとに1回です。';
+
+  @override
+  String get anonymousRetry => '再試行';
+
+  @override
+  String get anonymousUnavailable => '匿名IDは現在利用できません';
+
+  @override
+  String get anonymousPublishAs => '投稿者';
+
+  @override
+  String get anonymousMember => 'メインアカウント';
+
+  @override
+  String get anonymousSetup => '匿名IDを設定';
+
+  @override
+  String get anonymousNext => '次のページ';
+
+  @override
+  String get anonymousPersonaLabel => '匿名の身分';
+
+  @override
+  String get anonymousManage => '匿名IDを管理';
+
+  @override
+  String get sortForYou => 'おすすめ';
+
+  @override
+  String get feedReasonFollowing => 'フォロー中のユーザー';
+
+  @override
+  String get feedReasonCategory => '参加したカテゴリ';
+
+  @override
+  String get feedReasonNewReply => '新しい返信';
+
+  @override
+  String get feedReasonRecent => '最近の投稿';
+
+  @override
+  String get sortDaily => '今日の人気';
+
+  @override
+  String get anonymousPurpose => '固定の名前で投稿・返信できます。メインアカウントは他の人に表示されません。';
+
+  @override
+  String get anonymousSettingsHint => 'メインアカウントを出さずに固定の名前で投稿';
+
+  @override
+  String get anonymousIntroTitle => 'まず名前を選びましょう';
+
+  @override
+  String get anonymousConfirmHint => '匿名IDは1アカウントにつき1つです。確定すると1年間名前を変更できません。';
+
+  @override
+  String get anonymousPrivacySummary =>
+      '他のユーザーや一般のモデレーターはメインアカウントを見られません。違反対応のため権限を持つ一部の管理者は確認できますが、毎回理由の入力と記録が必要です。アカウントを削除しても対応関係は保持されます。';
+
+  @override
+  String get anonymousRules => 'ルールをすべて表示';
+
+  @override
+  String get anonymousChooseName => '名前を選ぶ';
+
+  @override
+  String get anonymousRefreshNames => '別の候補';
+
+  @override
+  String anonymousDrawsRemaining(int remaining) {
+    return '今日はあと $remaining 回';
+  }
+
+  @override
+  String anonymousBatchNumber(int number) {
+    return '第$number回';
+  }
+
+  @override
+  String get anonymousPreviousBatches => '生成済みの候補';
+
+  @override
+  String get anonymousNamePreview => '使用する名前';
+
+  @override
+  String get anonymousConfirmName => 'この名前を使う';
+
+  @override
+  String get anonymousInactive => '停止中';
+
+  @override
+  String get anonymousReady => '利用可能';
+
+  @override
+  String anonymousLockedUntil(String date) {
+    return '$date 以降に名前を変更できます';
+  }
+
+  @override
+  String get anonymousNameLockHint => '確定後 1 年間は変更できません。';
+
+  @override
+  String get anonymousShowContent => 'プロフィールに投稿を表示';
+
+  @override
+  String get anonymousShowContentDescription =>
+      'オフにすると、プロフィールには名前とアバターだけが表示されます。トピックや返信は元の場所に表示されます。';
+
+  @override
+  String get anonymousProfileContentHidden => 'このメンバーの投稿はこのページに表示されません';
+
+  @override
+  String get agentRepliesAllow => 'ボットの返信を許可';
+
+  @override
+  String get agentRepliesOff => 'ボットの返信はオフ';
+
+  @override
+  String get anonymousTag => '匿名';
+
+  @override
+  String get anonymousTagOwn => 'あなたの匿名ID';
+
+  @override
+  String get anonymousIntroBody => '投稿や返信には、メインアカウントの代わりにこの名前とアバターが表示されます。';
+
+  @override
+  String get anonymousGenerateNames => '名前を生成';
+
+  @override
+  String anonymousBatchOf(int number, int total) {
+    return '第$number回（全$total回）';
+  }
+
+  @override
+  String get anonymousPreviewCaption => 'ほかの人からはこう見えます';
+
+  @override
+  String get anonymousPreviewPlaceholder => '下から名前を選んでください';
+
+  @override
+  String get anonymousRestricted => '制限中';
+
+  @override
+  String anonymousQuota(String date) {
+    return '本日の回数を使い切りました。$date に回復します。生成済みの名前は選べます。';
+  }
+
+  @override
+  String get anonymousProfileContentHiddenOwn => 'このプロフィールの投稿は非表示です';
+
+  @override
+  String get anonymousProfileContentHiddenOwnDescription =>
+      'あなたを含め、誰もここで投稿一覧を見ることはできません。トピックや返信は元の場所に通常どおり表示されます。';
+
+  @override
+  String get anonymousProfileOwnerHint =>
+      'これはあなたの匿名IDです。他の人に見えるのは名前・アバター・公開された投稿だけで、メインアカウントは表示されません。';
+
+  @override
+  String get anonymousProfileMemberHint =>
+      'このメンバーは匿名で投稿しています。メインアカウントは公開されていません。';
+
+  @override
+  String get anonymousProfileGuestHint => 'フォーラムメンバーの匿名IDです。メインアカウントは非公開です。';
+
+  @override
+  String get anonymousActiveLabel => '匿名IDを使う';
+
+  @override
+  String get anonymousDisabledHint => '停止中は投稿できません。公開済みの内容はそのままです。';
+
+  @override
+  String get anonymousStatusRestricted => '管理者により制限されているため、現在投稿できません';
+
+  @override
+  String get anonymousStatusDisabled => '停止中のため、現在この ID では投稿できません';
+
+  @override
+  String get anonymousLinkabilityHint =>
+      'この ID の投稿は 1 つのプロフィールにまとまるため、関連付けられる可能性があります。内容から本人が推測されることもあります。';
+
+  @override
+  String get anonymousViewProfile => '匿名プロフィールを見る';
+
+  @override
+  String get profilePrivacyTitle => 'プロフィールの公開範囲';
+
+  @override
+  String get profilePrivacyDescription => 'プロフィールの各項目を誰に見せるかを選びます。';
+
+  @override
+  String get profilePrivacyScope =>
+      'ここで変わるのはプロフィール上の表示だけです。投稿したトピックや返信はカテゴリ・検索・元のスレッドに引き続き表示され、フォロワー数などの数値も表示されたままです。';
+
+  @override
+  String get profilePrivacyViewProfile => '自分のプロフィールを見る';
+
+  @override
+  String get profilePrivacyTopics => '投稿';
+
+  @override
+  String get profilePrivacyTopicsDescription => 'あなたの投稿の一覧';
+
+  @override
+  String get profilePrivacyActivity => 'アクティビティ';
+
+  @override
+  String get profilePrivacyActivityDescription =>
+      '返信などの記録。投稿・いいね・フォローの記録はそれぞれの設定にも従います';
+
+  @override
+  String get profilePrivacyLikes => 'いいねした投稿';
+
+  @override
+  String get profilePrivacyLikesDescription => 'いいねした投稿の一覧';
+
+  @override
+  String get profilePrivacyFollowing => 'フォロー中のリスト';
+
+  @override
+  String get profilePrivacyFollowingDescription => 'あなたがフォローしている人';
+
+  @override
+  String get profilePrivacyFollowers => 'フォロワーのリスト';
+
+  @override
+  String get profilePrivacyFollowersDescription => 'あなたをフォローしている人';
+
+  @override
+  String get profilePrivacyBookmarksDescription => 'ブックマークした投稿。常にあなただけが見られます';
+
+  @override
+  String get profilePrivacyEveryone => '全員';
+
+  @override
+  String get profilePrivacyMembers => 'ログイン中のユーザー';
+
+  @override
+  String get profilePrivacyFollowersOnly => 'フォロワー';
+
+  @override
+  String get profilePrivacyMutual => '相互フォロー';
+
+  @override
+  String get profilePrivacySelf => '自分のみ';
+
+  @override
+  String profilePrivacyAudienceTitle(String section) {
+    return '$sectionを見られる人';
+  }
+
+  @override
+  String get profilePrivacyLoadFailed => 'プロフィールの公開範囲を読み込めませんでした。';
+
+  @override
+  String get profilePrivacySaved => '公開範囲をアカウントに保存しました';
+
+  @override
+  String get profilePrivacySaveFailed =>
+      '保存できなかったため、設定は変わっていません。接続を確認してもう一度お試しください。';
+
+  @override
+  String get profilePrivacyWidenTitle => '公開範囲を広げますか？';
+
+  @override
+  String profilePrivacyWidenDescription(String section, String audience) {
+    return '「$section」が「$audience」に公開されます。非公開にしていた間の記録も表示されます。';
+  }
+
+  @override
+  String get profilePrivacyWidenConfirm => '公開範囲を広げる';
+
+  @override
+  String get profileHiddenTitle => 'この項目は公開されていません';
+
+  @override
+  String profileHiddenPrivate(String name) {
+    return '$name さんはこの項目をプロフィールに表示していません。';
+  }
+
+  @override
+  String profileHiddenSignin(String name) {
+    return '$name さんはこの項目をログイン中のユーザーにだけ表示しています。';
+  }
+
+  @override
+  String profileHiddenFollowers(String name) {
+    return '$name さんはこの項目をフォロワーにだけ表示しています。フォローすると見られます。';
+  }
+
+  @override
+  String profileHiddenFollowersGuest(String name) {
+    return '$name さんはこの項目をフォロワーにだけ表示しています。ログインしてフォローすると見られます。';
+  }
+
+  @override
+  String profileHiddenMutual(String name) {
+    return '$name さんはこの項目を相互フォローの人にだけ表示しています。';
+  }
+
+  @override
+  String get profileHiddenSignIn => 'ログイン';
+
+  @override
+  String get profileOwnerMembers => 'ログイン中のユーザーだけがこの項目を見られます。';
+
+  @override
+  String get profileOwnerFollowers => 'フォロワーだけがこの項目を見られます。';
+
+  @override
+  String get profileOwnerMutual => '相互フォローの人だけがこの項目を見られます。';
+
+  @override
+  String get profileOwnerSelf => 'この項目を見られるのはあなただけです。';
+
+  @override
+  String get notificationsMentions => 'メンション';
+
+  @override
+  String get notificationsReplies => '返信';
+
+  @override
+  String get notificationsLikes => 'いいね';
+
+  @override
+  String get notificationsFollowing => 'フォロー';
+
+  @override
+  String get notificationsSystem => 'システム';
+
+  @override
+  String get pushChat => 'ダイレクトメッセージ';
+
+  @override
+  String get pushMentionsAndReplies => 'メンションと返信';
+
+  @override
+  String get pushActivity => 'いいね';
+
+  @override
+  String get pushFollowing => 'フォローの更新';
+
+  @override
+  String get pushSystem => 'システムと審査';
+
+  @override
+  String notificationMentionTopic(String actor, String topic) {
+    return '$actor が「$topic」であなたに言及しました';
+  }
+
+  @override
+  String notificationCommentTopic(String actor, String topic) {
+    return '$actor が「$topic」にコメントしました';
+  }
+
+  @override
+  String notificationTopicPostTopic(String actor, String topic) {
+    return '$actor がフォロー中の「$topic」に返信しました';
+  }
+
+  @override
+  String notificationWikiTopic(String topic) {
+    return '「$topic」が更新されました';
+  }
+
+  @override
+  String get authPasskey => 'パスキーでログイン';
+
+  @override
+  String get authPasskeyUnavailable => 'この端末ではパスキーを利用できません。';
+
+  @override
+  String get authPasskeyFailed => 'パスキーでログインできませんでした。再試行するか、パスワードをお使いください。';
+
+  @override
+  String get authPasskeyCancelled =>
+      'パスキーが選択されていないか、利用できません。再試行するか、パスワードでログインしてください。';
+
+  @override
+  String get settingsPasskeyTitle => 'パスキー';
+
+  @override
+  String get settingsPasskeyManage => 'パスキーを管理';
+
+  @override
+  String get settingsPasskeyDescription =>
+      '端末のパスキーを使ってパスワードなしでログインできます。二段階認証が有効でもパスキーでログインできます。';
+
+  @override
+  String get settingsPasskeyReauthHint =>
+      'パスキーの追加、名前変更、削除にはログインパスワードが必要です。二段階認証が有効な場合は現在のコードも必要です。';
+
+  @override
+  String get settingsPasskeyName => 'パスキー名';
+
+  @override
+  String get settingsPasskeyPassword => 'ログインパスワード';
+
+  @override
+  String get settingsPasskeyAdd => 'パスキーを追加';
+
+  @override
+  String get settingsPasskeyAddedAt => '追加日';
+
+  @override
+  String get settingsPasskeyLastUsed => '最終使用';
+
+  @override
+  String get settingsPasskeyNeverUsed => '未使用';
+
+  @override
+  String get settingsPasskeySyncCapable => '同期可能';
+
+  @override
+  String get settingsPasskeyDeviceBound => 'このデバイスのみ';
+
+  @override
+  String get settingsPasskeyBackedUp => '同期済み';
+
+  @override
+  String get settingsPasskeyRevokedHint =>
+      'YourTJ から削除しても、パスワードマネージャーに保存されたパスキーは削除されません。';
+
+  @override
+  String get settingsPasskeyRename => '名前を変更';
+
+  @override
+  String get settingsPasskeyRevoke => '削除';
+
+  @override
+  String get settingsPasskeyAdded => 'パスキーを追加しました';
+
+  @override
+  String get settingsPasskeyRevoked => 'パスキーを削除しました';
+
+  @override
+  String get settingsPasskeyEmpty => '登録済みのパスキーはありません。';
+
+  @override
+  String get settingsPasskeyUnavailable => 'このサーバーではパスキーが有効になっていません。';
+
+  @override
+  String get previewUpdateInstructions =>
+      'テスト版です。更新にはリリース記録の Android リンクまたは指定された TestFlight グループを使用してください。';
+
+  @override
+  String get previewStale =>
+      'このプレビューは現在の候補ではありません。リリース状況から現在のテスト版または正式版をご確認ください。';
+
+  @override
+  String get previewStatusUnknown => 'プレビューの状態を確認できません。テスト前にリリース担当者へ確認してください。';
+
+  @override
+  String get previewStatusLink => 'プレビュー状況';
 }

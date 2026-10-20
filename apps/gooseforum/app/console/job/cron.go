@@ -14,11 +14,17 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/networkAccessLog"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentwebhookservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/anonymousidentityservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/contentdeleteservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/decorationassetservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/httpnotifyservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/nativepushservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pkservice"
@@ -63,6 +69,14 @@ func Run() {
 
 func registerJobs() {
 	slog.Info("start cron")
+	_, errAnonymous := scheduler.AddFunc("13 * * * *", upCmd(func() {
+		if err := anonymousidentityservice.Default(context.Background()).Cleanup(); err != nil {
+			slog.Warn("anonymous candidate cleanup failed", "err", err)
+		}
+	}))
+	if errAnonymous != nil {
+		slog.Error("register anonymous cleanup failed", "err", errAnonymous)
+	}
 	backupSpec := preferences.Get("db.spec", "0 3 * * *")
 	entryID, err := scheduler.AddFunc(backupSpec, upCmd(func() {
 		dbconnect.BackupSQLiteHandle()
@@ -142,10 +156,12 @@ func registerJobs() {
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", "11 3 * * *", "err", err)
 	entryID, err = scheduler.AddFunc("12 3 * * *", upCmd(func() {
-		// 清理超过 7 天保留期的终态（Success/Failed）原生推送任务行：
-		// nativepush 同样每条通知一行 outbox，与 webpush 共用同一保留策略。
+		// 清理超过 7 天保留期的终态（Success/Failed）原生推送与 HTTP 通知重试任务行。
 		if _, cleanupErr := nativepushservice.CleanupTerminalTasks(time.Now().Add(-7*24*time.Hour), 500); cleanupErr != nil {
 			slog.Error("cleanup terminal nativepush tasks failed", "err", cleanupErr)
+		}
+		if _, cleanupErr := httpnotifyservice.CleanupTerminalTasks(time.Now().Add(-7*24*time.Hour), 500); cleanupErr != nil {
+			slog.Error("cleanup terminal HTTP notification retry tasks failed", "err", cleanupErr)
 		}
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", "12 3 * * *", "err", err)
@@ -158,6 +174,13 @@ func registerJobs() {
 		}
 	}))
 	slog.Info("reg pending upload cleanup", "entryID", entryID, "err", err)
+	entryID, err = scheduler.AddFunc("23 * * * *", upCmd(func() {
+		removed, cleanupErr := decorationassetservice.CleanupAssets(context.Background(), time.Now(), 500)
+		if cleanupErr != nil || removed > 0 {
+			slog.Info("cleanup decoration assets", "removed", removed, "err", cleanupErr)
+		}
+	}))
+	slog.Info("reg decoration asset cleanup", "entryID", entryID, "err", err)
 	// wiki GitHub 同步：默认每日 03:00（可配 [wiki.git].schedule 覆盖）；
 	// 未配置 [wiki.git].repo 时 Sync 直接报错跳过（幂等，配置后重启即生效）。
 	wikiSpec := preferences.GetString("wiki.git.schedule", "0 3 * * *")
@@ -168,6 +191,21 @@ func registerJobs() {
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", wikiSpec, "err", err)
 	// 排课数据定时同步（issue #569）：默认关闭；管理端「一系统同步」开启并保存
+	entryID, err = scheduler.AddFunc("13 3 * * *", func() {
+		if err := agenteventservice.Cleanup(); err != nil {
+			slog.Error("agent event retention cleanup failed", "err", err)
+		}
+		if err := agentwebhookservice.Cleanup(); err != nil {
+			slog.Error("agent webhook retention cleanup failed", "err", err)
+		}
+		for _, prefix := range []string{"agent-interaction.", "agent-webhook."} {
+			if _, err := taskQueue.DeleteTerminalByTypePrefix(prefix, []int{taskQueue.StatusSuccess, taskQueue.StatusFailed}, time.Now().Add(-37*24*time.Hour), 500); err != nil {
+				slog.Error("agent terminal task cleanup failed", "prefix", prefix, "err", err)
+			}
+		}
+	})
+	slog.Info("reg cron", "entryID", entryID, "spec", "13 3 * * *", "err", err)
+
 	// cron 表达式后注册本条目，配置热更新走 RefreshPkSyncCron（无需重启）。
 	registerPkSyncCron()
 }

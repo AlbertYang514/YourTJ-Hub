@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../twemoji/twemoji_text.dart';
 import '../../theme/gf_theme.dart';
 import '../atoms/gf_avatar.dart';
 import '../gf_symbol.dart';
@@ -17,20 +18,34 @@ class GfNotificationRow extends StatelessWidget {
     required this.time,
     required this.unread,
     this.actorName = '',
+    this.avatarFrameColors = const [],
+    this.avatarFrameAssetUrl = '',
+    this.avatarFrameScale = 1.25,
+    this.nicknameColors = const [],
     this.avatarUrl,
     this.onActorTap,
     this.onTap,
     this.onMarkRead,
     this.markReadLabel = 'Mark as read',
+    this.subtitleMaxLines = 3,
   });
+  final List<Color> avatarFrameColors, nicknameColors;
   final String symbol;
   final GfNotificationTone tone;
-  final String title, subtitle, time, actorName;
+  final String title, subtitle, time;
+
+  /// The real actor's name; empty suppresses actor-name emphasis for system notices.
+  final String actorName;
   final String? avatarUrl;
   final bool unread;
   final VoidCallback? onTap, onMarkRead, onActorTap;
   final String markReadLabel;
 
+  /// Null shows complete guidance rather than truncating a content preview.
+  final int? subtitleMaxLines;
+
+  final String avatarFrameAssetUrl;
+  final double avatarFrameScale;
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
@@ -58,7 +73,7 @@ class GfNotificationRow extends StatelessWidget {
             children: [
               SizedBox(
                 width: 28,
-                height: 44,
+                height: 24,
                 child: GfSymbol(symbol, size: 24, color: toneColor),
               ),
               const SizedBox(width: 12),
@@ -66,52 +81,30 @@ class GfNotificationRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        if (avatarUrl != null)
-                          Semantics(
-                            label: actorName,
-                            button: onActorTap != null,
-                            child: InkWell(
-                              onTap: onActorTap,
-                              customBorder: const CircleBorder(),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 4,
-                                  horizontal: 4,
-                                ),
-                                child: GfAvatar(src: avatarUrl!, size: 36),
-                              ),
+                    if (avatarUrl != null)
+                      Semantics(
+                        label: actorName,
+                        button: onActorTap != null,
+                        child: InkWell(
+                          onTap: onActorTap,
+                          customBorder: const CircleBorder(),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 4,
+                              horizontal: 4,
+                            ),
+                            child: GfAvatar(
+                              frameColors: avatarFrameColors,
+                              frameAssetUrl: avatarFrameAssetUrl,
+                              frameScale: avatarFrameScale,
+                              src: avatarUrl!,
+                              size: 36,
                             ),
                           ),
-                        const Spacer(),
-                        if (unread)
-                          Container(
-                            width: 7,
-                            height: 7,
-                            decoration: BoxDecoration(
-                              color: colors.primary,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        if (unread && onMarkRead != null)
-                          IconButton(
-                            onPressed: onMarkRead,
-                            tooltip: markReadLabel,
-                            constraints: const BoxConstraints(
-                              minWidth: 44,
-                              minHeight: 44,
-                            ),
-                            icon: GfSymbol(
-                              'circle-check',
-                              size: 18,
-                              color: colors.iconMuted,
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text.rich(
+                        ),
+                      ),
+                    if (avatarUrl != null) const SizedBox(height: 4),
+                    GfText.rich(
                       TextSpan(
                         children: [
                           if (actorStart < 0)
@@ -120,7 +113,21 @@ class GfNotificationRow extends StatelessWidget {
                             TextSpan(text: title.substring(0, actorStart)),
                             TextSpan(
                               text: actorName,
-                              style: const TextStyle(
+                              style: TextStyle(
+                                foreground: nicknameColors.length < 2
+                                    ? null
+                                    : (Paint()
+                                        ..shader =
+                                            LinearGradient(
+                                              colors: nicknameColors,
+                                            ).createShader(
+                                              Rect.fromLTWH(
+                                                0,
+                                                0,
+                                                actorName.length * 8.0,
+                                                20,
+                                              ),
+                                            )),
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -150,10 +157,12 @@ class GfNotificationRow extends StatelessWidget {
                     if (subtitle.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 5),
-                        child: Text(
+                        child: GfText(
                           subtitle,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
+                          maxLines: subtitleMaxLines,
+                          overflow: subtitleMaxLines == null
+                              ? TextOverflow.visible
+                              : TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 15,
                             height: 1.4,
@@ -164,6 +173,35 @@ class GfNotificationRow extends StatelessWidget {
                   ],
                 ),
               ),
+              if (unread)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 9,
+                  ),
+                  child: Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: colors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              if (unread && onMarkRead != null)
+                IconButton(
+                  onPressed: onMarkRead,
+                  tooltip: markReadLabel,
+                  constraints: const BoxConstraints(
+                    minWidth: 44,
+                    minHeight: 44,
+                  ),
+                  icon: GfSymbol(
+                    'circle-check',
+                    size: 18,
+                    color: colors.iconMuted,
+                  ),
+                ),
             ],
           ),
         ),

@@ -2,6 +2,7 @@
 library;
 
 export 'src/api/api_error.dart';
+export 'src/api/feed_telemetry.dart';
 export 'src/api/gf_api_client.dart';
 export 'src/api/image_bytes.dart';
 export 'src/api/forum_sse.dart';
@@ -16,6 +17,7 @@ export 'src/api/repositories/post_repository.dart';
 export 'src/api/repositories/topic_repository.dart';
 export 'src/api/repositories/user_repository.dart';
 export 'src/api/repositories/course_repository.dart';
+export 'src/api/repositories/external_link_policy_repository.dart';
 export 'src/api/repositories/pk_repository.dart';
 export 'src/api/repositories/push_repository.dart';
 export 'src/api/repositories/theme_repository.dart';
@@ -23,6 +25,8 @@ export 'src/api/repositories/sticker_repository.dart';
 export 'src/api/repositories/wiki_repository.dart';
 
 export 'src/gen/agent.dart';
+export 'src/gen/agent_event.dart';
+export 'src/gen/mention_target.dart';
 export 'src/gen/auth.dart';
 export 'src/gen/course_catalog.dart';
 export 'src/gen/course_review.dart';
@@ -31,9 +35,11 @@ export 'src/gen/chat.dart';
 export 'src/gen/realtime.dart';
 export 'src/gen/common.dart';
 export 'src/gen/content_pages.dart';
+export 'src/gen/external_link_policy.dart';
 export 'src/gen/layout.dart';
 export 'src/gen/link_preview.dart';
 export 'src/gen/moderation.dart';
+export 'src/gen/moderation_appeal.dart';
 export 'src/gen/notification.dart';
 export 'src/gen/page.dart';
 export 'src/gen/publish.dart';
@@ -52,6 +58,7 @@ export 'src/gen/sticker.dart';
 
 export 'src/markdown/markdown_converter.dart';
 export 'src/markdown/link_preview_candidate.dart';
+export 'src/markdown/url_labeled_links.dart';
 export 'src/markdown/sticker_token.dart';
 export 'src/token/token_storage.dart';
 
@@ -79,3 +86,10 @@ export 'src/api/repositories/campus_repository.dart';
 export 'src/markdown/post_mentions.dart';
 
 export 'src/schedule/pk_plan_merge.dart';
+
+export 'src/gen/anonymous_identity.dart';
+export 'src/gen/admin_anonymous_identity.dart';
+export 'src/api/repositories/anonymous_identity_repository.dart';
+export 'src/gen/feed.dart';
+
+export 'src/gen/decoration.dart';

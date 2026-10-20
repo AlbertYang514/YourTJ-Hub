@@ -26,6 +26,21 @@ trusted_proxies = {{TRUSTED_PROXIES}}
 [jwtopt]
 validTime = 604800
 
+# WebAuthn passkeys（论坛即 relying party）。身份值全部是公开值：论坛会把它们
+# 从 /.well-known/apple-app-site-association 与 /.well-known/assetlinks.json
+# 直接对外渲染，因此放在 deploy/instances/<env>.json（实例差异，随 PR 评审），
+# 绝不放 secret。enabled = true 时 rp_id/display_name/web_origins 与 Apple、
+# Android 签名身份缺一不可；缺失或非法即 fail-closed，公开状态位保持 false。
+[passkeys]
+enabled = {{PASSKEY_ENABLED}}
+rp_id = {{PASSKEY_RP_ID}}
+display_name = {{PASSKEY_DISPLAY_NAME}}
+web_origins = {{PASSKEY_WEB_ORIGINS}}
+apple_team_id = {{PASSKEY_APPLE_TEAM_ID}}
+ios_bundle_id = {{PASSKEY_IOS_BUNDLE_ID}}
+android_package_name = {{PASSKEY_ANDROID_PACKAGE_NAME}}
+android_sha256_cert_fingerprints = {{PASSKEY_ANDROID_SHA256_CERT_FINGERPRINTS}}
+
 [db]
 migration = "on"
 backupSqlite = true
@@ -192,3 +207,53 @@ domains = ["tongji.edu.cn"]
 "1.tongji.edu.cn" = "同济大学教学管理系统"
 "yunpan.tongji.edu.cn" = "同济云盘"
 "www.tongji.edu.cn" = "同济大学"
+
+# Feed limits are hard caps in feedconfig; materialized algorithm hot-daily-v1.
+[ranking]
+enabled = {{FEED_RANKING_ENABLED}}
+jobs_per_second = 20
+query_timeout_ms = 250
+
+[feed.for_you]
+enabled = {{FEED_FOR_YOU_ENABLED}}
+rollout_percent = {{FEED_ROLLOUT_PERCENT}}
+
+[feed.metrics]
+enabled = {{FEED_METRICS_ENABLED}}
+raw_retention_days = 30
+candidate_sample_rate = 0.05
+
+[feed.experiments]
+period = {{FEED_EXPERIMENT_PERIOD}}
+salt = {{FEED_EXPERIMENT_SALT}}
+weight_comparison_enabled = false
+interleaving_enabled = false
+
+[feed.weights]
+follow = 1.0
+recency = 0.8
+quality = 1.0
+daily = 0.5
+category = 0.6
+author = 0.5
+new_reply = 0.4
+
+[feed.alternative_weights]
+follow = 1.0
+recency = 0.8
+quality = 1.0
+daily = 0.5
+category = 0.6
+author = 0.5
+new_reply = 0.4
+
+[ranking.hot]
+like_weight = 6.0
+reply_weight = 14.0
+
+[ranking.daily]
+view_weight = 0.30
+replier_weight = 0.25
+reply_weight = 0.15
+like_weight = 0.20
+bookmark_weight = 0.10

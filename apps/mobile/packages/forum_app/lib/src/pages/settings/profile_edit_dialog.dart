@@ -215,8 +215,10 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         textInputAction: lines > 1
             ? TextInputAction.newline
             : TextInputAction.next,
+        // 资料页没有密码字段:enableSuggestions 必须保持默认 true,否则
+        // Flutter Android 引擎会附加密码类 inputType,ColorOS 据此强制
+        // 安全键盘并禁用粘贴(issue #1111)。
         autocorrect: !url,
-        enableSuggestions: !url,
         decoration: InputDecoration(
           labelText: label,
           floatingLabelBehavior: FloatingLabelBehavior.always,
@@ -420,11 +422,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 message: l.commonCancel,
                 child: TextButton(
                   onPressed: _busy ? null : _close,
-                  child: Text(l.commonCancel),
+                  child: GfText(l.commonCancel),
                 ),
               ),
               Expanded(
-                child: Text(
+                child: GfText(
                   l.settingsEditProfile,
                   textAlign: TextAlign.center,
                   maxLines: 1,
@@ -483,7 +485,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                                         padding: const EdgeInsets.only(
                                           bottom: 8,
                                         ),
-                                        child: Text(
+                                        child: GfText(
                                           l.settingsProfilePartialSave(
                                             _savedParts.join(' · '),
                                           ),
@@ -495,7 +497,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                                           ),
                                         ),
                                       ),
-                                    Text(
+                                    GfText(
                                       _error!,
                                       key: const Key('profile-save-error'),
                                       style: TextStyle(color: colors.error),
@@ -512,7 +514,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                           ),
                           Padding(
                             padding: const EdgeInsets.only(bottom: 24),
-                            child: Text(
+                            child: GfText(
                               '@${widget.user.username}',
                               style: TextStyle(
                                 fontSize: 15,
@@ -527,7 +529,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                           ExpansionTile(
                             maintainState: true,
                             tilePadding: EdgeInsets.zero,
-                            title: Text(l.settingsSocialLinks),
+                            title: GfText(l.settingsSocialLinks),
                             trailing: AnimatedRotation(
                               turns: _socialLinksExpanded ? .5 : 0,
                               duration: MediaQuery.disableAnimationsOf(context)
@@ -548,7 +550,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                             ],
                           ),
                           const SizedBox(height: 20),
-                          DropdownButtonFormField<String>(
+                          GfDropdownButtonFormField<String>(
                             initialValue: _locale,
                             isExpanded: true,
                             itemHeight: null,
@@ -561,7 +563,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                               for (final e in appLanguageNames.entries)
                                 DropdownMenuItem(
                                   value: e.key,
-                                  child: Text(e.value),
+                                  child: GfText(e.value),
                                 ),
                             ],
                             onChanged: _busy

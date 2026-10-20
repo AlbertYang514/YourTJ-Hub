@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import IdentityPicker from '@/site/components/IdentityPicker.vue'
+import GfSwitch from '@/site/components/GfSwitch.vue'
 import { computed, nextTick, ref, watch } from 'vue'
 import { AlertTriangle, BookOpen, Check, FileText, HelpCircle, Lightbulb, ListChecks, Loader2, MessageSquare, Send, X } from '@lucide/vue'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle, PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
@@ -6,6 +8,7 @@ import { pendingReviewMessage, submitTopicResult, sensitiveWordsFromError, uploa
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { showModerationBlocked } from '@/runtime/moderation-blocked'
 import { processImageFile, validateImageFile } from '@/runtime/image'
+import { markdownPreview } from '@/runtime/markdown'
 import { useUnsavedDraftGuard } from '@/site/composables/useUnsavedDraftGuard'
 import { useCaptchaChallenge } from '@/site/composables/useCaptchaChallenge'
 import PageHeader from '@/site/components/PageHeader.vue'
@@ -36,8 +39,14 @@ const {
   challengeFromError: challengeFromError,
 } = useCaptchaChallenge()
 
+const agentRepliesDisabled = ref(false)
 const title = ref(page.props.topic.title || '')
+const identity = ref<'member' | 'persona'>(page.props.topic.identity ?? 'member')
 const content = ref(page.props.topic.content || '')
+// Body images follow the editor; only gallery-only attachments need separate controls.
+const initialBodyImages = new Set(bodyImageUrls(content.value))
+const galleryImages = ref([...(page.props.topic.images ?? [])].filter(url => !initialBodyImages.has(url)))
+const submissionImages = computed(() => [...new Set([...galleryImages.value, ...bodyImageUrls(content.value)])])
 const categoryIds = ref<number[]>([...(page.props.topic.categoryIds || [])])
 const currentTopicId = ref(page.props.topicId)
 const submitting = ref(false)
@@ -217,13 +226,23 @@ watch(leavePromptOpen, (open) => {
 
 function editorSnapshot() {
   return JSON.stringify({
+    agentRepliesDisabled: agentRepliesDisabled.value,
     title: title.value.trim(),
     // content is kept in sync with the editor through the v-model/input
     // pipeline, so reading it directly avoids a full DOM→Markdown
     // serialization on every unsaved-changes check.
     content: content.value.trim(),
+    images: submissionImages.value,
     categoryIds: [...categoryIds.value].sort((a, b) => a - b),
   })
+}
+
+function bodyImageUrls(source: string): string[] {
+  return markdownPreview.parse(source, {})
+    .flatMap(block => block.children ?? [])
+    .filter(token => token.type === 'image')
+    .map(token => token.attrGet('src') ?? '')
+    .filter(Boolean)
 }
 
 function syncSavedSnapshot() {
@@ -385,8 +404,10 @@ async function save() {
       topicId: currentTopicId.value,
       title: title.value.trim(),
       content: content.value.trim(),
+      images: submissionImages.value,
       categoryId: categoryIds.value,
-      topicStatus: 1,
+      agentRepliesDisabled: agentRepliesDisabled.value,
+      topicStatus: 1, identity: page.props.isEditing ? undefined : identity.value,
       website: website.value,
       captchaId: captchaId.value,
       captchaCode: captchaCode.value,
@@ -430,8 +451,10 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
       topicId: currentTopicId.value,
       title: title.value.trim(),
       content: content.value.trim(),
+      images: submissionImages.value,
       categoryId: categoryIds.value,
-      topicStatus: 0,
+      agentRepliesDisabled: agentRepliesDisabled.value,
+      topicStatus: 0, identity: currentTopicId.value ? undefined : identity.value,
       website: website.value,
       captchaId: captchaId.value,
       captchaCode: captchaCode.value,
@@ -626,6 +649,19 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
             </div>
           </div>
 
+          <div v-if="galleryImages.length" class="flex flex-wrap gap-3" data-test="editable-gallery">
+            <div v-for="(url, index) in galleryImages" :key="url" class="relative h-24 w-24" data-test="gallery-image">
+              <img :src="url" alt="" class="h-full w-full rounded-lg object-cover" />
+              <button
+                type="button"
+                class="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-white hover:bg-error"
+                :aria-label="t('publish.modal.deleteImage')"
+                :disabled="submitting || uploading"
+                @click="galleryImages.splice(index, 1)"
+              ><X class="h-4 w-4" /></button>
+            </div>
+          </div>
+
           <p v-if="validationError" class="gf-status-message gf-status-message-error">{{ validationError }}</p>
           <p v-if="error" class="gf-status-message gf-status-message-error">{{ error }}</p>
           <p v-if="message" class="gf-status-message gf-status-message-success">{{ message }}</p>
@@ -650,6 +686,27 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
             <span class="text-xs text-base-content/55">{{ t('auth.validation.captchaLoadFailed') }}</span>
           </div>
           <input v-model="website" type="text" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true" />
+
+          <!-- 发布设置：身份与机器人回复紧邻发布操作，发布前最后确认 -->
+          <div class="flex flex-col gap-x-6 gap-y-2 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex min-w-0 items-center gap-2">
+              <span class="shrink-0 text-sm font-semibold text-base-content/75">{{ t('anonymous.publishAs') }}</span>
+              <IdentityPicker :key="page.layout.viewer.id" :viewer="page.layout.viewer" v-model="identity" :disabled="page.props.isEditing || submitting" />
+            </div>
+            <div v-if="currentTopicId === 0" class="flex items-center justify-between gap-4 sm:justify-end">
+              <div class="min-w-0 sm:text-end">
+                <p id="publish-agent-replies-label" class="text-sm font-medium text-base-content/80">{{ t('agentReplies.allow') }}</p>
+                <p id="publish-agent-replies-help" class="text-xs leading-5 text-base-content/55">{{ t('agentReplies.help') }}</p>
+              </div>
+              <GfSwitch
+                :model-value="!agentRepliesDisabled"
+                :disabled="submitting"
+                labelledby="publish-agent-replies-label"
+                describedby="publish-agent-replies-help"
+                @update:model-value="agentRepliesDisabled = !$event"
+              />
+            </div>
+          </div>
 
           <!-- 页脚：左侧发布检查状态条 + 右侧操作（better-layout：控制区合并、用间距分组） -->
           <div class="flex flex-col gap-4 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">

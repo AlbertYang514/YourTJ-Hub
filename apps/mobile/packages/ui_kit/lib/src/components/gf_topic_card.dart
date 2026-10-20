@@ -1,3 +1,5 @@
+import 'atoms/gf_decorated_name.dart';
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
@@ -5,6 +7,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
+import '../twemoji/twemoji_text.dart';
 import 'atoms/gf_avatar.dart';
 import 'gf_action_feedback.dart';
 import 'gf_card.dart';
@@ -12,6 +15,7 @@ import 'gf_chip.dart';
 import 'gf_image_viewer.dart';
 import 'gf_symbol.dart';
 import 'gf_media_image.dart';
+import 'gf_motion.dart';
 import 'gf_topic_row.dart';
 
 class GfTopicImageVariant {
@@ -47,6 +51,10 @@ class GfTopicCard extends StatefulWidget {
     required this.title,
     required this.description,
     required this.authorName,
+    this.avatarFrameColors = const [],
+    this.avatarFrameAssetUrl = '',
+    this.avatarFrameScale = 1.25,
+    this.nicknameColors = const [],
     required this.authorAvatarUrl,
     required this.categories,
     required this.imageUrls,
@@ -74,11 +82,15 @@ class GfTopicCard extends StatefulWidget {
     this.pinned = false,
     this.unseen = false,
     this.hot = false,
+    this.feedContext,
   });
 
   final String title;
   final String description;
+  final String avatarFrameAssetUrl;
+  final double avatarFrameScale;
   final String authorName;
+  final List<Color> avatarFrameColors, nicknameColors;
   final String authorAvatarUrl;
   final List<GfTopicCategory> categories;
   final List<String> imageUrls;
@@ -110,6 +122,10 @@ class GfTopicCard extends StatefulWidget {
   final bool pinned;
   final bool unseen;
   final bool hot;
+
+  /// Personalized-feed reason, stamped as a seal at the foot of the avatar
+  /// column and joined to the avatar by a trail; tapping it names the reason.
+  final GfTopicContext? feedContext;
 
   @override
   State<GfTopicCard> createState() => _GfTopicCardState();
@@ -219,6 +235,7 @@ class _GfTopicCardState extends State<GfTopicCard> {
       children: <Widget>[
         _AuthorMeta(
           name: widget.authorName,
+          nicknameColors: widget.nicknameColors,
           avatarUrl: widget.authorAvatarUrl,
           activityText: widget.activityText,
           categories: widget.categories,
@@ -239,7 +256,7 @@ class _GfTopicCardState extends State<GfTopicCard> {
                       // 无标题瞬间（title 为空串）不渲染标题，未读圆点保持右对齐。
                       if (widget.title.isNotEmpty)
                         Expanded(
-                          child: Text(
+                          child: GfText(
                             widget.title,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -269,7 +286,7 @@ class _GfTopicCardState extends State<GfTopicCard> {
                   ),
                   if (widget.description.isNotEmpty) ...<Widget>[
                     const SizedBox(height: 2),
-                    Text(
+                    GfText(
                       widget.description,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -357,70 +374,327 @@ class _GfTopicCardState extends State<GfTopicCard> {
           ),
         ],
         const SizedBox(height: 2),
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          runSpacing: 4,
-          children: <Widget>[
-            _Metric(icon: 'message-circle', value: '${widget.replyCount}'),
-            _Metric(icon: 'eye', value: '${widget.viewCount}'),
-            if (widget.onLike != null)
-              _LikeAction(
-                count: widget.likeCount,
-                liked: _liked,
-                activeColor: colors.error,
-                inactiveColor: colors.iconMuted,
-                tooltip: widget.likeTooltip,
-                onPressed: _likeBusy ? null : _toggleLike,
-              )
-            else
-              _Metric(icon: 'heart', value: '${widget.likeCount}'),
-            if (widget.onBookmark != null)
-              _BookmarkAction(
-                bookmarked: _bookmarked,
-                activeColor: colors.primary,
-                inactiveColor: colors.iconMuted,
-                tooltip: _bookmarked
-                    ? widget.bookmarkedTooltip
-                    : widget.bookmarkTooltip,
-                onPressed: _bookmarkBusy ? null : _toggleBookmark,
-              ),
-          ],
-        ),
       ],
     );
 
-    return GfCard(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-      onTap: widget.onTap,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Semantics(
-              button: widget.onAuthorTap != null,
-              label: widget.authorName,
-              child: InkWell(
-                onTap: widget.onAuthorTap,
-                borderRadius: BorderRadius.circular(24),
-                child: SizedBox(
-                  width: 44,
-                  height: 44,
-                  child: Center(
-                    child: GfAvatar(src: widget.authorAvatarUrl, size: 36),
+    final GfTopicContext? feedContext = widget.feedContext;
+    final Widget footer = Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      runSpacing: 4,
+      children: <Widget>[
+        _Metric(
+          icon: 'message-circle',
+          value: '${widget.replyCount}',
+          color: widget.feedContext?.newReplies == true ? colors.primary : null,
+        ),
+        _Metric(icon: 'eye', value: '${widget.viewCount}'),
+        if (widget.onLike != null)
+          _LikeAction(
+            count: widget.likeCount,
+            liked: _liked,
+            activeColor: colors.error,
+            inactiveColor: colors.iconMuted,
+            tooltip: widget.likeTooltip,
+            onPressed: _likeBusy ? null : _toggleLike,
+          )
+        else
+          _Metric(icon: 'heart', value: '${widget.likeCount}'),
+        if (widget.onBookmark != null)
+          _BookmarkAction(
+            bookmarked: _bookmarked,
+            activeColor: colors.primary,
+            inactiveColor: colors.iconMuted,
+            tooltip: _bookmarked
+                ? widget.bookmarkedTooltip
+                : widget.bookmarkTooltip,
+            onPressed: _bookmarkBusy ? null : _toggleBookmark,
+          ),
+      ],
+    );
+
+    final Widget byline = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Semantics(
+            button: widget.onAuthorTap != null,
+            label: widget.authorName,
+            child: InkWell(
+              onTap: widget.onAuthorTap,
+              borderRadius: BorderRadius.circular(24),
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: Center(
+                  child: GfAvatar(
+                    frameColors: widget.avatarFrameColors,
+                    frameAssetUrl: widget.avatarFrameAssetUrl,
+                    frameScale: widget.avatarFrameScale,
+                    src: widget.authorAvatarUrl,
+                    size: 36,
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 10),
-          Expanded(child: textContent),
-        ],
-      ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: textContent),
+      ],
+    );
+    final Widget footerLine = Padding(
+      padding: const EdgeInsetsDirectional.only(start: 54),
+      child: footer,
+    );
+    return GfCard(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+      onTap: widget.onTap,
+      child: feedContext == null
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[byline, footerLine],
+            )
+          : Stack(
+              children: <Widget>[
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    byline,
+                    // A line as tall as its tallest control, so the seal's
+                    // slot centers on it.
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minHeight: _FeedReasonState._line,
+                      ),
+                      child: Row(
+                        children: <Widget>[Expanded(child: footerLine)],
+                      ),
+                    ),
+                  ],
+                ),
+                PositionedDirectional(
+                  start: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 44,
+                  child: _FeedReason(feedContext: feedContext),
+                ),
+              ],
+            ),
     );
   }
+}
+
+/// The avatar column, read top to bottom: who wrote this, then why it is here.
+/// A hairline trail runs on the avatar's axis down to a seal on the footer
+/// line, which is otherwise empty space, so the card keeps its height and
+/// every reason lands in one place, clear of the trailing bookmark.
+///
+/// The seal's ring marks it as a control. A tap traces the trail from the
+/// avatar to the seal, then the seal unrolls its label along the footer line
+/// as a pill of the same fill, ring and height; both retract together.
+class _FeedReason extends StatefulWidget {
+  const _FeedReason({required this.feedContext});
+
+  final GfTopicContext feedContext;
+
+  @override
+  State<_FeedReason> createState() => _FeedReasonState();
+}
+
+class _FeedReasonState extends State<_FeedReason>
+    with SingleTickerProviderStateMixin {
+  static const double _seal = 28;
+  static const double _gap = 6;
+  // The like control's padded tap target sets the footer line's height.
+  static const double _line = kMinInteractiveDimension;
+  // The avatar's 36px disc ends 44px down its column (see the byline).
+  static const double _trailTop = 44 + _gap;
+  static const double _trailBottom = (_line + _seal) / 2 + _gap;
+  static const Duration _hold = Duration(seconds: 2);
+
+  late final AnimationController _trace = AnimationController(
+    vsync: this,
+    duration: GfMotion.overlay,
+    reverseDuration: GfMotion.layout,
+  );
+  late final Animation<double> _progress = CurvedAnimation(
+    parent: _trace,
+    curve: GfMotion.enterCurve,
+    reverseCurve: GfMotion.exitCurve,
+  );
+  Timer? _retract;
+  bool _pressed = false;
+
+  void _triggered() {
+    final reduced = GfMotion.reducedOf(context);
+    _retract?.cancel();
+    reduced ? _trace.value = 1 : _trace.forward();
+    _retract = Timer(_hold, () {
+      if (!mounted) return;
+      reduced ? _trace.value = 0 : _trace.reverse();
+    });
+  }
+
+  void _press(bool pressed) {
+    if (_pressed != pressed) setState(() => _pressed = pressed);
+  }
+
+  @override
+  void dispose() {
+    _retract?.cancel();
+    _trace.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    final bool newReplies = widget.feedContext.newReplies;
+    final Color rest = colors.line;
+    final Color traced = newReplies ? colors.primary : colors.iconMuted;
+    final Color fill = newReplies
+        ? Color.alphaBlend(
+            colors.primary.withValues(alpha: 0.1),
+            colors.base100,
+          )
+        : colors.base200;
+    final TextDirection direction = Directionality.of(context);
+    // The pill wears the seal's fill and its fully traced ring.
+    final ShapeBorder pill = StadiumBorder(side: BorderSide(color: traced));
+
+    final Widget seal = Tooltip(
+      message: widget.feedContext.label,
+      triggerMode: TooltipTriggerMode.tap,
+      onTriggered: _triggered,
+      showDuration: _hold,
+      constraints: const BoxConstraints(minHeight: _seal),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: ShapeDecoration(color: fill, shape: pill),
+      textStyle: TextStyle(
+        color: newReplies
+            ? colors.primary
+            : colors.baseContent.withValues(alpha: 0.72),
+        fontSize: 12,
+        height: 1.35,
+        fontWeight: FontWeight.w500,
+      ),
+      // Unrolls from the seal along the footer line instead of floating over
+      // the content above it.
+      positionDelegate: (place) => Offset(
+        direction == TextDirection.ltr
+            ? place.target.dx + _seal / 2 + _gap
+            : place.target.dx - _seal / 2 - _gap - place.tooltipSize.width,
+        place.target.dy - place.tooltipSize.height / 2,
+      ),
+      child: Listener(
+        onPointerDown: (_) => _press(true),
+        onPointerUp: (_) => _press(false),
+        onPointerCancel: (_) => _press(false),
+        child: ColoredBox(
+          color: Colors.transparent,
+          child: Center(
+            child: AnimatedScale(
+              scale: _pressed ? 0.96 : 1,
+              duration: GfMotion.press,
+              child: AnimatedBuilder(
+                animation: _progress,
+                builder: (context, child) => Container(
+                  width: _seal,
+                  height: _seal,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: fill,
+                    shape: BoxShape.circle,
+                    // The ring takes the trace's color as it arrives.
+                    border: Border.all(
+                      color: Color.lerp(
+                        rest,
+                        traced,
+                        ((_progress.value - 0.6) / 0.4).clamp(0, 1),
+                      )!,
+                    ),
+                  ),
+                  child: child,
+                ),
+                child: widget.feedContext.mark(context, size: 16),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool trail =
+            constraints.maxHeight - _trailTop - _trailBottom >= 8;
+        return Stack(
+          children: <Widget>[
+            if (trail)
+              Positioned(
+                left: 0,
+                right: 0,
+                top: _trailTop,
+                bottom: _trailBottom,
+                child: CustomPaint(
+                  key: const Key('gf-topic-card-reason-trail'),
+                  painter: _TrailPainter(
+                    progress: _progress,
+                    rest: rest,
+                    traced: traced,
+                  ),
+                ),
+              ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: _line,
+              child: seal,
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TrailPainter extends CustomPainter {
+  _TrailPainter({
+    required this.progress,
+    required this.rest,
+    required this.traced,
+  }) : super(repaint: progress);
+
+  final Animation<double> progress;
+  final Color rest;
+  final Color traced;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double x = size.width / 2;
+    final paint = Paint()
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round
+      ..color = rest;
+    canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    final double t = progress.value;
+    if (t > 0) {
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x, size.height * t),
+        paint..color = traced,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_TrailPainter old) =>
+      old.progress != progress || old.rest != rest || old.traced != traced;
 }
 
 class _LikeAction extends StatelessWidget {
@@ -456,7 +730,7 @@ class _LikeAction extends StatelessWidget {
           children: [
             visual,
             const SizedBox(width: 5),
-            Text('$count', style: TextStyle(color: color, fontSize: 13)),
+            GfText('$count', style: TextStyle(color: color, fontSize: 13)),
           ],
         ),
       ),
@@ -504,6 +778,7 @@ class _BookmarkAction extends StatelessWidget {
 class _AuthorMeta extends StatelessWidget {
   const _AuthorMeta({
     required this.name,
+    this.nicknameColors = const [],
     required this.avatarUrl,
     required this.activityText,
     required this.categories,
@@ -513,6 +788,7 @@ class _AuthorMeta extends StatelessWidget {
   });
 
   final String name;
+  final List<Color> nicknameColors;
   final String avatarUrl;
   final String activityText;
   final List<GfTopicCategory> categories;
@@ -558,7 +834,7 @@ class _AuthorMeta extends StatelessWidget {
             children: <Widget>[
               GfSymbol('sparkles', size: 12, color: colors.warning),
               const SizedBox(width: 3),
-              Text(
+              GfText(
                 'hot',
                 style: TextStyle(
                   color: colors.warning,
@@ -619,8 +895,9 @@ class _AuthorMeta extends StatelessWidget {
                           alignment: Alignment.centerLeft,
                           widthFactor: 1,
                           heightFactor: 1,
-                          child: Text(
+                          child: GfDecoratedName(
                             name,
+                            colors: nicknameColors,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -638,7 +915,7 @@ class _AuthorMeta extends StatelessWidget {
                     SizedBox(
                       width: dateWidth,
                       child: metadataSlot(
-                        Text(
+                        GfText(
                           activityText,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -824,10 +1101,11 @@ ImageProvider<Object> _feedImageProvider(
 }
 
 class _Metric extends StatelessWidget {
-  const _Metric({required this.icon, required this.value});
+  const _Metric({required this.icon, required this.value, this.color});
 
   final String icon;
   final String value;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -837,12 +1115,12 @@ class _Metric extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          GfSymbol(icon, size: 18, color: colors.iconMuted),
+          GfSymbol(icon, size: 18, color: color ?? colors.iconMuted),
           const SizedBox(width: 5),
-          Text(
+          GfText(
             value,
             style: TextStyle(
-              color: colors.baseContent.withValues(alpha: 0.55),
+              color: color ?? colors.baseContent.withValues(alpha: 0.55),
               fontSize: 13,
             ),
           ),
@@ -868,7 +1146,7 @@ class _ImageCount extends StatelessWidget {
         children: [
           const GfSymbol('images', size: 12, color: Colors.white),
           const SizedBox(width: 4),
-          Text(
+          GfText(
             '$count',
             style: const TextStyle(color: Colors.white, fontSize: 12),
           ),

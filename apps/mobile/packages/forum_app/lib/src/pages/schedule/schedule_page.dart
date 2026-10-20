@@ -91,6 +91,11 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
   List<SectionTime> _sectionOverrides = const <SectionTime>[];
   final GlobalKey _gridBoundaryKey = GlobalKey();
 
+  /// PNG 导出边界（课表 tab 不在树上时为 null）。
+  RenderRepaintBoundary? get _gridBoundary =>
+      _gridBoundaryKey.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
+
   // Capture the application controller; page exit flushes pending local edits.
   late ScheduleSyncController _syncController;
 
@@ -124,6 +129,11 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
     // paused 尽力冲刷未上行的本地方案（issue #537；best-effort）。
     if (state == AppLifecycleState.resumed) {
       unawaited(_syncController.onResume());
+      // 通知栏/分屏等覆盖后 Android 可能回收 surface；课表网格整棵被 PNG
+      // 导出用的 RepaintBoundary 缓存，子树无变化时恢复前台不会重栅格化，
+      // 呈现为灰框且只能重启恢复（issue #1109）。恢复前台时显式弄脏边界
+      // 强制重绘（裸 setState 不会弄脏干净的 boundary 图层，无效）。
+      _gridBoundary?.markNeedsPaint();
     }
     if (state == AppLifecycleState.paused) {
       unawaited(ref.read(scheduleSyncControllerProvider).flushPendingUpload());
@@ -222,7 +232,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
     return Scaffold(
       backgroundColor: colors.base100,
       appBar: GfAppBar(
-        title: Text(l10n.scheduleTitle),
+        title: GfText(l10n.scheduleTitle),
         actions: <Widget>[
           GfIconButton(
             symbol: 'calendar-days',
@@ -230,7 +240,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
             tooltip: l10n.scheduleAddCustomEvent,
             onPressed: _openCustomEventSheet,
           ),
-          PopupMenuButton<_ExportAction>(
+          GfPopupMenuButton<_ExportAction>(
             tooltip: l10n.scheduleExportPng,
             icon: GfSymbol('share-2', size: 20, color: colors.iconMuted),
             color: colors.base100,
@@ -243,13 +253,13 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
             },
             itemBuilder: (BuildContext menuContext) =>
                 <PopupMenuEntry<_ExportAction>>[
-                  PopupMenuItem<_ExportAction>(
+                  GfPopupMenuItem<_ExportAction>(
                     value: _ExportAction.png,
-                    child: Text(l10n.scheduleExportPng),
+                    child: GfText(l10n.scheduleExportPng),
                   ),
-                  PopupMenuItem<_ExportAction>(
+                  GfPopupMenuItem<_ExportAction>(
                     value: _ExportAction.csv,
-                    child: Text(l10n.scheduleExportCsv),
+                    child: GfText(l10n.scheduleExportCsv),
                   ),
                 ],
           ),
@@ -292,7 +302,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
                 ),
                 const SizedBox(height: 8),
                 if (_tabTimetable) ...[
-                  Text(
+                  GfText(
                     l10n.schedulerPlanDisclaimer,
                     style: GfTheme.typographyOf(context).caption,
                   ),
@@ -371,9 +381,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
 
   Future<void> _exportPng() async {
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final RenderRepaintBoundary? boundary =
-        _gridBoundaryKey.currentContext?.findRenderObject()
-            as RenderRepaintBoundary?;
+    final RenderRepaintBoundary? boundary = _gridBoundary;
     if (boundary == null) {
       showGfToast(context, l10n.commonEmpty, error: true);
       return;
@@ -576,7 +584,7 @@ class _PlanChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(radii.selector),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Text(
+          child: GfText(
             label,
             style: TextStyle(
               color: active ? colors.primaryContent : colors.baseContent,
@@ -606,7 +614,7 @@ Future<void> _showPlanMenu(
         children: <Widget>[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-            child: Text(
+            child: GfText(
               plan.name,
               style: GfTheme.typographyOf(sheetContext).title3,
             ),
@@ -662,7 +670,7 @@ Future<void> _promptRename(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text(
+            GfText(
               l10n.schedulePlanRename,
               style: GfTheme.typographyOf(sheetContext).heading,
             ),
@@ -712,40 +720,24 @@ Future<void> _confirmDelete(
   final AppLocalizations l10n = AppLocalizations.of(context);
   await showGfAlertDialog<void>(
     context,
-    builder: (BuildContext sheetContext) => Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            l10n.schedulePlanDelete,
-            style: GfTheme.typographyOf(sheetContext).heading,
-          ),
-          const SizedBox(height: 8),
-          Text(plan.name, style: GfTheme.typographyOf(sheetContext).body),
-          const SizedBox(height: 18),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: <Widget>[
-              GfButton(
-                label: l10n.commonCancel,
-                variant: GfButtonVariant.ghost,
-                onPressed: () => Navigator.of(sheetContext).pop(),
-              ),
-              const SizedBox(width: 8),
-              GfButton(
-                label: l10n.schedulePlanDelete,
-                variant: GfButtonVariant.danger,
-                onPressed: () {
-                  notifier.deletePlan(plan.id);
-                  Navigator.of(sheetContext).pop();
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
+    builder: (sheetContext) => GfAlertDialog(
+      title: GfText(l10n.schedulePlanDelete),
+      content: GfText(plan.name),
+      actions: [
+        GfButton(
+          label: l10n.commonCancel,
+          variant: GfButtonVariant.ghost,
+          onPressed: () => Navigator.pop(sheetContext),
+        ),
+        GfButton(
+          label: l10n.schedulePlanDelete,
+          variant: GfButtonVariant.danger,
+          onPressed: () {
+            notifier.deletePlan(plan.id);
+            Navigator.pop(sheetContext);
+          },
+        ),
+      ],
     ),
   );
 }
@@ -793,7 +785,7 @@ class _CollapsedConfigRow extends StatelessWidget {
           child: Row(
             children: <Widget>[
               Expanded(
-                child: Text(
+                child: GfText(
                   summary,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1040,7 +1032,7 @@ class _ConfigSelector extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  Text(
+                  GfText(
                     label,
                     style: TextStyle(
                       fontSize: 10,
@@ -1049,7 +1041,7 @@ class _ConfigSelector extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 1),
-                  Text(
+                  GfText(
                     hasValue ? value : placeholder,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1095,7 +1087,7 @@ class _ListPickerSheet<T> extends StatelessWidget {
         children: <Widget>[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-            child: Text(title, style: GfTheme.typographyOf(context).title3),
+            child: GfText(title, style: GfTheme.typographyOf(context).title3),
           ),
           Flexible(
             child: ListView(
@@ -1104,7 +1096,7 @@ class _ListPickerSheet<T> extends StatelessWidget {
                 for (final T item in items)
                   ListTile(
                     dense: true,
-                    title: Text(
+                    title: GfText(
                       labelOf(item),
                       style: TextStyle(fontSize: 14, color: colors.baseContent),
                     ),
@@ -1151,7 +1143,7 @@ class _DataOutdatedBanner extends StatelessWidget {
               GfSymbol('circle-alert', size: 18, color: colors.warning),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
+                child: GfText(
                   l10n.scheduleDataOutdated,
                   style: TextStyle(
                     fontSize: 13,
@@ -1164,7 +1156,7 @@ class _DataOutdatedBanner extends StatelessWidget {
               if (loading)
                 const GfLoadingIndicator(small: true)
               else
-                Text(
+                GfText(
                   l10n.scheduleSyncLatest,
                   style: TextStyle(
                     fontSize: 13,
@@ -1332,7 +1324,7 @@ class _WeekFilter extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: DropdownButtonHideUnderline(
-              child: DropdownButton<int?>(
+              child: GfDropdownButton<int?>(
                 value: week,
                 isExpanded: true,
                 isDense: false,
@@ -1341,7 +1333,7 @@ class _WeekFilter extends StatelessWidget {
                 items: <DropdownMenuItem<int?>>[
                   DropdownMenuItem<int?>(
                     value: null,
-                    child: Text(
+                    child: GfText(
                       l10n.scheduleWeekAll,
                       style: TextStyle(fontSize: 13, color: colors.baseContent),
                     ),
@@ -1349,7 +1341,7 @@ class _WeekFilter extends StatelessWidget {
                   for (int w = 1; w <= kMaxWeek; w++)
                     DropdownMenuItem<int?>(
                       value: w,
-                      child: Text(
+                      child: GfText(
                         l10n.scheduleWeekN(w),
                         style: TextStyle(
                           fontSize: 13,
@@ -1388,22 +1380,22 @@ class _StatsFooter extends StatelessWidget {
         spacing: 14,
         runSpacing: 6,
         children: [
-          Text(
+          GfText(
             l10n.scheduleStatsCourses(stats.courseCount),
             style: TextStyle(
               color: colors.baseContent,
               fontWeight: FontWeight.w600,
             ),
           ),
-          Text(
+          GfText(
             '$creditText ${l10n.scheduleStatsCredits}',
             style: TextStyle(color: colors.iconMuted),
           ),
-          Text(
+          GfText(
             '${stats.totalHours} ${l10n.scheduleStatsHours}',
             style: TextStyle(color: colors.iconMuted),
           ),
-          Text(
+          GfText(
             '${stats.conflictCount} ${l10n.scheduleStatsConflicts}',
             style: TextStyle(
               color: stats.conflictCount > 0 ? colors.error : colors.iconMuted,
@@ -1425,8 +1417,10 @@ class _PickTab extends ConsumerStatefulWidget {
 
 class _PickTabState extends ConsumerState<_PickTab> {
   int _segment = 0;
-  String _query = '';
+  final TextEditingController _searchController = TextEditingController();
+  TextEditingValue _searchValue = TextEditingValue.empty;
   Timer? _debounce;
+  int _generation = 0;
   bool _loading = false;
   String? _error;
 
@@ -1437,25 +1431,36 @@ class _PickTabState extends ConsumerState<_PickTab> {
   @override
   void initState() {
     super.initState();
+    _searchController.addListener(_onSearchChanged);
     Future<void>.microtask(_loadCurrentSegment);
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
+    _searchController.dispose();
     super.dispose();
   }
 
   Future<void> _loadCurrentSegment() async {
+    if (!mounted) return;
+    if (_segment == 2) {
+      await _runSearch();
+      return;
+    }
     final ScheduleState state = ref.read(scheduleStoreProvider);
     if (!_hasMajorSelection(state)) {
       setState(() => _loading = false);
       return;
     }
-    if (_loading) return;
-    setState(() => _loading = true);
+    final int generation = ++_generation;
+    final int segment = _segment;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
-      if (_segment == 0) {
+      if (segment == 0) {
         final List<PkCourseByMajorItem> courses = await ref
             .read(pkRepositoryProvider)
             .coursesByMajor(
@@ -1463,33 +1468,32 @@ class _PickTabState extends ConsumerState<_PickTab> {
               code: state.majorSelected.major!,
               calendarId: state.majorSelected.calendarId!,
             );
-        if (!mounted) return;
+        if (!mounted || generation != _generation) return;
         setState(() {
           _compulsory = courses;
           _loading = false;
           _error = null;
         });
-      } else if (_segment == 1) {
+      } else if (segment == 1) {
         final List<PkOptionalType> types = await ref
             .read(pkRepositoryProvider)
             .optionalTypes(calendarId: state.majorSelected.calendarId!);
+        if (!mounted || generation != _generation) return;
         final List<PkCourseByNatureItem> groups = await ref
             .read(pkRepositoryProvider)
             .coursesByNature(
               calendarId: state.majorSelected.calendarId!,
               ids: types.map((PkOptionalType t) => t.courseLabelId).toList(),
             );
-        if (!mounted) return;
+        if (!mounted || generation != _generation) return;
         setState(() {
           _optionalGroups = groups;
           _loading = false;
           _error = null;
         });
-      } else {
-        await _runSearch(_query);
       }
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || generation != _generation) return;
       setState(() {
         _loading = false;
         _error = resolveErrorMessage(AppLocalizations.of(context), e);
@@ -1504,10 +1508,43 @@ class _PickTabState extends ConsumerState<_PickTab> {
         state.majorSelected.major!.isNotEmpty;
   }
 
-  Future<void> _runSearch(String query) async {
+  bool _isComposing(TextEditingValue value) =>
+      value.composing.isValid && !value.composing.isCollapsed;
+
+  void _onSearchChanged() {
+    final TextEditingValue value = _searchController.value;
+    final bool composing = _isComposing(value);
+    if (value.text == _searchValue.text &&
+        composing == _isComposing(_searchValue)) {
+      return;
+    }
+    _searchValue = value;
+    _debounce?.cancel();
+    // Invalidate even during debounce/composition, before a newer request starts.
+    _generation++;
+    setState(() {
+      _searchResults = const <PkSearchCourseItem>[];
+      _loading = false;
+      _error = null;
+    });
+    if (_segment != 2 || composing || value.text.trim().isEmpty) return;
+    _debounce = Timer(const Duration(milliseconds: 350), _runSearch);
+  }
+
+  void _submitSearch(String _) {
+    _debounce?.cancel();
+    _runSearch();
+  }
+
+  Future<void> _runSearch() async {
+    if (!mounted || _segment != 2 || _isComposing(_searchController.value)) {
+      return;
+    }
     final ScheduleState state = ref.read(scheduleStoreProvider);
     if (!_hasMajorSelection(state)) return;
-    if (query.trim().isEmpty) {
+    final String query = _searchController.text.trim();
+    final int generation = ++_generation;
+    if (query.isEmpty) {
       setState(() {
         _searchResults = const <PkSearchCourseItem>[];
         _loading = false;
@@ -1515,22 +1552,25 @@ class _PickTabState extends ConsumerState<_PickTab> {
       });
       return;
     }
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final PkSearchResult result = await ref
           .read(pkRepositoryProvider)
           .searchCourses(
             calendarId: state.majorSelected.calendarId!,
-            courseName: query.trim(),
+            courseName: query,
           );
-      if (!mounted) return;
+      if (!mounted || generation != _generation) return;
       setState(() {
         _searchResults = result.courses;
         _loading = false;
         _error = null;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || generation != _generation) return;
       setState(() {
         _loading = false;
         _error = resolveErrorMessage(AppLocalizations.of(context), e);
@@ -1540,7 +1580,13 @@ class _PickTabState extends ConsumerState<_PickTab> {
 
   void _switchSegment(int segment) {
     if (_segment == segment) return;
-    setState(() => _segment = segment);
+    _debounce?.cancel();
+    _generation++;
+    setState(() {
+      _segment = segment;
+      _loading = false;
+      _error = null;
+    });
     _loadCurrentSegment();
   }
 
@@ -1569,6 +1615,17 @@ class _PickTabState extends ConsumerState<_PickTab> {
               description:
                   '${l10n.scheduleTerm} · ${l10n.scheduleGrade} · ${l10n.scheduleMajor}',
             ),
+          )
+        else if (_segment == 2)
+          // Keep the field mounted while only its results load or fail.
+          _SearchPane(
+            controller: _searchController,
+            results: _searchResults,
+            loading: _loading,
+            error: _error,
+            onSubmitted: _submitSearch,
+            onRetry: _runSearch,
+            onPick: (PkSearchCourseItem course) => _pickSearchCourse(course),
           )
         else if (_loading)
           const Padding(
@@ -1605,7 +1662,7 @@ class _PickTabState extends ConsumerState<_PickTab> {
                   in _optionalGroups) ...<Widget>[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-                  child: Text(
+                  child: GfText(
                     group.courseLabelName,
                     style: TextStyle(
                       fontSize: 13,
@@ -1632,19 +1689,6 @@ class _PickTabState extends ConsumerState<_PickTab> {
                   ),
               ],
             ],
-          )
-        else
-          _SearchPane(
-            query: _query,
-            results: _searchResults,
-            onQueryChanged: (String value) {
-              setState(() => _query = value);
-              _debounce?.cancel();
-              _debounce = Timer(const Duration(milliseconds: 350), () {
-                _runSearch(value);
-              });
-            },
-            onPick: (PkSearchCourseItem course) => _pickSearchCourse(course),
           ),
       ],
     );
@@ -1779,7 +1823,7 @@ class _CourseRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(
+                  GfText(
                     name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1790,7 +1834,7 @@ class _CourseRow extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  Text(
+                  GfText(
                     <String>[
                       code,
                       '$creditText ${l10n.scheduleStatsCredits}',
@@ -1826,15 +1870,21 @@ class _CourseRow extends StatelessWidget {
 /// 搜索面板。
 class _SearchPane extends StatelessWidget {
   const _SearchPane({
-    required this.query,
+    required this.controller,
     required this.results,
-    required this.onQueryChanged,
+    required this.loading,
+    required this.error,
+    required this.onSubmitted,
+    required this.onRetry,
     required this.onPick,
   });
 
-  final String query;
+  final TextEditingController controller;
   final List<PkSearchCourseItem> results;
-  final ValueChanged<String> onQueryChanged;
+  final bool loading;
+  final String? error;
+  final ValueChanged<String> onSubmitted;
+  final VoidCallback onRetry;
   final void Function(PkSearchCourseItem course) onPick;
 
   @override
@@ -1844,12 +1894,20 @@ class _SearchPane extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         GfSearchField(
+          controller: controller,
           hintText: l10n.scheduleSearchHint,
           clearLabel: l10n.courseCopyClearSearch,
-          onChanged: onQueryChanged,
+          onSubmitted: onSubmitted,
         ),
         const SizedBox(height: 6),
-        if (results.isEmpty && query.trim().isNotEmpty)
+        if (loading)
+          const Padding(
+            padding: EdgeInsets.all(28),
+            child: Center(child: GfLoadingIndicator()),
+          )
+        else if (error != null)
+          GfErrorRetry(message: error!, onRetry: onRetry)
+        else if (results.isEmpty && controller.text.trim().isNotEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 32),
             child: GfEmpty(message: l10n.commonEmpty),
@@ -1887,7 +1945,7 @@ class _SearchRow extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text(
+            GfText(
               course.courseName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -1898,7 +1956,7 @@ class _SearchRow extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 2),
-            Text(
+            GfText(
               <String>[
                 course.courseCode,
                 '$creditText ${l10n.scheduleStatsCredits}',
@@ -1944,7 +2002,7 @@ class _ClassListSheet extends ConsumerWidget {
         children: <Widget>[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-            child: Text(
+            child: GfText(
               l10n.schedulePickClass,
               style: GfTheme.typographyOf(context).title3,
             ),
@@ -1957,7 +2015,7 @@ class _ClassListSheet extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 28),
                     child: Center(
-                      child: Text(
+                      child: GfText(
                         l10n.commonEmpty,
                         style: TextStyle(fontSize: 13, color: colors.iconMuted),
                       ),
@@ -2041,7 +2099,7 @@ class _ClassRow extends StatelessWidget {
                   Row(
                     children: <Widget>[
                       Flexible(
-                        child: Text(
+                        child: GfText(
                           brief.code,
                           style: TextStyle(
                             fontSize: 13,
@@ -2061,7 +2119,7 @@ class _ClassRow extends StatelessWidget {
                             color: colors.primary.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: Text(
+                          child: GfText(
                             l10n.scheduleSelected,
                             style: TextStyle(
                               fontSize: 9,
@@ -2097,7 +2155,7 @@ class _ClassRow extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Flexible(
-                            child: Text(
+                            child: GfText(
                               conflicts.length == 1
                                   ? l10n.scheduleConflictWith(
                                       conflicts.first.courseName.isNotEmpty
@@ -2120,7 +2178,7 @@ class _ClassRow extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          Text(
+                          GfText(
                             l10n.scheduleConflictCanAdd,
                             style: TextStyle(
                               fontSize: 9,
@@ -2133,7 +2191,7 @@ class _ClassRow extends StatelessWidget {
                     ),
                   ],
                   const SizedBox(height: 3),
-                  Text(
+                  GfText(
                     _timeSummary(context, brief),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -2146,7 +2204,7 @@ class _ClassRow extends StatelessWidget {
                     ),
                   ),
                   if (teachers.isNotEmpty)
-                    Text(
+                    GfText(
                       teachers.join('、'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -2240,7 +2298,7 @@ class _CellPickerSheet extends ConsumerWidget {
         children: <Widget>[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-            child: Text(
+            child: GfText(
               '${days[day - 1]} · ${l10n.schedulePeriodRange('$section')}',
               style: GfTheme.typographyOf(context).title3,
             ),
@@ -2258,7 +2316,7 @@ class _CellPickerSheet extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 28),
                     child: Center(
-                      child: Text(
+                      child: GfText(
                         l10n.commonEmpty,
                         style: TextStyle(fontSize: 13, color: colors.iconMuted),
                       ),
@@ -2357,7 +2415,7 @@ class _CellCourseRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(
+                  GfText(
                     course.courseName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -2367,7 +2425,7 @@ class _CellCourseRow extends StatelessWidget {
                       color: colors.baseContent,
                     ),
                   ),
-                  Text(
+                  GfText(
                     '${course.courseCode} · ${course.faculty}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -2416,11 +2474,11 @@ class _CourseDetailSheet extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text(
+                      GfText(
                         course.courseName,
                         style: GfTheme.typographyOf(context).title3,
                       ),
-                      Text(
+                      GfText(
                         course.code,
                         style: TextStyle(
                           fontSize: 12,
@@ -2440,7 +2498,7 @@ class _CourseDetailSheet extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Text(
+            GfText(
               <String>[
                 if (teacher.isNotEmpty) teacher,
                 if (room.isNotEmpty) room,
@@ -2452,7 +2510,7 @@ class _CourseDetailSheet extends ConsumerWidget {
             ),
             const SizedBox(height: 6),
             if ((course.arrangementText ?? '').isNotEmpty)
-              Text(
+              GfText(
                 course.arrangementText!,
                 style: TextStyle(
                   fontSize: 12,
@@ -2561,7 +2619,7 @@ class _ReviewBriefPanelState extends ConsumerState<_ReviewBriefPanel> {
         color: colors.base200,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(
+      child: GfText(
         text,
         style: TextStyle(
           fontSize: 12,
@@ -2609,12 +2667,12 @@ class _CustomEventSheetState extends ConsumerState<_CustomEventSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text(
+              GfText(
                 l10n.scheduleAddCustomEvent,
                 style: GfTheme.typographyOf(context).title3,
               ),
               const SizedBox(height: 12),
-              Text('${l10n.scheduleTerm}：', style: _groupLabelStyle(colors)),
+              GfText('${l10n.scheduleTerm}：', style: _groupLabelStyle(colors)),
               const SizedBox(height: 6),
               Wrap(
                 spacing: 6,
@@ -2629,7 +2687,7 @@ class _CustomEventSheetState extends ConsumerState<_CustomEventSheet> {
                 ],
               ),
               const SizedBox(height: 12),
-              Text(l10n.schedulePeriods, style: _groupLabelStyle(colors)),
+              GfText(l10n.schedulePeriods, style: _groupLabelStyle(colors)),
               const SizedBox(height: 6),
               Wrap(
                 spacing: 6,
@@ -2650,12 +2708,12 @@ class _CustomEventSheetState extends ConsumerState<_CustomEventSheet> {
               const SizedBox(height: 12),
               Row(
                 children: <Widget>[
-                  Text(
+                  GfText(
                     l10n.scheduleWeeksLabel,
                     style: _groupLabelStyle(colors),
                   ),
                   const SizedBox(width: 8),
-                  Text(
+                  GfText(
                     _weeksTextPreview(),
                     style: TextStyle(
                       fontSize: 11,
@@ -2758,7 +2816,7 @@ class _ChoiceChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: selected ? colors.primary : colors.line),
         ),
-        child: Text(
+        child: GfText(
           label,
           style: TextStyle(
             fontSize: 12,

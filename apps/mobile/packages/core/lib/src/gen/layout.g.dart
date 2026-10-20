@@ -9,6 +9,7 @@ part of 'layout.dart';
 _$LayoutPayloadImpl _$$LayoutPayloadImplFromJson(Map<String, dynamic> json) =>
     _$LayoutPayloadImpl(
       site: SitePayload.fromJson(json['site'] as Map<String, dynamic>),
+      dailyRanking: json['dailyRanking'] as bool? ?? false,
       viewer: ViewerPayload.fromJson(json['viewer'] as Map<String, dynamic>),
       header: (json['header'] as List<dynamic>?)
           ?.map((e) => NavItemPayload.fromJson(e as Map<String, dynamic>))
@@ -27,6 +28,7 @@ _$LayoutPayloadImpl _$$LayoutPayloadImplFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$$LayoutPayloadImplToJson(_$LayoutPayloadImpl instance) =>
     <String, dynamic>{
       'site': instance.site,
+      'dailyRanking': instance.dailyRanking,
       'viewer': instance.viewer,
       'header': instance.header,
       'sidebar': instance.sidebar,
@@ -71,12 +73,14 @@ Map<String, dynamic> _$$SitePayloadImplToJson(_$SitePayloadImpl instance) =>
 
 _$ViewerPayloadImpl _$$ViewerPayloadImplFromJson(Map<String, dynamic> json) =>
     _$ViewerPayloadImpl(
+      decoration: UserDecoration.parse(json['decoration']),
       id: (json['id'] as num).toInt(),
       username: json['username'] as String,
       email: json['email'] as String,
       avatarUrl: json['avatarUrl'] as String,
       isAuthenticated: json['isAuthenticated'] as bool,
       canAccessAdmin: json['canAccessAdmin'] as bool,
+      canManageAgents: json['canManageAgents'] as bool? ?? false,
       isModerator: json['isModerator'] as bool,
       requiresEmailVerification: json['requiresEmailVerification'] as bool,
       adminPermissions: (json['adminPermissions'] as List<dynamic>?)
@@ -86,12 +90,14 @@ _$ViewerPayloadImpl _$$ViewerPayloadImplFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$$ViewerPayloadImplToJson(_$ViewerPayloadImpl instance) =>
     <String, dynamic>{
+      'decoration': instance.decoration,
       'id': instance.id,
       'username': instance.username,
       'email': instance.email,
       'avatarUrl': instance.avatarUrl,
       'isAuthenticated': instance.isAuthenticated,
       'canAccessAdmin': instance.canAccessAdmin,
+      'canManageAgents': instance.canManageAgents,
       'isModerator': instance.isModerator,
       'requiresEmailVerification': instance.requiresEmailVerification,
       'adminPermissions': instance.adminPermissions,

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { authorURL } from '@/runtime/anonymous-identity'
 import { nextTick, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
 import { MessageSquare, Pin, Sparkles, HelpCircle, BookOpen } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
@@ -10,6 +11,7 @@ import {
   unregisterTopicPreview,
 } from '@/runtime/topic-hover-preview'
 import { topicDescription, topicDisplayLabel } from '@/runtime/topic-description'
+import { feedReasonKey } from '@/site/utils/feed-reason'
 import AvatarStack from '@/site/components/AvatarStack.vue'
 import TopicFeedPreview from '@/site/components/TopicFeedPreview.vue'
 import type { TopicPayload } from '@gooseforum/client'
@@ -28,6 +30,7 @@ withDefaults(defineProps<{
 })
 
 const { t } = useI18n()
+const feedReason = (reason?: string | null) => { const key = feedReasonKey(reason); return key ? t(key) : '' }
 
 // 桌面端：悬停行停留片刻后，以弹层形式预览信息流卡片。
 // 弹层 fixed 定位在视口上，不推挤表格布局；带延迟避免扫过列表时误触。
@@ -177,21 +180,22 @@ onBeforeUnmount(() => {
           >
             {{ topicDisplayLabel(topic.id, topic.title, topic.description) }}
           </a>
+          <span v-if="topic.processStatus === 2" class="inline-flex shrink-0 whitespace-nowrap rounded bg-warning/15 px-2 py-0.5 text-xs text-warning">{{ t('topic.pendingReviewBadge') }}</span>
           <span
             v-if="topic.unseen"
             class="h-2 w-2 shrink-0 rounded-full bg-primary"
             aria-hidden="true"
           />
           <!-- Content type badge -->
-          <span v-if="topic.contentType === 1" class="inline-flex h-5 items-center gap-1 rounded-full bg-success/15 px-1.5 text-[11px] font-semibold text-success">
+          <span v-if="topic.contentType === 1" class="inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-success/15 px-1.5 text-[11px] font-semibold text-success">
             <HelpCircle class="h-3 w-3" />
             <span>{{ t('publish.contentTypes.question') }}</span>
           </span>
-          <span v-else-if="topic.contentType === 2" class="inline-flex h-5 items-center gap-1 rounded-full bg-purple-500/15 px-1.5 text-[11px] font-semibold text-purple-600 dark:text-purple-400">
+          <span v-else-if="topic.contentType === 2" class="inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-purple-500/15 px-1.5 text-[11px] font-semibold text-purple-600 dark:text-purple-400">
             <Sparkles class="h-3 w-3" />
             <span>{{ t('publish.contentTypes.thought') }}</span>
           </span>
-          <span v-else-if="topic.contentType === 3" class="inline-flex h-5 items-center gap-1 rounded-full bg-amber-500/15 px-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+          <span v-else-if="topic.contentType === 3" class="inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-amber-500/15 px-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
             <BookOpen class="h-3 w-3" />
             <span>{{ t('publish.contentTypes.article') }}</span>
           </span>
@@ -205,11 +209,15 @@ onBeforeUnmount(() => {
           <span class="h-1.5 w-1.5 rounded-full" :style="{ backgroundColor: category.color }" />
           {{ category.name }}
         </a>
-        <span v-if="showHot && topic.viewCount > 500" class="inline-flex h-5 items-center gap-1 text-[11px] font-semibold text-warning">
+        <span v-if="showHot && topic.viewCount > 500" class="inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-semibold text-warning">
           <Sparkles class="h-3 w-3" /> hot
         </span>
       </div>
-      <p v-if="topic.title" class="mt-1 min-h-5 truncate text-[13px] leading-5 text-base-content/55">{{ topicDescription(topic) }}</p>
+      <p v-if="topic.title || feedReason(topic.feedReason)" class="mt-1 min-h-5 truncate text-[13px] leading-5 text-base-content/55">
+        <span v-if="feedReason(topic.feedReason)" class="font-medium text-base-content/70" data-test="feed-reason">{{ feedReason(topic.feedReason) }}</span
+        ><span v-if="feedReason(topic.feedReason) && topic.title && topicDescription(topic)" aria-hidden="true"> · </span
+        ><template v-if="topic.title">{{ topicDescription(topic) }}</template>
+      </p>
       <div class="mt-1.5 flex min-h-6 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-content/55 lg:hidden">
         <AvatarStack :users="topic.participants" size="sm" />
         <span>{{ timeAgo(topic.lastUpdateTime) }}</span>

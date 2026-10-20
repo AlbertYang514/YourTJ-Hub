@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
+import 'package:forum_app/src/pages/topic/agent_reply_setting.dart';
 import 'package:forum_app/src/pages/topic/topic_actions.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +15,18 @@ import 'pages_smoke_test.dart' show MemoryTokenStorage;
 class _Topics extends TopicRepository {
   _Topics(super.client);
   final deleted = <int>[];
+  final replySettings = <bool>[];
+  bool failReplySetting = false;
+  @override
+  Future<void> updateAgentReplies({
+    required int topicId,
+    required bool disabled,
+  }) async {
+    expect(topicId, 100);
+    if (failReplySetting) throw StateError("save failed");
+    replySettings.add(disabled);
+  }
+
   final moderated = <bool>[];
   @override
   Future<void> deleteTopic({required int topicId}) async =>
@@ -66,6 +79,7 @@ void main() {
                 topic: props.topic.copyWith(processStatus: status),
                 permissions: props.permissions.copyWith(
                   isOwnTopic: own,
+                  canManageAgentReplies: own,
                   canModerateTopic: moderator,
                 ),
               ),
@@ -100,6 +114,95 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<_Topics> pumpReplySetting(
+    WidgetTester tester, {
+    required bool canManage,
+    bool disabled = false,
+    Future<void> Function()? onChanged,
+  }) async {
+    final repo = _Topics(
+      GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemoryTokenStorage(),
+        baseUrl: 'https://example.test',
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [topicRepositoryProvider.overrideWithValue(repo)],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: AgentReplySetting(
+              topicId: 100,
+              disabled: disabled,
+              canManage: canManage,
+              onChanged: onChanged ?? () async {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    return repo;
+  }
+
+  testWidgets(
+    'author switches robot replies off and refreshes; readers have no control',
+    (tester) async {
+      var refreshes = 0;
+      final repo = await pumpReplySetting(
+        tester,
+        canManage: true,
+        onChanged: () async {
+          refreshes++;
+        },
+      );
+      expect(find.text('Allow bot replies'), findsOneWidget);
+      await tester.tap(find.byType(Switch));
+      await tester.pumpAndSettle();
+      expect(repo.replySettings, [true]);
+      expect(refreshes, 1);
+      await pumpReplySetting(tester, canManage: false);
+      expect(find.byType(Switch), findsNothing);
+      expect(find.byKey(const Key('agent-replies-notice')), findsNothing);
+      await pumpReplySetting(tester, canManage: false, disabled: true);
+      expect(find.byKey(const Key('agent-replies-notice')), findsOneWidget);
+    },
+  );
+
+  testWidgets('failed robot reply setting keeps its state and permits retry', (
+    tester,
+  ) async {
+    var refreshes = 0;
+    final repo = await pumpReplySetting(
+      tester,
+      canManage: true,
+      onChanged: () async {
+        refreshes++;
+      },
+    );
+    repo.failReplySetting = true;
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+    expect(refreshes, 0);
+    expect(repo.replySettings, isEmpty);
+    expect(find.text('Bad state: save failed'), findsOneWidget);
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+    repo.failReplySetting = false;
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+    expect(repo.replySettings, [true]);
+    expect(refreshes, 1);
+    expect(find.text('Bad state: save failed'), findsNothing);
+  });
+
   testWidgets('own topic opens its editor and refreshes after returning', (
     tester,
   ) async {
@@ -132,6 +235,11 @@ void main() {
       expect(h.router.state.uri.path, '/');
     },
   );
+  testWidgets('pending topic still opens the author editor', (tester) async {
+    await pump(tester, status: 2);
+    await menu(tester, 'Edit');
+    expect(find.text('Editor 100'), findsOneWidget);
+  });
   testWidgets('session change cancels a pending topic deletion', (
     tester,
   ) async {
@@ -197,6 +305,6 @@ void main() {
     await menu(tester, 'Share');
     expect(tester.takeException(), isNull);
     expect(find.byType(TopicActions), findsOneWidget);
-    await tester.pump(const Duration(seconds: 4));
+    await tester.pump(const Duration(seconds: 8));
   });
 }

@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/localcache"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 )
@@ -210,36 +212,194 @@ func ListCatalogContext(ctx context.Context, q CatalogQuery) (CatalogPage, error
 
 // ListDepartments 返回课程目录可筛选的院系列表（去重、按字典序）。
 func ListDepartments() ([]string, error) {
-	return course.ListDistinctDepartments()
+	facets, err := GetCatalogFacets(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	if facets.Departments == nil {
+		return []string{}, nil
+	}
+	out := make([]string, len(facets.Departments))
+	copy(out, facets.Departments)
+	return out, nil
 }
 
 // ListTerms 返回课程目录可筛选的学期列表（可见课程关联、去重、按时间倒序），
 // 与详情页开课列表的学期排序一致（starts_on 倒序，回退 code 字典序）。
 // label 优先学期名称，回退 code。
 func ListTerms() ([]TermOption, error) {
-	terms, err := course.ListDistinctTerms()
+	facets, err := GetCatalogFacets(context.Background())
 	if err != nil {
 		return nil, err
 	}
-	options := make([]TermOption, 0, len(terms))
-	for _, t := range terms {
-		label := t.Name
-		if label == "" {
-			label = t.Code
-		}
-		options = append(options, TermOption{Value: t.Code, Label: label})
+	if facets.Terms == nil {
+		return []TermOption{}, nil
 	}
-	return options, nil
+	out := make([]TermOption, len(facets.Terms))
+	copy(out, facets.Terms)
+	return out, nil
 }
 
 // ListCampuses 返回课程目录可筛选的校区列表（可见课程关联、去重、非空、按字典序），
 // 取 course_offering.campus 原始值，与筛选值域完全一致。
 func ListCampuses() ([]string, error) {
-	return course.ListDistinctCampuses()
+	facets, err := GetCatalogFacets(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	if facets.Campuses == nil {
+		return []string{}, nil
+	}
+	out := make([]string, len(facets.Campuses))
+	copy(out, facets.Campuses)
+	return out, nil
+}
+
+var courseDetailCache = &localcache.Cache[CourseDetail]{MaxEntries: 1000}
+
+func init() {
+	course.OnRebuildAllCourseStats = InvalidateAllCourseDetailCache
+}
+
+const courseDetailCacheTTL = 10 * time.Minute
+
+// InvalidateCourseTeamCache clears all cached course details for courses with the given team key.
+func InvalidateCourseTeamCache(teamKey string) {
+	if teamKey == "" {
+		return
+	}
+	if teammates, err := course.ListVisibleCoursesByTeamKey(teamKey, 0); err == nil {
+		for _, tm := range teammates {
+			courseDetailCache.Delete(strconv.FormatUint(tm.Id, 10))
+		}
+	}
+}
+
+// InvalidateCourseDetailCache clears the cached course detail for the given course ID.
+// If the course belongs to a teaching team, all teammates are also invalidated to preserve
+// team aggregate consistency.
+func InvalidateCourseDetailCache(id uint64) {
+	if id == 0 {
+		return
+	}
+	courseDetailCache.Delete(strconv.FormatUint(id, 10))
+	c := course.GetCourse(id)
+	if c.TeamKey != "" {
+		InvalidateCourseTeamCache(c.TeamKey)
+	}
+}
+
+// InvalidateCourseDetailCacheByOfferingId clears the cached course detail for the offering's parent course.
+func InvalidateCourseDetailCacheByOfferingId(offeringId uint64) {
+	if offeringId == 0 {
+		return
+	}
+	offering, err := course.GetOffering(offeringId)
+	if err == nil && offering.CourseId != 0 {
+		InvalidateCourseDetailCache(offering.CourseId)
+	}
+}
+
+// InvalidateCourseDetailCacheByReviewId clears the cached course detail for the review's parent offering course.
+func InvalidateCourseDetailCacheByReviewId(reviewId uint64) {
+	if reviewId == 0 {
+		return
+	}
+	review, err := course.GetReview(reviewId)
+	if err == nil && review.OfferingId != 0 {
+		InvalidateCourseDetailCacheByOfferingId(review.OfferingId)
+	}
+}
+
+// InvalidateAllCourseDetailCache clears all cached course details.
+func InvalidateAllCourseDetailCache() {
+	courseDetailCache.Clear()
+}
+
+func cloneSlice[T any](items []T) []T {
+	if items == nil {
+		return nil
+	}
+	out := make([]T, len(items))
+	copy(out, items)
+	return out
+}
+
+func cloneFloat64Ptr(f *float64) *float64 {
+	if f == nil {
+		return nil
+	}
+	cp := *f
+	return &cp
+}
+
+func cloneRatingDistributionPtr(d *course.RatingDistribution) *course.RatingDistribution {
+	if d == nil {
+		return nil
+	}
+	cp := *d
+	return &cp
+}
+
+func cloneOfferings(items []OfferingSummary) []OfferingSummary {
+	if items == nil {
+		return nil
+	}
+	out := make([]OfferingSummary, len(items))
+	for i, item := range items {
+		out[i] = OfferingSummary{
+			Id:          item.Id,
+			TermCode:    item.TermCode,
+			TermName:    item.TermName,
+			Campus:      item.Campus,
+			Faculty:     item.Faculty,
+			ClassCode:   item.ClassCode,
+			ClassName:   item.ClassName,
+			Instructors: cloneSlice(item.Instructors),
+			RatingAvg:   cloneFloat64Ptr(item.RatingAvg),
+			ReviewCount: item.ReviewCount,
+		}
+	}
+	return out
+}
+
+func cloneCourseDetail(d CourseDetail) CourseDetail {
+	return CourseDetail{
+		Id:                 d.Id,
+		PrimaryCode:        d.PrimaryCode,
+		Name:               d.Name,
+		Department:         d.Department,
+		CreditX10:          d.CreditX10,
+		TeacherId:          d.TeacherId,
+		TeacherName:        d.TeacherName,
+		Aliases:            cloneSlice(d.Aliases),
+		Offerings:          cloneOfferings(d.Offerings),
+		RatingAvg:          cloneFloat64Ptr(d.RatingAvg),
+		ReviewCount:        d.ReviewCount,
+		RatingDistribution: cloneRatingDistributionPtr(d.RatingDistribution),
+		ReviewScope:        d.ReviewScope,
+		TeamKey:            d.TeamKey,
+		TeamInstructors:    cloneSlice(d.TeamInstructors),
+		LegacyNames:        cloneSlice(d.LegacyNames),
+	}
 }
 
 // GetCourseDetail 返回课程详情；课程不存在或已隐藏时返回 ErrCourseNotFound。
 func GetCourseDetail(id uint64) (CourseDetail, error) {
+	if id == 0 {
+		return CourseDetail{}, ErrCourseNotFound
+	}
+	key := strconv.FormatUint(id, 10)
+	detail, err := courseDetailCache.GetOrLoadE(key, func() (CourseDetail, error) {
+		return loadCourseDetail(id)
+	}, courseDetailCacheTTL)
+	if err != nil {
+		return CourseDetail{}, err
+	}
+	return cloneCourseDetail(detail), nil
+}
+
+func loadCourseDetail(id uint64) (CourseDetail, error) {
 	entity := course.GetCourse(id)
 	if entity.Id == 0 || entity.Status != course.StatusVisible {
 		return CourseDetail{}, ErrCourseNotFound
@@ -525,8 +685,9 @@ func enrichCourseDetailScope(detail *CourseDetail, entity course.Entity) {
 	}
 	// 团队分布 = 各卡 1-5 星分布求和（一次批量查询）。
 	var dist course.RatingDistribution
+	dists := course.GetRatingDistributionsByCourseIds(ids)
 	for _, id := range ids {
-		if d, ok := course.GetRatingDistributionsByCourseIds([]uint64{id})[id]; ok {
+		if d, ok := dists[id]; ok {
 			for i := 0; i < 5; i++ {
 				dist[i] += d[i]
 			}

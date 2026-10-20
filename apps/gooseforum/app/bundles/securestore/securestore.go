@@ -23,6 +23,10 @@ import (
 // can never be reused for another purpose even if the signing key leaks.
 const derivationLabel = "yourtj-totp-secret"
 
+// PasskeyCredentialPurpose separates WebAuthn credential material from TOTP
+// secrets and every other value encrypted with the application signing key.
+const PasskeyCredentialPurpose = "yourtj-passkey-credential-v1"
+
 var (
 	keyOnce sync.Once
 	key     []byte
@@ -61,8 +65,19 @@ const WikiWebhookSecretPurpose = "yourtj-wiki-webhook-secret"
 // MailSmtpPasswordPurpose 邮件 SMTP 密码的加密用途标签（issue #324 S2）。
 const MailSmtpPasswordPurpose = "yourtj-mail-smtp-password"
 
+// AgentWebhookSecretPurpose separates Agent Webhook HMAC keys from other stored secrets.
+const AgentWebhookSecretPurpose = "yourtj-agent-webhook-secret"
+
+// AgentWebhookAuthorizationPurpose separates the optional static Authorization
+// header sent with Agent Webhook deliveries from the HMAC signing keys.
+const AgentWebhookAuthorizationPurpose = "yourtj-agent-webhook-authorization"
+
 // HttpNotifySecretPurpose HTTP 通知 webhook 验签密钥的加密用途标签（issue #324 S1）。
 const HttpNotifySecretPurpose = "yourtj-http-notify-secret"
+
+// HttpNotifyURLPurpose 凭据型通知 URL（飞书自定义机器人 webhook，内含 hook token）的
+// 加密用途标签（issue #1049），与验签密钥分 purpose 存储。
+const HttpNotifyURLPurpose = "yourtj-http-notify-url"
 
 // StorageAccessKeyPurpose 对象存储 accessKey 的加密用途标签（issue #324 S3）。
 const StorageAccessKeyPurpose = "yourtj-storage-access-key"

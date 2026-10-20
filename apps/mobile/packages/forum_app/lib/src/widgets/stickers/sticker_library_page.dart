@@ -60,7 +60,7 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
       final strings = StickerStrings(context);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(strings.failure(error))));
+      ).showSnackBar(SnackBar(content: GfText(strings.failure(error))));
     }
     if (mounted && collection.active) {
       setState(() => _selected.retainAll(collection.mine.map((e) => e.name)));
@@ -69,26 +69,30 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
 
   Future<XFile?> _pickUpload(StickerCollection collection) async {
     final strings = StickerStrings(context);
-    final source = await showGfBottomSheet<_StickerUploadSource>(
+    final source = await showGfActionSheet<_StickerUploadSource>(
       context,
-      builder: (context) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          padding: EdgeInsets.zero,
-          children: [
-            ListTile(
-              leading: const GfSymbol('image', size: 23),
-              title: Text(strings.fromPhotos),
-              onTap: () => Navigator.pop(context, _StickerUploadSource.photos),
-            ),
-            ListTile(
-              leading: const GfSymbol('folder', size: 23),
-              title: Text(strings.fromFiles),
-              onTap: () => Navigator.pop(context, _StickerUploadSource.files),
-            ),
-          ],
+      items: [
+        GfPopupMenuItem(
+          value: _StickerUploadSource.photos,
+          child: Row(
+            children: [
+              GfSymbol('image', size: 22),
+              const SizedBox(width: 12),
+              Expanded(child: GfText(strings.fromPhotos)),
+            ],
+          ),
         ),
-      ),
+        GfPopupMenuItem(
+          value: _StickerUploadSource.files,
+          child: Row(
+            children: [
+              GfSymbol('folder', size: 22),
+              const SizedBox(width: 12),
+              Expanded(child: GfText(strings.fromFiles)),
+            ],
+          ),
+        ),
+      ],
     );
     if (source == null || !mounted || !collection.active) return null;
     if (source == _StickerUploadSource.photos) {
@@ -115,7 +119,7 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
     if (collection.mine.length >= 200) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(strings.limit)));
+      ).showSnackBar(SnackBar(content: GfText(strings.limit)));
       return;
     }
     final files = ref.read(fileRepositoryProvider);
@@ -178,8 +182,8 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
       builder: (context) => StickerSessionSurface(
         collection: collection,
         child: GfAlertDialog(
-          title: Text(strings.removeTitle),
-          content: Text(strings.removeHint),
+          title: GfText(strings.removeTitle),
+          content: GfText(strings.removeHint),
           actions: [
             GfButton(
               label: MaterialLocalizations.of(context).cancelButtonLabel,
@@ -188,6 +192,7 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
             ),
             GfButton(
               label: strings.remove,
+              variant: GfButtonVariant.danger,
               onPressed: () => Navigator.pop(context, true),
             ),
           ],
@@ -202,43 +207,45 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
   Future<void> _actions(StickerItemPayload item) async {
     final collection = ref.read(stickerCollectionProvider);
     final strings = StickerStrings(context);
-    final action = await showGfBottomSheet<String>(
+    final action = await showGfActionSheet<String>(
       context,
-      builder: (context) => StickerSessionSurface(
-        collection: collection,
-        child: SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            padding: EdgeInsets.zero,
-            children: [
-              if (item.isEnabled) ...[
-                ListTile(
-                  leading: const GfSymbol('maximize', size: 22),
-                  title: Text(strings.viewLarger),
-                  onTap: () => Navigator.pop(context, 'preview'),
-                ),
-                ListTile(
-                  leading: const GfSymbol('pen-line', size: 22),
-                  title: Text(strings.rename),
-                  onTap: () => Navigator.pop(context, 'rename'),
-                ),
+      surfaceBuilder: (_, child) =>
+          StickerSessionSurface(collection: collection, child: child),
+      items: [
+        if (item.isAvailable) ...[
+          GfPopupMenuItem(
+            value: 'preview',
+            child: Row(
+              children: [
+                GfSymbol('maximize', size: 22),
+                const SizedBox(width: 12),
+                Expanded(child: GfText(strings.viewLarger)),
               ],
-              ListTile(
-                leading: GfSymbol(
-                  'trash-2',
-                  size: 22,
-                  color: Theme.of(context).colorScheme.error,
-                ),
-                title: Text(
-                  strings.remove,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-                onTap: () => Navigator.pop(context, 'remove'),
-              ),
+            ),
+          ),
+          GfPopupMenuItem(
+            value: 'rename',
+            child: Row(
+              children: [
+                GfSymbol('pen-line', size: 22),
+                const SizedBox(width: 12),
+                Expanded(child: GfText(strings.rename)),
+              ],
+            ),
+          ),
+        ],
+        GfPopupMenuItem(
+          value: 'remove',
+          destructive: true,
+          child: Row(
+            children: [
+              GfSymbol('trash-2', size: 22),
+              const SizedBox(width: 12),
+              Expanded(child: GfText(strings.remove)),
             ],
           ),
         ),
-      ),
+      ],
     );
     if (!mounted || !collection.active) return;
     switch (action) {
@@ -273,7 +280,7 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
+          GfText(
             strings.reorderHint,
             style: TextStyle(
               fontSize: 13,
@@ -282,7 +289,7 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
             ),
           ),
           const SizedBox(height: 12),
-          Text(
+          GfText(
             strings.uploadHint,
             style: TextStyle(
               fontSize: 13,
@@ -296,14 +303,14 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
                 ? null
                 : _upload,
             icon: const GfSymbol('plus', size: 20),
-            label: Text(strings.add),
+            label: GfText(strings.add),
           ),
           if (_uploading) const LinearProgressIndicator(),
           if (_uploadError != null)
             Row(
               children: [
                 Expanded(
-                  child: Text(
+                  child: GfText(
                     _uploadError!,
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.error,
@@ -313,7 +320,7 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
                 if (_retryFile != null)
                   TextButton(
                     onPressed: busy ? null : () => _upload(retry: true),
-                    child: Text(strings.retry),
+                    child: GfText(strings.retry),
                   ),
               ],
             ),
@@ -322,7 +329,7 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
     );
     return Scaffold(
       appBar: GfAppBar(
-        title: Text(strings.title),
+        title: GfText(strings.title),
         actions: [
           TextButton(
             onPressed: collection.mine.isEmpty || busy
@@ -331,7 +338,7 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
                     _selecting = !_selecting;
                     _selected.clear();
                   }),
-            child: Text(_selecting ? strings.done : strings.select),
+            child: GfText(_selecting ? strings.done : strings.select),
           ),
         ],
       ),
@@ -371,7 +378,7 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
                       key: ValueKey(item.name),
                       leading: IgnorePointer(
                         child: Opacity(
-                          opacity: item.isEnabled ? 1 : 0.4,
+                          opacity: item.isAvailable ? 1 : 0.4,
                           child: StickerImage(
                             name: item.name,
                             url: item.url,
@@ -382,21 +389,25 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
                           ),
                         ),
                       ),
-                      title: Text(
+                      title: GfText(
                         strings.displayLabel(item),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      subtitle: item.isEnabled
+                      subtitle: item.isAvailable
                           ? null
-                          : Text(
-                              strings.unavailable,
+                          : GfText(
+                              item.reviewStatus == 'pending'
+                                  ? strings.reviewPending
+                                  : item.reviewStatus == 'rejected'
+                                  ? strings.reviewRejected
+                                  : strings.unavailable,
                               style: TextStyle(
                                 fontSize: 13,
                                 color: GfTheme.colorsOf(context).iconMuted,
                               ),
                             ),
-                      onTap: busy || (!_selecting && !item.isEnabled)
+                      onTap: busy || (!_selecting && !item.isAvailable)
                           ? null
                           : () {
                               if (_selecting) {
@@ -469,7 +480,7 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
                         ? null
                         : () => _confirmRemove({..._selected}),
                     icon: const GfSymbol('trash-2', size: 20),
-                    label: Text('${strings.remove} (${_selected.length})'),
+                    label: GfText('${strings.remove} (${_selected.length})'),
                   ),
                 ),
               ),
@@ -572,7 +583,7 @@ class _StickerRenameDialogState extends ConsumerState<_StickerRenameDialog> {
     return PopScope(
       canPop: !_saving,
       child: GfAlertDialog(
-        title: Text(strings.rename),
+        title: GfText(strings.rename),
         content: GfInput(
           controller: _controller,
           autofocus: true,

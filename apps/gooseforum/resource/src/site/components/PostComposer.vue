@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import IdentityPicker from '@/site/components/IdentityPicker.vue'
+import GfSwitch from '@/site/components/GfSwitch.vue'
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Check, Loader2, LockKeyhole, LockKeyholeOpen, Send, X } from '@lucide/vue'
@@ -14,6 +16,7 @@ import type { PostPayload } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{
+  viewer?: {id?:number;username:string;avatarUrl:string}
   authenticated: boolean
   errorMessage: string
   mode?: 'create' | 'edit'
@@ -46,6 +49,7 @@ const emit = defineEmits<{
 
 const captchaCode = defineModel<string>('captchaCode', { default: '' })
 const content = defineModel<string>({ default: '' })
+const identity = defineModel<'member' | 'persona'>('identity', {default:'member'})
 const anonymous = defineModel<boolean>('anonymous', { default: false })
 const { t } = useI18n()
 // 软键盘弹出时抬高浮动面板，确保输入内容不被输入法遮挡
@@ -208,6 +212,8 @@ const loginHref = computed(() => {
 
 function closeComposer() {
   if (composerBusy.value) return
+  // Read the editor before it unmounts; its input callback may still be pending.
+  content.value = editor.value?.syncValue() ?? content.value
   emit('update:open', false)
 }
 
@@ -272,6 +278,7 @@ async function uploadImageFiles(files: File[]) {
 
 function submit() {
   if (composerBusy.value) return
+  content.value = editor.value?.syncValue() ?? content.value
   emit('submit')
 }
 </script>
@@ -391,11 +398,13 @@ function submit() {
                 maxlength="8"
               />
             </div>
-            <label v-if="allowAnonymous && !editing" class="mt-2 flex shrink-0 cursor-pointer items-center gap-2 text-[13px] text-base-content/75">
-              <input v-model="anonymous" type="checkbox" class="checkbox checkbox-sm" />
-              {{ t('topic.publishAnonymous') }}
-            </label>
             <div class="mt-3 flex flex-wrap items-center gap-2 shrink-0">
+              <!-- 发布身份与发送按钮同一行：身份是这次发送的一部分 -->
+              <IdentityPicker :key="viewer?.id" :viewer="viewer" v-if="authenticated && !allowAnonymous" v-model="identity" :disabled="composerBusy || editing" class="-ms-1.5 min-w-0 flex-1 basis-40" />
+              <div v-if="allowAnonymous && !editing" class="flex min-h-11 min-w-0 flex-1 items-center gap-2.5 text-[13px] text-base-content/75">
+                <GfSwitch v-model="anonymous" labelledby="composer-anonymous-label" />
+                <span id="composer-anonymous-label">{{ t('topic.publishAnonymous') }}</span>
+              </div>
               <button v-if="target && !editing" type="button" class="gf-button gf-button-md gf-button-muted shrink-0" @click="emit('clearTarget')">
                 {{ t('common.cancel') }}
               </button>

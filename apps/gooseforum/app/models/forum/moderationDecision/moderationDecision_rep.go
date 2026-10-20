@@ -22,6 +22,13 @@ func Get(id uint64) (entity Entity) {
 }
 
 // LatestForSubjects 批量返回每个主体最近一次 AI 决策（审核队列展示与人工结论回写用）。
+// ExistsForRevision reports whether AI moderation evaluated the revision.
+func ExistsForRevision(revisionID uint64) bool {
+	var count int64
+	builder().Where("revision_id = ?", revisionID).Limit(1).Count(&count)
+	return count > 0
+}
+
 func LatestForSubjects(subjectType string, subjectIDs []uint64) map[uint64]Entity {
 	result := make(map[uint64]Entity, len(subjectIDs))
 	if len(subjectIDs) == 0 {
@@ -78,10 +85,13 @@ func Page(q ListQuery) (list []Entity, total int64) {
 	return
 }
 
-// ListLabeled 返回带人工结论的决策（离线阈值回放样本），按 id 倒序、上限 limit。
+// ListLabeled 返回带人工结论的 AI 样本（离线阈值回放用），按 id 倒序、上限 limit。
+// 只取真正经 AI 判定的记录：final_action 为空的记录（如 AI 未参与时留下的人工
+// 决议）没有可回放的 AI 结论，混入会污染回放矩阵。
 func ListLabeled(limit int) (list []Entity) {
 	builder().
 		Where(queryopt.Ne("human_action", "")).
+		Where(queryopt.Ne("final_action", "")).
 		Order("id DESC").
 		Limit(limit).
 		Find(&list)

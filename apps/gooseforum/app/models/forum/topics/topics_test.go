@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
 	"github.com/glebarez/sqlite"
@@ -152,12 +153,12 @@ func TestPublishedQueriesExcludeNonPublicTopics(t *testing.T) {
 		t.Fatalf("second before batch = %#v, want only topic %d", beforeBatch2, firstTopicID)
 	}
 
-	if topic, err := GetPublished(firstTopicID); err != nil || topic.Id != firstTopicID {
-		t.Fatalf("GetPublished(%d) = %#v, err=%v", firstTopicID, topic, err)
+	if topic, err := GetPublishedForExport(firstTopicID); err != nil || topic.Id != firstTopicID {
+		t.Fatalf("GetPublishedForExport(%d) = %#v, err=%v", firstTopicID, topic, err)
 	}
 	for _, id := range []uint64{draftTopicID, blockedTopicID, blockedFirstPostTopicID} {
-		if _, err := GetPublished(id); !errors.Is(err, gorm.ErrRecordNotFound) {
-			t.Fatalf("GetPublished(%d) err=%v, want record not found", id, err)
+		if _, err := GetPublishedForExport(id); !errors.Is(err, gorm.ErrRecordNotFound) {
+			t.Fatalf("GetPublishedForExport(%d) err=%v, want record not found", id, err)
 		}
 	}
 }
@@ -173,7 +174,7 @@ func TestTopicRepositoryParity(t *testing.T) {
 
 	now := time.Date(2026, 7, 7, 12, 0, 0, 0, time.UTC)
 	// 首楼：公开列表查询要求 first_post_id 指向未删除、process_status 正常的楼层
-	// （与 GetPublished 口径一致，issue #492），此处补齐真实话题的首楼。
+	// （与 GetPublishedForExport 口径一致，issue #492），此处补齐真实话题的首楼。
 	conn.Create(&[]posts.Entity{
 		{Id: 1010, TopicId: 10, PostNo: 1, Content: "first", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now, UpdatedAt: now},
 		{Id: 1020, TopicId: 20, PostNo: 1, Content: "first", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now, UpdatedAt: now},
@@ -275,7 +276,7 @@ func TestTopicRepositoryParity(t *testing.T) {
 // on soft-deleted topics）。
 func TestPagePendingReviewExcludesSoftDeletedTopics(t *testing.T) {
 	conn := dbconnect.Connect()
-	if err := conn.AutoMigrate(&Entity{}); err != nil {
+	if err := conn.AutoMigrate(&Entity{}, &posts.Entity{}, &postRevisions.Entity{}); err != nil {
 		t.Fatalf("migrate pending review tables: %v", err)
 	}
 	conn.Unscoped().Where("id IN ?", []uint64{210, 220, 230}).Delete(&Entity{})

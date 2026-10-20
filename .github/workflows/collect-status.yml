@@ -14,15 +14,15 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: collect-status-production
-  cancel-in-progress: false
-
 jobs:
   dispatch:
     # Fallback only: Cloudflare Cron avoids GitHub's delayed/dropped schedule events.
     # The default-branch scheduler gets no production environment or credentials.
     if: github.repository == 'YourTongji/YourTJ-Hub' && vars.STATUS_COLLECTION_ENABLED == 'true' && vars.STATUS_SCHEDULER_ENABLED != 'true' && github.event_name == 'schedule'
+    # Keep fallback dispatches separate from the main jobs they create.
+    concurrency:
+      group: collect-status-dispatch-${{ github.event.schedule == '7 * * * *' && 'devices' || 'public' }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
@@ -38,6 +38,12 @@ jobs:
     # Both this workflow definition and its checked-out source must come from main.
     # The environment's deployment branch policy must also allow main only.
     if: github.repository == 'YourTongji/YourTJ-Hub' && vars.STATUS_COLLECTION_ENABLED == 'true' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    # A job execution timeout does not cover waiting for a runner. Let the next
+    # sample replace a stuck job, without cancelling the other kind of data.
+    # Public views exclude devices; ETag writes protect newer snapshots.
+    concurrency:
+      group: collect-status-production-${{ inputs.kind }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 5
     environment: status-collector
@@ -45,14 +51,14 @@ jobs:
       run:
         working-directory: apps/status
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
         with:
           version: 11.11.0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: 24
           cache: pnpm

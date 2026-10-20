@@ -1,3 +1,4 @@
+import 'user_decoration.dart';
 import 'package:core/core.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -152,82 +153,90 @@ class AccountDrawerLayerState extends State<AccountDrawerLayer>
   }
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      _drawerWidth = (constraints.maxWidth * .84).clamp(0, 400);
-      _openingWidth = constraints.maxWidth * drawerSwipeOpeningFraction;
-      _direction = Directionality.of(context) == TextDirection.ltr ? 1 : -1;
-      return RawGestureDetector(
-        behavior: HitTestBehavior.translucent,
-        excludeFromSemantics: true,
-        gestures: {
-          _DirectionalDrawerGestureRecognizer:
-              GestureRecognizerFactoryWithHandlers<
-                _DirectionalDrawerGestureRecognizer
-              >(
-                _DirectionalDrawerGestureRecognizer.new,
-                (recognizer) => recognizer
-                  ..screenWidth = constraints.maxWidth
-                  ..drawerWidth = _drawerWidth
-                  ..openingWidth = _openingWidth
-                  ..openingDirection = _direction
-                  ..isOpen = (() => _progress.value > 0)
-                  ..canOpen = _drawerGesturePolicy.canOpen
-                  ..dragStartBehavior = DragStartBehavior.down
-                  ..onStart = _startDrag
-                  ..onUpdate = _updateDrag
-                  ..onEnd = _endDrag
-                  ..onCancel = _cancelDrag,
-              ),
-        },
-        child: DrawerGestureGate(
-          policy: _drawerGesturePolicy,
-          child: Stack(
-            fit: StackFit.expand,
-            clipBehavior: Clip.hardEdge,
-            children: [
-              IgnorePointer(
-                ignoring: _progress.value > 0,
-                child: ExcludeSemantics(
-                  excluding: _progress.value > 0,
-                  child: widget.child,
+  Widget build(BuildContext context) => PopScope(
+    // Advertise the open overlay before Android starts a predictive back.
+    canPop: _historyEntry == null,
+    onPopInvokedWithResult: (didPop, _) {
+      if (didPop || _historyEntry == null) return;
+      close();
+    },
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        _drawerWidth = (constraints.maxWidth * .84).clamp(0, 400);
+        _openingWidth = constraints.maxWidth * drawerSwipeOpeningFraction;
+        _direction = Directionality.of(context) == TextDirection.ltr ? 1 : -1;
+        return RawGestureDetector(
+          behavior: HitTestBehavior.translucent,
+          excludeFromSemantics: true,
+          gestures: {
+            _DirectionalDrawerGestureRecognizer:
+                GestureRecognizerFactoryWithHandlers<
+                  _DirectionalDrawerGestureRecognizer
+                >(
+                  _DirectionalDrawerGestureRecognizer.new,
+                  (recognizer) => recognizer
+                    ..screenWidth = constraints.maxWidth
+                    ..drawerWidth = _drawerWidth
+                    ..openingWidth = _openingWidth
+                    ..openingDirection = _direction
+                    ..isOpen = (() => _progress.value > 0)
+                    ..canOpen = _drawerGesturePolicy.canOpen
+                    ..dragStartBehavior = DragStartBehavior.down
+                    ..onStart = _startDrag
+                    ..onUpdate = _updateDrag
+                    ..onEnd = _endDrag
+                    ..onCancel = _cancelDrag,
                 ),
-              ),
-              if (_progress.value > 0) ...[
-                Positioned.fill(
-                  child: BlockSemantics(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: close,
-                      child: Semantics(
-                        label: MaterialLocalizations.of(
-                          context,
-                        ).modalBarrierDismissLabel,
-                        child: ColoredBox(
-                          color: Colors.black.withValues(
-                            alpha: .54 * _progress.value,
+          },
+          child: DrawerGestureGate(
+            policy: _drawerGesturePolicy,
+            child: Stack(
+              fit: StackFit.expand,
+              clipBehavior: Clip.hardEdge,
+              children: [
+                IgnorePointer(
+                  ignoring: _progress.value > 0,
+                  child: ExcludeSemantics(
+                    excluding: _progress.value > 0,
+                    child: widget.child,
+                  ),
+                ),
+                if (_progress.value > 0) ...[
+                  Positioned.fill(
+                    child: BlockSemantics(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: close,
+                        child: Semantics(
+                          label: MaterialLocalizations.of(
+                            context,
+                          ).modalBarrierDismissLabel,
+                          child: ColoredBox(
+                            color: Colors.black.withValues(
+                              alpha: .54 * _progress.value,
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                PositionedDirectional(
-                  top: 0,
-                  bottom: 0,
-                  start: -_drawerWidth * (1 - _progress.value),
-                  width: _drawerWidth,
-                  child: FocusScope(
-                    node: _focusScopeNode,
-                    child: const AccountDrawer(),
+                  PositionedDirectional(
+                    top: 0,
+                    bottom: 0,
+                    start: -_drawerWidth * (1 - _progress.value),
+                    width: _drawerWidth,
+                    child: FocusScope(
+                      node: _focusScopeNode,
+                      child: const AccountDrawer(),
+                    ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-      );
-    },
+        );
+      },
+    ),
   );
 }
 
@@ -343,7 +352,13 @@ class AccountAvatar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final layout = ref.watch(accountLayoutProvider);
     final viewer = layout.isLoading ? null : layout.asData?.value.viewer;
-    return GfAvatar(src: resolveApiAssetUrl(viewer?.avatarUrl ?? ''), size: 30);
+    return GfAvatar(
+      frameColors: decorationColors(context, viewer?.decoration?.avatarFrame),
+      frameAssetUrl: decorationFrameAssetUrl(viewer?.decoration?.avatarFrame),
+      frameScale: viewer?.decoration?.avatarFrame?.assetScale ?? 1.25,
+      src: resolveApiAssetUrl(viewer?.avatarUrl ?? ''),
+      size: 30,
+    );
   }
 }
 
@@ -372,7 +387,7 @@ class AccountDrawer extends ConsumerWidget {
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
       onPressed: () => open('/profile?stream=$stream'),
-      child: Text.rich(
+      child: GfText.rich(
         TextSpan(
           children: [
             TextSpan(
@@ -400,7 +415,7 @@ class AccountDrawer extends ConsumerWidget {
       minLeadingWidth: 24,
       horizontalTitleGap: 16,
       leading: GfSymbol(icon, size: 24, color: colors.baseContent),
-      title: Text(
+      title: GfText(
         title,
         style: type.bodyStrong.copyWith(fontSize: 18, height: 1.3),
       ),
@@ -424,6 +439,20 @@ class AccountDrawer extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(30),
                     onTap: () => open(signedIn ? '/profile' : '/login'),
                     child: GfAvatar(
+                      frameColors: decorationColors(
+                        context,
+                        user?.decoration?.avatarFrame ??
+                            viewer?.decoration?.avatarFrame,
+                      ),
+                      frameAssetUrl: decorationFrameAssetUrl(
+                        user?.decoration?.avatarFrame ??
+                            viewer?.decoration?.avatarFrame,
+                      ),
+                      frameScale:
+                          (user?.decoration?.avatarFrame ??
+                                  viewer?.decoration?.avatarFrame)
+                              ?.assetScale ??
+                          1.25,
                       src: resolveApiAssetUrl(
                         user?.avatarUrl ?? viewer?.avatarUrl ?? '',
                       ),
@@ -431,16 +460,21 @@ class AccountDrawer extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text(
+                  GfDecoratedName(
                     signedIn
                         ? (user?.nickname.isNotEmpty == true
                               ? user!.nickname
                               : viewer!.username)
                         : 'YourTJ',
+                    colors: decorationColors(
+                      context,
+                      user?.decoration?.nicknameStyle ??
+                          viewer?.decoration?.nicknameStyle,
+                    ),
                     style: type.title2.copyWith(fontSize: 20),
                   ),
                   if (signedIn)
-                    Text(
+                    GfText(
                       '@${viewer!.username}',
                       style: type.small.copyWith(color: colors.iconMuted),
                     ),
@@ -550,7 +584,7 @@ Future<void> _showThemeModeSheet(BuildContext context) =>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(l10n.settingsAppearance, style: type.title2),
+                  GfText(l10n.settingsAppearance, style: type.title2),
                   const SizedBox(height: 12),
                   RadioGroup<ThemeMode>(
                     groupValue: mode,
@@ -563,11 +597,11 @@ Future<void> _showThemeModeSheet(BuildContext context) =>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         for (final choice in choices)
-                          RadioListTile<ThemeMode>(
+                          GfRadioListTile<ThemeMode>(
                             value: choice,
                             controlAffinity: ListTileControlAffinity.trailing,
                             contentPadding: EdgeInsets.zero,
-                            title: Text(switch (choice) {
+                            title: GfText(switch (choice) {
                               ThemeMode.system => l10n.settingsLanguageSystem,
                               ThemeMode.light => l10n.settingsThemeLight,
                               ThemeMode.dark => l10n.settingsThemeDark,

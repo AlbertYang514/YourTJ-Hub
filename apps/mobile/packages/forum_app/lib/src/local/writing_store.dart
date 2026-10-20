@@ -45,11 +45,15 @@ class LocalDraft {
     required this.images,
     required this.updatedAt,
     this.kind = DraftKind.newTopic,
+    this.agentRepliesDisabled = false,
+    this.identity = "member",
     this.replyToPostId = 0,
     this.replyTargetName,
     this.replyMentionPrefix,
   });
   final DraftKind kind;
+  final bool agentRepliesDisabled;
+  final String identity;
   final int replyToPostId;
   final String? replyTargetName, replyMentionPrefix;
   final String key, title, content;
@@ -61,10 +65,13 @@ class LocalDraft {
       content.trim().isEmpty &&
       images.isEmpty &&
       categories.isEmpty &&
+      !agentRepliesDisabled &&
       replyToPostId == 0;
   Map<String, dynamic> toJson() => {
     'version': 2,
+    'identity': identity,
     'kind': kind.name,
+    'agentRepliesDisabled': agentRepliesDisabled,
     'replyToPostId': replyToPostId,
     'replyTargetName': replyTargetName,
     'replyMentionPrefix': replyMentionPrefix,
@@ -78,6 +85,8 @@ class LocalDraft {
     'updatedAt': updatedAt,
   };
   factory LocalDraft.fromJson(Map<String, dynamic> json) => LocalDraft(
+    agentRepliesDisabled: json['agentRepliesDisabled'] as bool? ?? false,
+    identity: _draftIdentity(json["identity"]),
     kind:
         DraftKind.values
             .where((kind) => kind.name == json['kind'])
@@ -167,21 +176,24 @@ class WritingStore {
 
   Future<List<String>> history(String scope) async {
     final values = await _database.readDomain(scope, 'history');
-    return values['search'] == null
-        ? []
-        : List<String>.from(jsonDecode(values['search']!) as List);
+    return _decodeHistory(values['search']);
   }
 
   Future<void> remember(String scope, String query) async {
     final value = query.trim();
     if (value.isEmpty || value.length > 200) return;
     await _database.updateValue(scope, 'history', 'search', (raw) {
-      final old = raw == null
-          ? <String>[]
-          : List<String>.from(jsonDecode(raw) as List);
+      final old = _decodeHistory(raw);
       return jsonEncode(
         [value, ...old.where((q) => q != value)].take(10).toList(),
       );
+    }, generation: _generation);
+  }
+
+  Future<void> forget(String scope, String query) async {
+    await _database.updateValue(scope, 'history', 'search', (raw) {
+      if (raw == null) return null;
+      return jsonEncode(_decodeHistory(raw).where((q) => q != query).toList());
     }, generation: _generation);
   }
 
@@ -192,4 +204,24 @@ class WritingStore {
     {'search': null},
     generation: _generation,
   );
+}
+
+String _draftIdentity(Object? value) {
+  if (value == null) return "member";
+  if (value == "member" || value == "persona") return value as String;
+  throw const FormatException("Invalid draft identity");
+}
+
+/// Reads the stored recent-search list; a damaged record is treated as empty
+/// so it is overwritten by the next save instead of throwing.
+List<String> _decodeHistory(String? raw) {
+  if (raw == null) return <String>[];
+  try {
+    return List<String>.from(jsonDecode(raw) as List);
+  } on FormatException {
+    /* A damaged record reads as empty and is repaired on the next write. */
+  } on TypeError {
+    /* A damaged record must not hide or block search history. */
+  }
+  return <String>[];
 }

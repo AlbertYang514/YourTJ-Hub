@@ -116,7 +116,7 @@ class _WikiPageState extends ConsumerState<WikiPage> {
           children: <Widget>[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(
+              child: GfText(
                 l10n.wikiToc,
                 style: GfTheme.typographyOf(
                   sheetContext,
@@ -133,7 +133,7 @@ class _WikiPageState extends ConsumerState<WikiPage> {
                     16,
                     10,
                   ),
-                  child: Text(
+                  child: GfText(
                     item.text,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -156,6 +156,37 @@ class _WikiPageState extends ConsumerState<WikiPage> {
     if (!mounted || selected == null || selected.isEmpty) return;
     // 目录条目 id 与正文标题锚点一致(goldmark headingid)。
     _htmlKey.currentState?.scrollToAnchor(selected);
+  }
+
+  Widget _tocList(List<WikiTocItem> items) {
+    final l10n = AppLocalizations.of(context);
+    return ListView(
+      key: const Key('wiki-toc-sidebar'),
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: GfText(
+            l10n.wikiToc,
+            style: GfTheme.typographyOf(context).heading,
+          ),
+        ),
+        for (final item in items)
+          TextButton(
+            style: TextButton.styleFrom(
+              alignment: Alignment.centerLeft,
+              padding: EdgeInsets.fromLTRB(
+                16 + ((item.level - 1) * 8).toDouble(),
+                12,
+                16,
+                12,
+              ),
+            ),
+            onPressed: () => _htmlKey.currentState?.scrollToAnchor(item.id),
+            child: GfText(item.text, softWrap: true),
+          ),
+      ],
+    );
   }
 
   Future<void> _openEdit(String url) async {
@@ -216,10 +247,20 @@ class _WikiPageState extends ConsumerState<WikiPage> {
           if (mounted) context.push('$path$query$anchor');
         }
       } else {
+        // 正文里「标签与目标不符」的链接按 suspicious（对齐 Web linkRisk）：
+        // 白名单与会话信任都不豁免，始终弹确认层（issue #1200 review）。
+        final Set<String> mislabeled = mislabeledLinkTargetsInHtml(
+          _detail.valueOrNull?.content ?? '',
+          base: base,
+        );
+        final String target = uri.toString();
         await LinkNavigation.open(
           context,
-          uri.toString(),
+          target,
           baseUrl: base.toString(),
+          risk: mislabeled.contains(target)
+              ? LinkRisk.suspicious
+              : LinkRisk.normalExternal,
         );
       }
     } catch (_) {
@@ -260,73 +301,110 @@ class _WikiPageState extends ConsumerState<WikiPage> {
     final AppLocalizations l10n = AppLocalizations.of(context);
     // valueOrNull:AsyncValue.error 时直接读 .value 会重抛错误。
     final WikiPageDetail? page = _detail.valueOrNull;
-    return Scaffold(
-      appBar: GfAppBar(
-        title: Text(
-          page?.title ?? l10n.wikiTitle,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        actions: [
-          if (page != null && page.canEdit && page.editUrl.isNotEmpty)
-            IconButton(
-              tooltip: l10n.wikiEditOnGithub,
-              icon: const GfSymbol('external-link', size: 20),
-              onPressed: () => _openEdit(page.editUrl),
+    final scaffold = LayoutBuilder(
+      builder: (context, constraints) {
+        final scale = (MediaQuery.textScalerOf(context).scale(16) / 16).clamp(
+          1.0,
+          1.5,
+        );
+        final sidebarWidth = 280 * scale;
+        final wide =
+            page != null &&
+            page.toc.isNotEmpty &&
+            constraints.maxWidth >= sidebarWidth + 560 * scale;
+        return Scaffold(
+          appBar: GfAppBar(
+            title: GfText(
+              page?.title ?? l10n.wikiTitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-        ],
-      ),
-      bottomNavigationBar: page == null
-          ? null
-          : SafeArea(
-              top: false,
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border(
-                    top: BorderSide(color: GfTheme.colorsOf(context).line),
-                  ),
+            actions: [
+              if (page != null && page.canEdit && page.editUrl.isNotEmpty)
+                IconButton(
+                  tooltip: l10n.wikiEditOnGithub,
+                  icon: const GfSymbol('external-link', size: 20),
+                  onPressed: () => _openEdit(page.editUrl),
                 ),
-                child: Row(
-                  children: [
-                    if (page.toc.isNotEmpty)
-                      Expanded(
-                        child: TextButton.icon(
-                          icon: const GfSymbol('list', size: 18),
-                          label: Text(l10n.wikiToc),
-                          onPressed: () => _openToc(page.toc),
-                        ),
-                      ),
-                    Expanded(
-                      child: TextButton.icon(
-                        icon: const GfSymbol('search', size: 18),
-                        label: Text(l10n.commonSearch),
-                        onPressed: () => context.push('/wiki/search'),
+            ],
+          ),
+          bottomNavigationBar: page == null
+              ? null
+              : SafeArea(
+                  top: false,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        top: BorderSide(color: GfTheme.colorsOf(context).line),
                       ),
                     ),
-                  ],
+                    child: Row(
+                      children: [
+                        if (page.toc.isNotEmpty && !wide)
+                          Expanded(
+                            child: TextButton.icon(
+                              icon: const GfSymbol('list', size: 18),
+                              label: GfText(l10n.wikiToc),
+                              onPressed: () => _openToc(page.toc),
+                            ),
+                          ),
+                        Expanded(
+                          child: TextButton.icon(
+                            icon: const GfSymbol('search', size: 18),
+                            label: GfText(l10n.commonSearch),
+                            onPressed: () => context.push('/wiki/search'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+          body: _detail.when(
+            loading: () => const _WikiPageSkeleton(),
+            error: (Object e, StackTrace _) => GfErrorRetry(
+              message: resolveErrorMessage(l10n, e),
+              onRetry: _load,
             ),
-      body: _detail.when(
-        loading: () => const _WikiPageSkeleton(),
-        error: (Object e, StackTrace _) =>
-            GfErrorRetry(message: resolveErrorMessage(l10n, e), onRetry: _load),
-        data: (WikiPageDetail loaded) => _WikiProse(
-          page: loaded,
-          // Wiki bodies honour the same reader preference as posts.
-          profile: GfRichContentTypography.of(
-            context,
-            userScale: ref.watch(contentFontScaleProvider),
+            data: (WikiPageDetail loaded) => Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Offstage(
+                  offstage: !wide,
+                  child: SizedBox(
+                    width: sidebarWidth,
+                    child: _tocList(loaded.toc),
+                  ),
+                ),
+                SizedBox(
+                  width: wide ? 1 : 0,
+                  child: ColoredBox(color: GfTheme.colorsOf(context).line),
+                ),
+                Expanded(
+                  child: _WikiProse(
+                    page: loaded,
+                    // Wiki bodies honour the same reader preference as posts.
+                    profile: GfRichContentTypography.of(
+                      context,
+                      userScale: ref.watch(contentFontScaleProvider),
+                    ),
+                    baseUrl: Uri.parse(
+                      ref.read(apiClientProvider).baseUrl,
+                    ).resolve('/wiki/${encodeWikiPath(widget.wikiPath)}'),
+                    scrollController: _scrollController,
+                    htmlKey: _htmlKey,
+                    onLinkTap: _handleLinkTap,
+                    onImageTap: _openImageViewer,
+                  ),
+                ),
+              ],
+            ),
           ),
-          baseUrl: Uri.parse(
-            ref.read(apiClientProvider).baseUrl,
-          ).resolve('/wiki/${encodeWikiPath(widget.wikiPath)}'),
-          scrollController: _scrollController,
-          htmlKey: _htmlKey,
-          onLinkTap: _handleLinkTap,
-          onImageTap: _openImageViewer,
-        ),
-      ),
+        );
+      },
+    );
+    return GfStatusBarScrollToTop(
+      scrollController: _scrollController,
+      child: scaffold,
     );
   }
 }
@@ -365,7 +443,7 @@ class _WikiProse extends StatelessWidget {
       body = Padding(
         padding: const EdgeInsets.symmetric(vertical: 32),
         child: Center(
-          child: Text(
+          child: GfText(
             l10n.commonEmpty,
             style: typography.small.copyWith(
               color: colors.baseContent.withValues(alpha: 0.55),
@@ -463,7 +541,6 @@ class _WikiProse extends StatelessWidget {
       ],
     );
   }
-
 }
 
 class _MetaItem extends StatelessWidget {
@@ -484,7 +561,7 @@ class _MetaItem extends StatelessWidget {
       children: <Widget>[
         GfSymbol(symbol, size: 13, color: faint),
         const SizedBox(width: 4),
-        Text(
+        GfText(
           text,
           style: GfTheme.typographyOf(context).caption.copyWith(color: faint),
         ),

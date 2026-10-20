@@ -102,6 +102,18 @@ abstract class AppLocalizations {
     Locale('zh'),
   ];
 
+  /// No description provided for @agentRepliesDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'The author has turned off bot replies'**
+  String get agentRepliesDisabled;
+
+  /// No description provided for @agentRepliesHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'When off, this site\'s bot accounts can\'t reply here. Existing replies stay.'**
+  String get agentRepliesHelp;
+
   /// No description provided for @campusCourseReviews.
   ///
   /// In en, this message translates to:
@@ -603,8 +615,20 @@ abstract class AppLocalizations {
   /// No description provided for @authRegisterEmailVerify.
   ///
   /// In en, this message translates to:
-  /// **'Registration successful. A verification email was sent; check your inbox.'**
+  /// **'Registration successful. A verification email was sent; check your inbox. No email? Sign in and resend it under Account security.'**
   String get authRegisterEmailVerify;
+
+  /// No description provided for @authActivationRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Please activate your account from your inbox first.'**
+  String get authActivationRequired;
+
+  /// No description provided for @authResendActivationEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Resend verification email'**
+  String get authResendActivationEmail;
 
   /// No description provided for @authRegisterSuccess.
   ///
@@ -1182,35 +1206,11 @@ abstract class AppLocalizations {
   /// **'Unread'**
   String get notificationsUnread;
 
-  /// No description provided for @searchTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Search'**
-  String get searchTitle;
-
   /// No description provided for @searchHint.
   ///
   /// In en, this message translates to:
   /// **'Search topics, users, categories…'**
   String get searchHint;
-
-  /// No description provided for @searchEmpty.
-  ///
-  /// In en, this message translates to:
-  /// **'Enter keywords to search'**
-  String get searchEmpty;
-
-  /// No description provided for @searchNoUsers.
-  ///
-  /// In en, this message translates to:
-  /// **'No matching users'**
-  String get searchNoUsers;
-
-  /// No description provided for @searchNoCategories.
-  ///
-  /// In en, this message translates to:
-  /// **'No matching categories'**
-  String get searchNoCategories;
 
   /// No description provided for @searchUnavailable.
   ///
@@ -1269,7 +1269,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsTabAccount.
   ///
   /// In en, this message translates to:
-  /// **'Account'**
+  /// **'Account, security & privacy'**
   String get settingsTabAccount;
 
   /// No description provided for @settingsTabPrivacy.
@@ -2742,6 +2742,54 @@ abstract class AppLocalizations {
   /// **'Long-press an image in the body to drag it to any paragraph.'**
   String get publishBodyDragHint;
 
+  /// No description provided for @publishMomentTitleHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Title (optional)'**
+  String get publishMomentTitleHint;
+
+  /// No description provided for @publishCategoryLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Category'**
+  String get publishCategoryLabel;
+
+  /// No description provided for @publishCategoryLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Up to {count}'**
+  String publishCategoryLimit(int count);
+
+  /// No description provided for @publishCategoryPickOne.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a category'**
+  String get publishCategoryPickOne;
+
+  /// No description provided for @publishImageOrderTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Image order'**
+  String get publishImageOrderTitle;
+
+  /// No description provided for @publishImageOrderHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Long-press and drag to change where each image appears'**
+  String get publishImageOrderHint;
+
+  /// No description provided for @publishImageOrderPosition.
+  ///
+  /// In en, this message translates to:
+  /// **'Image {index}'**
+  String publishImageOrderPosition(int index);
+
+  /// No description provided for @publishStepOf.
+  ///
+  /// In en, this message translates to:
+  /// **'Step {current} of {total}'**
+  String publishStepOf(int current, int total);
+
   /// No description provided for @publishFormatting.
   ///
   /// In en, this message translates to:
@@ -3468,6 +3516,12 @@ abstract class AppLocalizations {
   /// **'Participant'**
   String get mentionTagParticipant;
 
+  /// No description provided for @mentionAgentLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Bot'**
+  String get mentionAgentLabel;
+
   /// No description provided for @notificationPostReply.
   ///
   /// In en, this message translates to:
@@ -3477,7 +3531,7 @@ abstract class AppLocalizations {
   /// No description provided for @notificationTopicPost.
   ///
   /// In en, this message translates to:
-  /// **'{actor} posted in a topic you watch'**
+  /// **'{actor} posted a reply in a topic you follow'**
   String notificationTopicPost(String actor);
 
   /// No description provided for @notificationFollow.
@@ -3495,8 +3549,8 @@ abstract class AppLocalizations {
   /// No description provided for @notificationWikiUpdated.
   ///
   /// In en, this message translates to:
-  /// **'{actor} updated a wiki page you watch'**
-  String notificationWikiUpdated(String actor);
+  /// **'A Wiki page you follow was updated'**
+  String get notificationWikiUpdated;
 
   /// No description provided for @notificationBadge.
   ///
@@ -3507,7 +3561,7 @@ abstract class AppLocalizations {
   /// No description provided for @notificationNew.
   ///
   /// In en, this message translates to:
-  /// **'New notification'**
+  /// **'You have a new system notification'**
   String get notificationNew;
 
   /// No description provided for @notificationSomeone.
@@ -4428,12 +4482,6 @@ abstract class AppLocalizations {
   /// **'No course reviews yet. Explore the course catalog.'**
   String get campusCoursesEmpty;
 
-  /// No description provided for @searchDiscoveryDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Find posts, people and categories, or jump into your campus tools.'**
-  String get searchDiscoveryDescription;
-
   /// No description provided for @notificationsEmptyDescription.
   ///
   /// In en, this message translates to:
@@ -4547,6 +4595,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Search Wiki'**
   String get searchWiki;
+
+  /// No description provided for @searchIdleHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search topics, users and categories. Your recent searches will appear here.'**
+  String get searchIdleHint;
+
+  /// No description provided for @searchFor.
+  ///
+  /// In en, this message translates to:
+  /// **'Search for “{query}”'**
+  String searchFor(String query);
+
+  /// No description provided for @searchCoursesFor.
+  ///
+  /// In en, this message translates to:
+  /// **'Search courses for “{query}”'**
+  String searchCoursesFor(String query);
+
+  /// No description provided for @searchWikiFor.
+  ///
+  /// In en, this message translates to:
+  /// **'Search the Wiki for “{query}”'**
+  String searchWikiFor(String query);
+
+  /// No description provided for @searchRemoveRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from recent searches'**
+  String get searchRemoveRecent;
+
+  /// No description provided for @searchSeeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'See all'**
+  String get searchSeeAll;
+
+  /// No description provided for @searchNoResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No results for “{query}”'**
+  String searchNoResults(String query);
+
+  /// No description provided for @searchNoResultsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Try different keywords, or search courses and the Wiki.'**
+  String get searchNoResultsHint;
 
   /// No description provided for @refreshFailedRetained.
   ///
@@ -4727,6 +4823,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'School data is temporarily unavailable. Try again later.'**
   String get campusUnavailable;
+
+  /// No description provided for @campusUpstreamUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'School services are temporarily unavailable. Try again later.'**
+  String get campusUpstreamUnavailable;
+
+  /// No description provided for @campusRulesAIUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'AI is unavailable. Check the model connection in AI course summaries, or add rules manually.'**
+  String get campusRulesAIUnavailable;
+
+  /// No description provided for @campusRulesAIOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'AI did not return valid rules. Add complete dates and explicit makeup mappings, or edit manually.'**
+  String get campusRulesAIOutput;
+
+  /// No description provided for @campusRulesLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many AI requests. Try again later.'**
+  String get campusRulesLimited;
 
   /// No description provided for @campusNoData.
   ///
@@ -4968,6 +5088,18 @@ abstract class AppLocalizations {
   /// **'Continue'**
   String get linkPreviewContinue;
 
+  /// No description provided for @linkPreviewAuthorArtist.
+  ///
+  /// In en, this message translates to:
+  /// **'Artist: {author}'**
+  String linkPreviewAuthorArtist(String author);
+
+  /// No description provided for @linkPreviewAuthorUploader.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploader: {author}'**
+  String linkPreviewAuthorUploader(String author);
+
   /// No description provided for @linkPreviewCampusFallbackTitle.
   ///
   /// In en, this message translates to:
@@ -4979,6 +5111,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Requires campus network access'**
   String get linkPreviewCampusFallbackDescription;
+
+  /// No description provided for @linkPreviewPlatformAppleMusic.
+  ///
+  /// In en, this message translates to:
+  /// **'Apple Music'**
+  String get linkPreviewPlatformAppleMusic;
+
+  /// No description provided for @linkPreviewPlatformBilibili.
+  ///
+  /// In en, this message translates to:
+  /// **'Bilibili'**
+  String get linkPreviewPlatformBilibili;
+
+  /// No description provided for @linkPreviewResourceTypeAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Album'**
+  String get linkPreviewResourceTypeAlbum;
+
+  /// No description provided for @linkPreviewResourceTypeSong.
+  ///
+  /// In en, this message translates to:
+  /// **'Song'**
+  String get linkPreviewResourceTypeSong;
+
+  /// No description provided for @linkPreviewResourceTypeVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get linkPreviewResourceTypeVideo;
 
   /// No description provided for @campusTodayMakeup.
   ///
@@ -6257,6 +6419,1086 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Under review · Only you and reviewers can see this reply until it’s approved.'**
   String get topicPendingReviewReply;
+
+  /// No description provided for @contentReviewBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Not approved'**
+  String get contentReviewBlocked;
+
+  /// No description provided for @contentReviewRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit and resubmit'**
+  String get contentReviewRetry;
+
+  /// No description provided for @contentReviewLive.
+  ///
+  /// In en, this message translates to:
+  /// **'Your previously published version is still public; this edit isn’t.'**
+  String get contentReviewLive;
+
+  /// No description provided for @contentReviewView.
+  ///
+  /// In en, this message translates to:
+  /// **'View content'**
+  String get contentReviewView;
+
+  /// No description provided for @contentReviewPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Under review'**
+  String get contentReviewPending;
+
+  /// No description provided for @notificationReviewPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Your post is awaiting manual review'**
+  String get notificationReviewPending;
+
+  /// No description provided for @notificationReviewPendingDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'We’ll review it soon and notify you of the result. You can view or edit it while you wait.'**
+  String get notificationReviewPendingDetail;
+
+  /// No description provided for @notificationReviewRejectedDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'This submission won’t be shown publicly. Edit and resubmit it from content management. If you think the decision was wrong, eligible items show an “Appeal” button there; Wiki first posts and frozen accounts can’t be appealed.'**
+  String get notificationReviewRejectedDetail;
+
+  /// No description provided for @contentReviewReasonLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Reviewer’s reason'**
+  String get contentReviewReasonLabel;
+
+  /// No description provided for @contentReviewSheetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Review result'**
+  String get contentReviewSheetTitle;
+
+  /// No description provided for @appealAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal'**
+  String get appealAction;
+
+  /// No description provided for @appealFormTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal this decision'**
+  String get appealFormTitle;
+
+  /// No description provided for @appealFormIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Think the decision was wrong? A moderator will re-check the original post. An appeal doesn’t change your post — to change it, use “Edit and resubmit”.'**
+  String get appealFormIntro;
+
+  /// No description provided for @appealReasonLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Reason for appeal'**
+  String get appealReasonLabel;
+
+  /// No description provided for @appealReasonPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'For example: this quotes the course handout and isn’t aimed at anyone.'**
+  String get appealReasonPlaceholder;
+
+  /// No description provided for @appealOncePerVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Each version can be appealed once.'**
+  String get appealOncePerVersion;
+
+  /// No description provided for @appealSubmit.
+  ///
+  /// In en, this message translates to:
+  /// **'Submit appeal'**
+  String get appealSubmit;
+
+  /// No description provided for @appealSubmitted.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal submitted. We’ll notify you of the decision.'**
+  String get appealSubmitted;
+
+  /// No description provided for @appealSubmitFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t submit the appeal. Check your connection and try again — your reason is still here.'**
+  String get appealSubmitFailed;
+
+  /// No description provided for @appealYourReason.
+  ///
+  /// In en, this message translates to:
+  /// **'Your reason'**
+  String get appealYourReason;
+
+  /// No description provided for @appealReviewerNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Moderator’s note'**
+  String get appealReviewerNote;
+
+  /// No description provided for @appealNoReviewerNote.
+  ///
+  /// In en, this message translates to:
+  /// **'The moderator didn’t leave a note.'**
+  String get appealNoReviewerNote;
+
+  /// No description provided for @appealSubmittedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Submitted {time}'**
+  String appealSubmittedAt(String time);
+
+  /// No description provided for @appealDecidedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Decided {time}'**
+  String appealDecidedAt(String time);
+
+  /// No description provided for @appealStatePendingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal under review'**
+  String get appealStatePendingTitle;
+
+  /// No description provided for @appealStatePendingBody.
+  ///
+  /// In en, this message translates to:
+  /// **'A moderator will re-check the original post and notify you. If you edit and resubmit before then, this appeal closes.'**
+  String get appealStatePendingBody;
+
+  /// No description provided for @appealStateApprovedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal approved'**
+  String get appealStateApprovedTitle;
+
+  /// No description provided for @appealStateApprovedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Your post is public and everyone can see it.'**
+  String get appealStateApprovedBody;
+
+  /// No description provided for @appealStateRejectedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal not approved'**
+  String get appealStateRejectedTitle;
+
+  /// No description provided for @appealStateRejectedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This version can’t be appealed again. Edit and resubmit to start a new review.'**
+  String get appealStateRejectedBody;
+
+  /// No description provided for @appealStateStaleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal closed'**
+  String get appealStateStaleTitle;
+
+  /// No description provided for @appealStateStaleBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The post changed or became unavailable before review, so this appeal won’t be decided.'**
+  String get appealStateStaleBody;
+
+  /// No description provided for @appealEditWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Editing and resubmitting will close the appeal under review.'**
+  String get appealEditWarning;
+
+  /// No description provided for @appealEditAnyway.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit anyway'**
+  String get appealEditAnyway;
+
+  /// No description provided for @notificationAppealSubmitted.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal submitted — awaiting a moderator'**
+  String get notificationAppealSubmitted;
+
+  /// No description provided for @notificationAppealApproved.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal approved — your post is public'**
+  String get notificationAppealApproved;
+
+  /// No description provided for @notificationAppealRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal not approved'**
+  String get notificationAppealRejected;
+
+  /// No description provided for @notificationAppealStale.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal closed'**
+  String get notificationAppealStale;
+
+  /// No description provided for @notificationAppealSubmittedDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'We’ll notify you of the decision. Editing and resubmitting before then closes the appeal.'**
+  String get notificationAppealSubmittedDetail;
+
+  /// No description provided for @notificationAppealApprovedDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Everyone can see it now.'**
+  String get notificationAppealApprovedDetail;
+
+  /// No description provided for @notificationAppealRejectedDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'See the moderator’s note in content management. You can edit and resubmit.'**
+  String get notificationAppealRejectedDetail;
+
+  /// No description provided for @notificationAppealStaleDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'The post changed or became unavailable before review, so this appeal won’t be decided.'**
+  String get notificationAppealStaleDetail;
+
+  /// No description provided for @anonymousIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'Anonymous identity'**
+  String get anonymousIdentity;
+
+  /// No description provided for @anonymousBoundary.
+  ///
+  /// In en, this message translates to:
+  /// **'Each account has one anonymous identity, and a confirmed name can\'t change for a year. It can\'t sign in, send messages or follow people. Likes and votes still count once per account, whichever identity you use.'**
+  String get anonymousBoundary;
+
+  /// No description provided for @anonymousRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get anonymousRetry;
+
+  /// No description provided for @anonymousUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Anonymous identity is unavailable right now'**
+  String get anonymousUnavailable;
+
+  /// No description provided for @anonymousPublishAs.
+  ///
+  /// In en, this message translates to:
+  /// **'Post as'**
+  String get anonymousPublishAs;
+
+  /// No description provided for @anonymousMember.
+  ///
+  /// In en, this message translates to:
+  /// **'Main account'**
+  String get anonymousMember;
+
+  /// No description provided for @anonymousSetup.
+  ///
+  /// In en, this message translates to:
+  /// **'Set up anonymous identity'**
+  String get anonymousSetup;
+
+  /// No description provided for @anonymousNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Next page'**
+  String get anonymousNext;
+
+  /// No description provided for @anonymousPersonaLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Anonymous identity'**
+  String get anonymousPersonaLabel;
+
+  /// No description provided for @anonymousManage.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage anonymous identity'**
+  String get anonymousManage;
+
+  /// No description provided for @sortForYou.
+  ///
+  /// In en, this message translates to:
+  /// **'For you'**
+  String get sortForYou;
+
+  /// No description provided for @feedReasonFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'From someone you follow'**
+  String get feedReasonFollowing;
+
+  /// No description provided for @feedReasonCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'A category you\'ve posted in'**
+  String get feedReasonCategory;
+
+  /// No description provided for @feedReasonNewReply.
+  ///
+  /// In en, this message translates to:
+  /// **'New replies'**
+  String get feedReasonNewReply;
+
+  /// No description provided for @feedReasonRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently posted'**
+  String get feedReasonRecent;
+
+  /// No description provided for @sortDaily.
+  ///
+  /// In en, this message translates to:
+  /// **'Today\'s top'**
+  String get sortDaily;
+
+  /// No description provided for @anonymousPurpose.
+  ///
+  /// In en, this message translates to:
+  /// **'Post and reply under a fixed name. Others can\'t see your main account.'**
+  String get anonymousPurpose;
+
+  /// No description provided for @anonymousSettingsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Post under a fixed name without showing your main account'**
+  String get anonymousSettingsHint;
+
+  /// No description provided for @anonymousIntroTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a name first'**
+  String get anonymousIntroTitle;
+
+  /// No description provided for @anonymousConfirmHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Each account has one anonymous identity. Once confirmed, the name can\'t be changed for a year.'**
+  String get anonymousConfirmHint;
+
+  /// No description provided for @anonymousPrivacySummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Other members and regular moderators can\'t see your main account. A few authorized admins can look it up when handling violations; each lookup needs a reason and is logged. The link is kept even after you close your account.'**
+  String get anonymousPrivacySummary;
+
+  /// No description provided for @anonymousRules.
+  ///
+  /// In en, this message translates to:
+  /// **'Read the full rules'**
+  String get anonymousRules;
+
+  /// No description provided for @anonymousChooseName.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a name'**
+  String get anonymousChooseName;
+
+  /// No description provided for @anonymousRefreshNames.
+  ///
+  /// In en, this message translates to:
+  /// **'New batch'**
+  String get anonymousRefreshNames;
+
+  /// No description provided for @anonymousDrawsRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'{remaining} batches left today'**
+  String anonymousDrawsRemaining(int remaining);
+
+  /// No description provided for @anonymousBatchNumber.
+  ///
+  /// In en, this message translates to:
+  /// **'Batch {number}'**
+  String anonymousBatchNumber(int number);
+
+  /// No description provided for @anonymousPreviousBatches.
+  ///
+  /// In en, this message translates to:
+  /// **'Generated batches'**
+  String get anonymousPreviousBatches;
+
+  /// No description provided for @anonymousNamePreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Your chosen name'**
+  String get anonymousNamePreview;
+
+  /// No description provided for @anonymousConfirmName.
+  ///
+  /// In en, this message translates to:
+  /// **'Use this name'**
+  String get anonymousConfirmName;
+
+  /// No description provided for @anonymousInactive.
+  ///
+  /// In en, this message translates to:
+  /// **'Turned off'**
+  String get anonymousInactive;
+
+  /// No description provided for @anonymousReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Available'**
+  String get anonymousReady;
+
+  /// No description provided for @anonymousLockedUntil.
+  ///
+  /// In en, this message translates to:
+  /// **'You can change the name after {date}'**
+  String anonymousLockedUntil(String date);
+
+  /// No description provided for @anonymousNameLockHint.
+  ///
+  /// In en, this message translates to:
+  /// **'You can\'t change the name for a year after confirming.'**
+  String get anonymousNameLockHint;
+
+  /// No description provided for @anonymousShowContent.
+  ///
+  /// In en, this message translates to:
+  /// **'Show my posts on this profile'**
+  String get anonymousShowContent;
+
+  /// No description provided for @anonymousShowContentDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'When off, the profile shows only the name and avatar. Topics and replies still appear where you posted them.'**
+  String get anonymousShowContentDescription;
+
+  /// No description provided for @anonymousProfileContentHidden.
+  ///
+  /// In en, this message translates to:
+  /// **'This member\'s posts aren\'t shown on this page'**
+  String get anonymousProfileContentHidden;
+
+  /// No description provided for @agentRepliesAllow.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow bot replies'**
+  String get agentRepliesAllow;
+
+  /// No description provided for @agentRepliesOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Bot replies off'**
+  String get agentRepliesOff;
+
+  /// No description provided for @anonymousTag.
+  ///
+  /// In en, this message translates to:
+  /// **'Anonymous'**
+  String get anonymousTag;
+
+  /// No description provided for @anonymousTagOwn.
+  ///
+  /// In en, this message translates to:
+  /// **'Your anonymous identity'**
+  String get anonymousTagOwn;
+
+  /// No description provided for @anonymousIntroBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The name and avatar appear on your posts and replies instead of your main account.'**
+  String get anonymousIntroBody;
+
+  /// No description provided for @anonymousGenerateNames.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate names'**
+  String get anonymousGenerateNames;
+
+  /// No description provided for @anonymousBatchOf.
+  ///
+  /// In en, this message translates to:
+  /// **'Batch {number} of {total}'**
+  String anonymousBatchOf(int number, int total);
+
+  /// No description provided for @anonymousPreviewCaption.
+  ///
+  /// In en, this message translates to:
+  /// **'How others will see you'**
+  String get anonymousPreviewCaption;
+
+  /// No description provided for @anonymousPreviewPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a name below'**
+  String get anonymousPreviewPlaceholder;
+
+  /// No description provided for @anonymousRestricted.
+  ///
+  /// In en, this message translates to:
+  /// **'Restricted'**
+  String get anonymousRestricted;
+
+  /// No description provided for @anonymousQuota.
+  ///
+  /// In en, this message translates to:
+  /// **'No batches left today. More on {date}; you can still pick from earlier batches.'**
+  String anonymousQuota(String date);
+
+  /// No description provided for @anonymousProfileContentHiddenOwn.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts are hidden on this profile'**
+  String get anonymousProfileContentHiddenOwn;
+
+  /// No description provided for @anonymousProfileContentHiddenOwnDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Nobody, including you, sees the post list here. Your topics and replies still appear where you posted them.'**
+  String get anonymousProfileContentHiddenOwnDescription;
+
+  /// No description provided for @anonymousProfileOwnerHint.
+  ///
+  /// In en, this message translates to:
+  /// **'This is your anonymous identity. Others see only its name, avatar and public posts — never your main account.'**
+  String get anonymousProfileOwnerHint;
+
+  /// No description provided for @anonymousProfileMemberHint.
+  ///
+  /// In en, this message translates to:
+  /// **'This member posts anonymously. Their main account isn\'t shown.'**
+  String get anonymousProfileMemberHint;
+
+  /// No description provided for @anonymousProfileGuestHint.
+  ///
+  /// In en, this message translates to:
+  /// **'An anonymous identity of a forum member. The main account is kept private.'**
+  String get anonymousProfileGuestHint;
+
+  /// No description provided for @anonymousActiveLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Use anonymous identity'**
+  String get anonymousActiveLabel;
+
+  /// No description provided for @anonymousDisabledHint.
+  ///
+  /// In en, this message translates to:
+  /// **'While it\'s off you can\'t post with it. Existing posts stay as they are.'**
+  String get anonymousDisabledHint;
+
+  /// No description provided for @anonymousStatusRestricted.
+  ///
+  /// In en, this message translates to:
+  /// **'Restricted by an admin — you can\'t post with it right now'**
+  String get anonymousStatusRestricted;
+
+  /// No description provided for @anonymousStatusDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Turned off — you can\'t post with it right now'**
+  String get anonymousStatusDisabled;
+
+  /// No description provided for @anonymousLinkabilityHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Everything you post with it is gathered on one profile, so people may connect it. The content itself can still reveal who you are.'**
+  String get anonymousLinkabilityHint;
+
+  /// No description provided for @anonymousViewProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'View anonymous profile'**
+  String get anonymousViewProfile;
+
+  /// No description provided for @profilePrivacyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile visibility'**
+  String get profilePrivacyTitle;
+
+  /// No description provided for @profilePrivacyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose who can see each part of your profile.'**
+  String get profilePrivacyDescription;
+
+  /// No description provided for @profilePrivacyScope.
+  ///
+  /// In en, this message translates to:
+  /// **'This only changes what your profile shows. Your topics and replies still appear in categories, search and their original discussions, and counts such as followers stay visible.'**
+  String get profilePrivacyScope;
+
+  /// No description provided for @profilePrivacyViewProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'View my profile'**
+  String get profilePrivacyViewProfile;
+
+  /// No description provided for @profilePrivacyTopics.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts'**
+  String get profilePrivacyTopics;
+
+  /// No description provided for @profilePrivacyTopicsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts you published'**
+  String get profilePrivacyTopicsDescription;
+
+  /// No description provided for @profilePrivacyActivity.
+  ///
+  /// In en, this message translates to:
+  /// **'Activity'**
+  String get profilePrivacyActivity;
+
+  /// No description provided for @profilePrivacyActivityDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Replies and other activity. Posts, likes and follows in it also follow their own settings'**
+  String get profilePrivacyActivityDescription;
+
+  /// No description provided for @profilePrivacyLikes.
+  ///
+  /// In en, this message translates to:
+  /// **'Liked posts'**
+  String get profilePrivacyLikes;
+
+  /// No description provided for @profilePrivacyLikesDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts you liked'**
+  String get profilePrivacyLikesDescription;
+
+  /// No description provided for @profilePrivacyFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'Following list'**
+  String get profilePrivacyFollowing;
+
+  /// No description provided for @profilePrivacyFollowingDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'People you follow'**
+  String get profilePrivacyFollowingDescription;
+
+  /// No description provided for @profilePrivacyFollowers.
+  ///
+  /// In en, this message translates to:
+  /// **'Followers list'**
+  String get profilePrivacyFollowers;
+
+  /// No description provided for @profilePrivacyFollowersDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'People who follow you'**
+  String get profilePrivacyFollowersDescription;
+
+  /// No description provided for @profilePrivacyBookmarksDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts you bookmarked. Always visible only to you'**
+  String get profilePrivacyBookmarksDescription;
+
+  /// No description provided for @profilePrivacyEveryone.
+  ///
+  /// In en, this message translates to:
+  /// **'Everyone'**
+  String get profilePrivacyEveryone;
+
+  /// No description provided for @profilePrivacyMembers.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed-in members'**
+  String get profilePrivacyMembers;
+
+  /// No description provided for @profilePrivacyFollowersOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Your followers'**
+  String get profilePrivacyFollowersOnly;
+
+  /// No description provided for @profilePrivacyMutual.
+  ///
+  /// In en, this message translates to:
+  /// **'Mutual follows'**
+  String get profilePrivacyMutual;
+
+  /// No description provided for @profilePrivacySelf.
+  ///
+  /// In en, this message translates to:
+  /// **'Only you'**
+  String get profilePrivacySelf;
+
+  /// Title of the audience picker for one profile section.
+  ///
+  /// In en, this message translates to:
+  /// **'Who can see {section}'**
+  String profilePrivacyAudienceTitle(String section);
+
+  /// No description provided for @profilePrivacyLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to load profile visibility.'**
+  String get profilePrivacyLoadFailed;
+
+  /// No description provided for @profilePrivacySaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Visibility saved to your account'**
+  String get profilePrivacySaved;
+
+  /// No description provided for @profilePrivacySaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to save. Your setting hasn’t changed. Check your connection and try again.'**
+  String get profilePrivacySaveFailed;
+
+  /// No description provided for @profilePrivacyWidenTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Show to more people?'**
+  String get profilePrivacyWidenTitle;
+
+  /// Confirmation before a profile section becomes visible to more people.
+  ///
+  /// In en, this message translates to:
+  /// **'“{section}” will be visible to “{audience}”, including anything recorded while it was hidden.'**
+  String profilePrivacyWidenDescription(String section, String audience);
+
+  /// No description provided for @profilePrivacyWidenConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Show to more people'**
+  String get profilePrivacyWidenConfirm;
+
+  /// No description provided for @profileHiddenTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'This section isn’t public'**
+  String get profileHiddenTitle;
+
+  /// Shown to other viewers; name is the profile owner.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} chose not to show this on their profile.'**
+  String profileHiddenPrivate(String name);
+
+  /// Shown to guests; name is the profile owner.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} shows this only to signed-in members.'**
+  String profileHiddenSignin(String name);
+
+  /// Shown to signed-in non-followers; name is the profile owner.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} shows this only to followers. Follow to see it.'**
+  String profileHiddenFollowers(String name);
+
+  /// Shown to guests; name is the profile owner.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} shows this only to followers. Sign in and follow to see it.'**
+  String profileHiddenFollowersGuest(String name);
+
+  /// Shown to viewers who are not mutual follows; name is the profile owner.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} shows this only to mutual follows.'**
+  String profileHiddenMutual(String name);
+
+  /// No description provided for @profileHiddenSignIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in'**
+  String get profileHiddenSignIn;
+
+  /// No description provided for @profileOwnerMembers.
+  ///
+  /// In en, this message translates to:
+  /// **'Only signed-in members can see this.'**
+  String get profileOwnerMembers;
+
+  /// No description provided for @profileOwnerFollowers.
+  ///
+  /// In en, this message translates to:
+  /// **'Only your followers can see this.'**
+  String get profileOwnerFollowers;
+
+  /// No description provided for @profileOwnerMutual.
+  ///
+  /// In en, this message translates to:
+  /// **'Only mutual follows can see this.'**
+  String get profileOwnerMutual;
+
+  /// No description provided for @profileOwnerSelf.
+  ///
+  /// In en, this message translates to:
+  /// **'Only you can see this.'**
+  String get profileOwnerSelf;
+
+  /// No description provided for @notificationsMentions.
+  ///
+  /// In en, this message translates to:
+  /// **'Mentions'**
+  String get notificationsMentions;
+
+  /// No description provided for @notificationsReplies.
+  ///
+  /// In en, this message translates to:
+  /// **'Replies'**
+  String get notificationsReplies;
+
+  /// No description provided for @notificationsLikes.
+  ///
+  /// In en, this message translates to:
+  /// **'Likes'**
+  String get notificationsLikes;
+
+  /// No description provided for @notificationsFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'Following'**
+  String get notificationsFollowing;
+
+  /// No description provided for @notificationsSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'System'**
+  String get notificationsSystem;
+
+  /// No description provided for @pushChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct messages'**
+  String get pushChat;
+
+  /// No description provided for @pushMentionsAndReplies.
+  ///
+  /// In en, this message translates to:
+  /// **'Mentions and replies'**
+  String get pushMentionsAndReplies;
+
+  /// No description provided for @pushActivity.
+  ///
+  /// In en, this message translates to:
+  /// **'Likes'**
+  String get pushActivity;
+
+  /// No description provided for @pushFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'Following activity'**
+  String get pushFollowing;
+
+  /// No description provided for @pushSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'System and moderation'**
+  String get pushSystem;
+
+  /// No description provided for @notificationMentionTopic.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} mentioned you in “{topic}”'**
+  String notificationMentionTopic(String actor, String topic);
+
+  /// No description provided for @notificationCommentTopic.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} commented on “{topic}”'**
+  String notificationCommentTopic(String actor, String topic);
+
+  /// No description provided for @notificationTopicPostTopic.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} posted a reply in “{topic}”, which you follow'**
+  String notificationTopicPostTopic(String actor, String topic);
+
+  /// No description provided for @notificationWikiTopic.
+  ///
+  /// In en, this message translates to:
+  /// **'“{topic}” was updated'**
+  String notificationWikiTopic(String topic);
+
+  /// No description provided for @authPasskey.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with a passkey'**
+  String get authPasskey;
+
+  /// No description provided for @authPasskeyUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Passkeys are not available on this device.'**
+  String get authPasskeyUnavailable;
+
+  /// No description provided for @authPasskeyFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Passkey sign-in failed. Try again or use your password.'**
+  String get authPasskeyFailed;
+
+  /// No description provided for @authPasskeyCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'No passkey was selected or available. Try again or use your password.'**
+  String get authPasskeyCancelled;
+
+  /// No description provided for @settingsPasskeyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Passkeys'**
+  String get settingsPasskeyTitle;
+
+  /// No description provided for @settingsPasskeyManage.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage passkeys'**
+  String get settingsPasskeyManage;
+
+  /// No description provided for @settingsPasskeyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a device passkey to sign in without your password. Passkey sign-in still works when two-factor authentication is enabled.'**
+  String get settingsPasskeyDescription;
+
+  /// No description provided for @settingsPasskeyReauthHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Adding, renaming, or removing a passkey requires your password and, when enabled, a current authenticator code.'**
+  String get settingsPasskeyReauthHint;
+
+  /// No description provided for @settingsPasskeyName.
+  ///
+  /// In en, this message translates to:
+  /// **'Passkey name'**
+  String get settingsPasskeyName;
+
+  /// No description provided for @settingsPasskeyPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Login password'**
+  String get settingsPasskeyPassword;
+
+  /// No description provided for @settingsPasskeyAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a passkey'**
+  String get settingsPasskeyAdd;
+
+  /// No description provided for @settingsPasskeyAddedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Added'**
+  String get settingsPasskeyAddedAt;
+
+  /// No description provided for @settingsPasskeyLastUsed.
+  ///
+  /// In en, this message translates to:
+  /// **'Last used'**
+  String get settingsPasskeyLastUsed;
+
+  /// No description provided for @settingsPasskeyNeverUsed.
+  ///
+  /// In en, this message translates to:
+  /// **'Not used yet'**
+  String get settingsPasskeyNeverUsed;
+
+  /// No description provided for @settingsPasskeySyncCapable.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync-capable'**
+  String get settingsPasskeySyncCapable;
+
+  /// No description provided for @settingsPasskeyDeviceBound.
+  ///
+  /// In en, this message translates to:
+  /// **'Device-bound'**
+  String get settingsPasskeyDeviceBound;
+
+  /// No description provided for @settingsPasskeyBackedUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Synced'**
+  String get settingsPasskeyBackedUp;
+
+  /// No description provided for @settingsPasskeyRevokedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Removing a passkey from YourTJ does not delete it from your password manager.'**
+  String get settingsPasskeyRevokedHint;
+
+  /// No description provided for @settingsPasskeyRename.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename'**
+  String get settingsPasskeyRename;
+
+  /// No description provided for @settingsPasskeyRevoke.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get settingsPasskeyRevoke;
+
+  /// No description provided for @settingsPasskeyAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Passkey added'**
+  String get settingsPasskeyAdded;
+
+  /// No description provided for @settingsPasskeyRevoked.
+  ///
+  /// In en, this message translates to:
+  /// **'Passkey removed'**
+  String get settingsPasskeyRevoked;
+
+  /// No description provided for @settingsPasskeyEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No passkeys are registered.'**
+  String get settingsPasskeyEmpty;
+
+  /// No description provided for @settingsPasskeyUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Passkeys are not enabled on this server.'**
+  String get settingsPasskeyUnavailable;
+
+  /// No description provided for @previewUpdateInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'This is a testing build. Get updates from the release issue’s Android link or the assigned TestFlight group.'**
+  String get previewUpdateInstructions;
+
+  /// No description provided for @previewStale.
+  ///
+  /// In en, this message translates to:
+  /// **'This preview is no longer the current candidate. Check the release status for the current build or return to production.'**
+  String get previewStale;
+
+  /// No description provided for @previewStatusUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot verify this preview’s status. Check with the release owner before testing.'**
+  String get previewStatusUnknown;
+
+  /// No description provided for @previewStatusLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview status'**
+  String get previewStatusLink;
 }
 
 class _AppLocalizationsDelegate

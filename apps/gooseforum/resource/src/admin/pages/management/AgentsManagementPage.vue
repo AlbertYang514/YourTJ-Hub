@@ -3,7 +3,8 @@ import { userDisplayName } from '@/runtime/private-notes'
 import { adminText } from '@/admin/runtime/i18n-text'
 
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Bot, Copy, KeyRound, Pencil, Plus, RefreshCw, ShieldOff } from '@lucide/vue'
+import { useI18n } from 'vue-i18n'
+import { Activity, Bot, Copy, KeyRound, Pencil, Plus, RefreshCw, ShieldOff } from '@lucide/vue'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
 import AdminConfirmDialog from '@/admin/components/AdminConfirmDialog.vue'
 import { BasicPage } from '@/admin/components/global-layout'
@@ -19,7 +20,10 @@ import {
 } from '@/admin/components/ui/dialog'
 import { Input } from '@/admin/components/ui/input'
 import { Switch } from '@/admin/components/ui/switch'
+import AgentContentCorrectionDialog from '@/admin/pages/management/AgentContentCorrectionDialog.vue'
+import AgentWebhookManagementDialog from '@/admin/pages/management/AgentWebhookManagementDialog.vue'
 import { createAgent, disableAgent, getAgentList, rotateAgentToken, updateAgent } from '@/admin/runtime/api'
+import { AdminPermission, hasAdminPermission } from '@/admin/runtime/access'
 import { adminToast } from '@/admin/runtime/toast'
 import type { AdminAgent, AdminPayload, ManageHomeProps } from '@/admin/types'
 
@@ -28,6 +32,7 @@ defineProps<{
 }>()
 
 const loading = ref(false)
+const { t } = useI18n()
 const saving = ref(false)
 const error = ref('')
 const agents = ref<AdminAgent[]>([])
@@ -36,6 +41,8 @@ const creating = ref(false)
 const rotating = ref<AdminAgent | null>(null)
 const rotatingToken = ref('')
 const disabling = ref<AdminAgent | null>(null)
+const contentAgent = ref<AdminAgent | null>(null)
+const webhookAgent = ref<AdminAgent | null>(null)
 const copied = ref(false)
 const form = reactive({ username: '', nickname: '', webhookEndpoint: '', enabled: true })
 
@@ -64,7 +71,6 @@ function openEdit(agent: AdminAgent) {
   Object.assign(form, {
     username: agent.username,
     nickname: agent.nickname,
-    webhookEndpoint: agent.webhookEndpoint,
     enabled: agent.enabled === 1,
   })
   editing.value = agent
@@ -102,7 +108,6 @@ async function submitUpdate() {
     await updateAgent({
       agentId: editing.value.agentId,
       nickname: form.nickname.trim(),
-      webhookEndpoint: form.webhookEndpoint.trim(),
       enabled: form.enabled ? 1 : 0,
     })
     editing.value = null
@@ -174,7 +179,7 @@ onMounted(() => {
           <RefreshCw class="size-4" />
           {{ adminText('k004q') }}
         </Button>
-        <Button type="button" @click="openCreate">
+        <Button v-if="hasAdminPermission(AdminPermission.Admin)" type="button" @click="openCreate">
           <Plus class="size-4" />
           {{ adminText('k00k8') }}
         </Button>
@@ -220,7 +225,7 @@ onMounted(() => {
                   <Badge variant="secondary">{{ adminText('k00l6') }}</Badge>
                 </div>
               </td>
-              <td class="px-4 py-3 font-medium">{{ userDisplayName(agent.agentId, agent.username, agent.nickname) }}</td>
+              <td class="px-4 py-3 font-medium"><a :href="`/u/${agent.agentId}`" class="underline-offset-4 hover:underline">{{ userDisplayName(agent.agentId, agent.username, agent.nickname) }}</a></td>
               <td class="px-4 py-3 text-muted-foreground">{{ agent.nickname || '—' }}</td>
               <td class="px-4 py-3 font-mono text-xs text-muted-foreground">{{ agent.tokenPrefix }}…</td>
               <td class="px-4 py-3">
@@ -232,8 +237,14 @@ onMounted(() => {
               <td class="px-4 py-3 text-xs text-muted-foreground">{{ formatTime(agent.createdAt) }}</td>
               <td class="px-4 py-3">
                 <div class="flex items-center justify-end gap-1">
+                  <AdminActionButton v-if="agent.enabled === 1" compact :title="t('agentContent.open')" @click="contentAgent = agent">
+                    <Pencil class="size-3.5" />
+                  </AdminActionButton>
                   <AdminActionButton compact :title="adminText('k00kj')" @click="openEdit(agent)">
                     <Pencil class="size-3.5" />
+                  </AdminActionButton>
+                  <AdminActionButton compact :title="t('agentWebhook.open')" @click="webhookAgent = agent">
+                    <Activity class="size-3.5" />
                   </AdminActionButton>
                   <AdminActionButton compact tone="primary" :title="adminText('k00kk')" @click="rotating = agent; rotatingToken = ''; copied = false">
                     <KeyRound class="size-3.5" />
@@ -286,16 +297,12 @@ onMounted(() => {
       <DialogContent class="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{{ adminText('k00kq') }} · {{ form.username }}</DialogTitle>
-          <DialogDescription>{{ adminText('k00l9') }}</DialogDescription>
+          <DialogDescription>{{ t('agentWebhook.profileDescription') }}</DialogDescription>
         </DialogHeader>
         <form class="grid gap-4" @submit.prevent="submitUpdate">
           <label class="grid gap-2 text-sm font-medium">
             {{ adminText('k00ka') }}
             <Input v-model="form.nickname" maxlength="64" />
-          </label>
-          <label class="grid gap-2 text-sm font-medium">
-            {{ adminText('k00kb') }}
-            <Input v-model="form.webhookEndpoint" placeholder="https://example.com/hook" />
           </label>
           <div class="grid gap-2 text-sm font-medium">
             {{ adminText('k00kc') }}
@@ -351,6 +358,15 @@ onMounted(() => {
       :loading="saving"
       @update:open="(open) => !open && (disabling = null)"
       @confirm="confirmDisable"
+    />
+
+    <AgentContentCorrectionDialog v-if="contentAgent" :agent="contentAgent" :categories="payload.layout.sidebar.categories" @close="contentAgent = null" />
+
+    <AgentWebhookManagementDialog
+      :agent="webhookAgent"
+      :open="webhookAgent !== null"
+      @update:open="(open) => !open && (webhookAgent = null)"
+      @updated="loadAgents"
     />
   </BasicPage>
 </template>

@@ -22,6 +22,7 @@ LayoutPayload _$LayoutPayloadFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$LayoutPayload {
   SitePayload get site => throw _privateConstructorUsedError;
+  bool get dailyRanking => throw _privateConstructorUsedError;
   ViewerPayload get viewer => throw _privateConstructorUsedError;
   List<NavItemPayload>? get header => throw _privateConstructorUsedError;
   SidebarPayload get sidebar => throw _privateConstructorUsedError;
@@ -49,6 +50,7 @@ abstract class $LayoutPayloadCopyWith<$Res> {
   @useResult
   $Res call({
     SitePayload site,
+    bool dailyRanking,
     ViewerPayload viewer,
     List<NavItemPayload>? header,
     SidebarPayload sidebar,
@@ -83,6 +85,7 @@ class _$LayoutPayloadCopyWithImpl<$Res, $Val extends LayoutPayload>
   @override
   $Res call({
     Object? site = null,
+    Object? dailyRanking = null,
     Object? viewer = null,
     Object? header = freezed,
     Object? sidebar = null,
@@ -97,6 +100,10 @@ class _$LayoutPayloadCopyWithImpl<$Res, $Val extends LayoutPayload>
                 ? _value.site
                 : site // ignore: cast_nullable_to_non_nullable
                       as SitePayload,
+            dailyRanking: null == dailyRanking
+                ? _value.dailyRanking
+                : dailyRanking // ignore: cast_nullable_to_non_nullable
+                      as bool,
             viewer: null == viewer
                 ? _value.viewer
                 : viewer // ignore: cast_nullable_to_non_nullable
@@ -216,6 +223,7 @@ abstract class _$$LayoutPayloadImplCopyWith<$Res>
   @useResult
   $Res call({
     SitePayload site,
+    bool dailyRanking,
     ViewerPayload viewer,
     List<NavItemPayload>? header,
     SidebarPayload sidebar,
@@ -256,6 +264,7 @@ class __$$LayoutPayloadImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? site = null,
+    Object? dailyRanking = null,
     Object? viewer = null,
     Object? header = freezed,
     Object? sidebar = null,
@@ -270,6 +279,10 @@ class __$$LayoutPayloadImplCopyWithImpl<$Res>
             ? _value.site
             : site // ignore: cast_nullable_to_non_nullable
                   as SitePayload,
+        dailyRanking: null == dailyRanking
+            ? _value.dailyRanking
+            : dailyRanking // ignore: cast_nullable_to_non_nullable
+                  as bool,
         viewer: null == viewer
             ? _value.viewer
             : viewer // ignore: cast_nullable_to_non_nullable
@@ -308,6 +321,7 @@ class __$$LayoutPayloadImplCopyWithImpl<$Res>
 class _$LayoutPayloadImpl implements _LayoutPayload {
   const _$LayoutPayloadImpl({
     required this.site,
+    this.dailyRanking = false,
     required this.viewer,
     final List<NavItemPayload>? header,
     required this.sidebar,
@@ -322,6 +336,9 @@ class _$LayoutPayloadImpl implements _LayoutPayload {
 
   @override
   final SitePayload site;
+  @override
+  @JsonKey()
+  final bool dailyRanking;
   @override
   final ViewerPayload viewer;
   final List<NavItemPayload>? _header;
@@ -347,7 +364,7 @@ class _$LayoutPayloadImpl implements _LayoutPayload {
 
   @override
   String toString() {
-    return 'LayoutPayload(site: $site, viewer: $viewer, header: $header, sidebar: $sidebar, footer: $footer, unread: $unread, theme: $theme, posting: $posting)';
+    return 'LayoutPayload(site: $site, dailyRanking: $dailyRanking, viewer: $viewer, header: $header, sidebar: $sidebar, footer: $footer, unread: $unread, theme: $theme, posting: $posting)';
   }
 
   @override
@@ -356,6 +373,8 @@ class _$LayoutPayloadImpl implements _LayoutPayload {
         (other.runtimeType == runtimeType &&
             other is _$LayoutPayloadImpl &&
             (identical(other.site, site) || other.site == site) &&
+            (identical(other.dailyRanking, dailyRanking) ||
+                other.dailyRanking == dailyRanking) &&
             (identical(other.viewer, viewer) || other.viewer == viewer) &&
             const DeepCollectionEquality().equals(other._header, _header) &&
             (identical(other.sidebar, sidebar) || other.sidebar == sidebar) &&
@@ -370,6 +389,7 @@ class _$LayoutPayloadImpl implements _LayoutPayload {
   int get hashCode => Object.hash(
     runtimeType,
     site,
+    dailyRanking,
     viewer,
     const DeepCollectionEquality().hash(_header),
     sidebar,
@@ -396,6 +416,7 @@ class _$LayoutPayloadImpl implements _LayoutPayload {
 abstract class _LayoutPayload implements LayoutPayload {
   const factory _LayoutPayload({
     required final SitePayload site,
+    final bool dailyRanking,
     required final ViewerPayload viewer,
     final List<NavItemPayload>? header,
     required final SidebarPayload sidebar,
@@ -410,6 +431,8 @@ abstract class _LayoutPayload implements LayoutPayload {
 
   @override
   SitePayload get site;
+  @override
+  bool get dailyRanking;
   @override
   ViewerPayload get viewer;
   @override
@@ -913,12 +936,15 @@ ViewerPayload _$ViewerPayloadFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$ViewerPayload {
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration => throw _privateConstructorUsedError;
   int get id => throw _privateConstructorUsedError;
   String get username => throw _privateConstructorUsedError;
   String get email => throw _privateConstructorUsedError;
   String get avatarUrl => throw _privateConstructorUsedError;
   bool get isAuthenticated => throw _privateConstructorUsedError;
   bool get canAccessAdmin => throw _privateConstructorUsedError;
+  bool get canManageAgents => throw _privateConstructorUsedError;
   bool get isModerator => throw _privateConstructorUsedError;
   bool get requiresEmailVerification => throw _privateConstructorUsedError;
   List<int>? get adminPermissions => throw _privateConstructorUsedError;
@@ -941,12 +967,14 @@ abstract class $ViewerPayloadCopyWith<$Res> {
   ) = _$ViewerPayloadCopyWithImpl<$Res, ViewerPayload>;
   @useResult
   $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     int id,
     String username,
     String email,
     String avatarUrl,
     bool isAuthenticated,
     bool canAccessAdmin,
+    bool canManageAgents,
     bool isModerator,
     bool requiresEmailVerification,
     List<int>? adminPermissions,
@@ -968,18 +996,24 @@ class _$ViewerPayloadCopyWithImpl<$Res, $Val extends ViewerPayload>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? id = null,
     Object? username = null,
     Object? email = null,
     Object? avatarUrl = null,
     Object? isAuthenticated = null,
     Object? canAccessAdmin = null,
+    Object? canManageAgents = null,
     Object? isModerator = null,
     Object? requiresEmailVerification = null,
     Object? adminPermissions = freezed,
   }) {
     return _then(
       _value.copyWith(
+            decoration: freezed == decoration
+                ? _value.decoration
+                : decoration // ignore: cast_nullable_to_non_nullable
+                      as UserDecoration?,
             id: null == id
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
@@ -1003,6 +1037,10 @@ class _$ViewerPayloadCopyWithImpl<$Res, $Val extends ViewerPayload>
             canAccessAdmin: null == canAccessAdmin
                 ? _value.canAccessAdmin
                 : canAccessAdmin // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            canManageAgents: null == canManageAgents
+                ? _value.canManageAgents
+                : canManageAgents // ignore: cast_nullable_to_non_nullable
                       as bool,
             isModerator: null == isModerator
                 ? _value.isModerator
@@ -1032,12 +1070,14 @@ abstract class _$$ViewerPayloadImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     int id,
     String username,
     String email,
     String avatarUrl,
     bool isAuthenticated,
     bool canAccessAdmin,
+    bool canManageAgents,
     bool isModerator,
     bool requiresEmailVerification,
     List<int>? adminPermissions,
@@ -1058,18 +1098,24 @@ class __$$ViewerPayloadImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? id = null,
     Object? username = null,
     Object? email = null,
     Object? avatarUrl = null,
     Object? isAuthenticated = null,
     Object? canAccessAdmin = null,
+    Object? canManageAgents = null,
     Object? isModerator = null,
     Object? requiresEmailVerification = null,
     Object? adminPermissions = freezed,
   }) {
     return _then(
       _$ViewerPayloadImpl(
+        decoration: freezed == decoration
+            ? _value.decoration
+            : decoration // ignore: cast_nullable_to_non_nullable
+                  as UserDecoration?,
         id: null == id
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
@@ -1094,6 +1140,10 @@ class __$$ViewerPayloadImplCopyWithImpl<$Res>
             ? _value.canAccessAdmin
             : canAccessAdmin // ignore: cast_nullable_to_non_nullable
                   as bool,
+        canManageAgents: null == canManageAgents
+            ? _value.canManageAgents
+            : canManageAgents // ignore: cast_nullable_to_non_nullable
+                  as bool,
         isModerator: null == isModerator
             ? _value.isModerator
             : isModerator // ignore: cast_nullable_to_non_nullable
@@ -1115,12 +1165,14 @@ class __$$ViewerPayloadImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$ViewerPayloadImpl implements _ViewerPayload {
   const _$ViewerPayloadImpl({
+    @JsonKey(fromJson: UserDecoration.parse) this.decoration,
     required this.id,
     required this.username,
     required this.email,
     required this.avatarUrl,
     required this.isAuthenticated,
     required this.canAccessAdmin,
+    this.canManageAgents = false,
     required this.isModerator,
     required this.requiresEmailVerification,
     final List<int>? adminPermissions,
@@ -1129,6 +1181,9 @@ class _$ViewerPayloadImpl implements _ViewerPayload {
   factory _$ViewerPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$ViewerPayloadImplFromJson(json);
 
+  @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  final UserDecoration? decoration;
   @override
   final int id;
   @override
@@ -1141,6 +1196,9 @@ class _$ViewerPayloadImpl implements _ViewerPayload {
   final bool isAuthenticated;
   @override
   final bool canAccessAdmin;
+  @override
+  @JsonKey()
+  final bool canManageAgents;
   @override
   final bool isModerator;
   @override
@@ -1158,7 +1216,7 @@ class _$ViewerPayloadImpl implements _ViewerPayload {
 
   @override
   String toString() {
-    return 'ViewerPayload(id: $id, username: $username, email: $email, avatarUrl: $avatarUrl, isAuthenticated: $isAuthenticated, canAccessAdmin: $canAccessAdmin, isModerator: $isModerator, requiresEmailVerification: $requiresEmailVerification, adminPermissions: $adminPermissions)';
+    return 'ViewerPayload(decoration: $decoration, id: $id, username: $username, email: $email, avatarUrl: $avatarUrl, isAuthenticated: $isAuthenticated, canAccessAdmin: $canAccessAdmin, canManageAgents: $canManageAgents, isModerator: $isModerator, requiresEmailVerification: $requiresEmailVerification, adminPermissions: $adminPermissions)';
   }
 
   @override
@@ -1166,6 +1224,8 @@ class _$ViewerPayloadImpl implements _ViewerPayload {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$ViewerPayloadImpl &&
+            (identical(other.decoration, decoration) ||
+                other.decoration == decoration) &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.username, username) ||
                 other.username == username) &&
@@ -1176,6 +1236,8 @@ class _$ViewerPayloadImpl implements _ViewerPayload {
                 other.isAuthenticated == isAuthenticated) &&
             (identical(other.canAccessAdmin, canAccessAdmin) ||
                 other.canAccessAdmin == canAccessAdmin) &&
+            (identical(other.canManageAgents, canManageAgents) ||
+                other.canManageAgents == canManageAgents) &&
             (identical(other.isModerator, isModerator) ||
                 other.isModerator == isModerator) &&
             (identical(
@@ -1193,12 +1255,14 @@ class _$ViewerPayloadImpl implements _ViewerPayload {
   @override
   int get hashCode => Object.hash(
     runtimeType,
+    decoration,
     id,
     username,
     email,
     avatarUrl,
     isAuthenticated,
     canAccessAdmin,
+    canManageAgents,
     isModerator,
     requiresEmailVerification,
     const DeepCollectionEquality().hash(_adminPermissions),
@@ -1220,12 +1284,14 @@ class _$ViewerPayloadImpl implements _ViewerPayload {
 
 abstract class _ViewerPayload implements ViewerPayload {
   const factory _ViewerPayload({
+    @JsonKey(fromJson: UserDecoration.parse) final UserDecoration? decoration,
     required final int id,
     required final String username,
     required final String email,
     required final String avatarUrl,
     required final bool isAuthenticated,
     required final bool canAccessAdmin,
+    final bool canManageAgents,
     required final bool isModerator,
     required final bool requiresEmailVerification,
     final List<int>? adminPermissions,
@@ -1234,6 +1300,9 @@ abstract class _ViewerPayload implements ViewerPayload {
   factory _ViewerPayload.fromJson(Map<String, dynamic> json) =
       _$ViewerPayloadImpl.fromJson;
 
+  @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration;
   @override
   int get id;
   @override
@@ -1246,6 +1315,8 @@ abstract class _ViewerPayload implements ViewerPayload {
   bool get isAuthenticated;
   @override
   bool get canAccessAdmin;
+  @override
+  bool get canManageAgents;
   @override
   bool get isModerator;
   @override

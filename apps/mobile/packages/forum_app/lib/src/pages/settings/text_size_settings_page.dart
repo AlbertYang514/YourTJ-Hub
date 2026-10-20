@@ -28,7 +28,9 @@ enum _TextSizeAxis { app, reading }
 /// The control panel keeps the default app size so the slider never moves
 /// away from the finger.
 class TextSizeSettingsPage extends ConsumerStatefulWidget {
-  const TextSizeSettingsPage({super.key});
+  const TextSizeSettingsPage({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   ConsumerState<TextSizeSettingsPage> createState() =>
@@ -75,7 +77,9 @@ class _TextSizeSettingsPageState extends ConsumerState<TextSizeSettingsPage> {
     final double appScale = ref.watch(appFontScaleProvider);
     final double readingScale = ref.watch(contentFontScaleProvider);
     return Scaffold(
-      appBar: GfAppBar(title: Text(l10n.textSizeTitle)),
+      appBar: widget.embedded
+          ? null
+          : GfAppBar(title: GfText(l10n.textSizeTitle)),
       body: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) => Column(
           children: <Widget>[
@@ -149,7 +153,7 @@ class _TextSizePreview extends StatelessWidget {
         children: <Widget>[
           GfSymbol(symbol, size: 18, color: colors.iconMuted),
           const SizedBox(width: 6),
-          Text(count, style: meta),
+          GfText(count, style: meta),
         ],
       ),
     );
@@ -416,7 +420,7 @@ class _TextSizeControls extends ConsumerWidget {
                               .resetToDefault();
                         },
                   icon: const GfSymbol('undo-2', size: 18),
-                  label: Text(l10n.textSizeReset),
+                  label: GfText(l10n.textSizeReset),
                 ),
               ),
             ],
@@ -465,8 +469,8 @@ class _TextSizeSlider extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.baseline,
           textBaseline: TextBaseline.alphabetic,
           children: <Widget>[
-            Expanded(child: Text(title, style: type.bodyStrong)),
-            Text(
+            Expanded(child: GfText(title, style: type.bodyStrong)),
+            GfText(
               label,
               key: ValueKey('text-size-${axis.name}-label'),
               style: type.small.copyWith(
@@ -478,11 +482,11 @@ class _TextSizeSlider extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 2),
-        Text(description, style: muted),
+        GfText(description, style: muted),
         Row(
           children: <Widget>[
             ExcludeSemantics(
-              child: Text('Aa', style: muted.copyWith(fontSize: 13)),
+              child: GfText('Aa', style: muted.copyWith(fontSize: 13)),
             ),
             Expanded(
               child: Semantics(
@@ -508,7 +512,7 @@ class _TextSizeSlider extends StatelessWidget {
               ),
             ),
             ExcludeSemantics(
-              child: Text(
+              child: GfText(
                 'Aa',
                 style: type.title2.copyWith(color: colors.iconMuted),
               ),

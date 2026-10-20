@@ -2,11 +2,11 @@
 
 > Doc type: product spec
 >
-> Status: Active (auth chain `Partial`; built-in OIDC Provider + password/TOTP/GitHub OAuth/Google OAuth implemented)
+> Status: Active (auth chain `Partial`; built-in OIDC Provider + password/TOTP/GitHub OAuth/Google OAuth implemented; passkeys are opt-in and device acceptance remains `Partial`)
 >
 > Owner: Platform maintainers, Security reviewer
 >
-> Last verified: 2026-09-20
+> Last verified: 2026-10-19
 
 ## Identity model
 
@@ -21,6 +21,14 @@
 - The forum JWT is only a **session credential** (HS256, self-signed, 7-day TTL, carries a `jti`); it
   is not identity truth and is never issued to external OIDC clients — those receive opaque access
   tokens scoped to the built-in provider.
+## Forum anonymous personas
+
+`Current`: numeric accounts privately own one persistent anonymous forum persona. It is a display
+identity with no separate login, OIDC subject or credentials. Public authors and profiles hide the
+owner; a separately granted, audited permission reveals the binding. Account closure retains the
+private binding and restricted audits indefinitely and prevents subsequent persona writes. See
+[anonymous identity](anonymous-identity.md) for the supported naming, publishing and governance rules.
+
 ## Login flows
 
 ### Web
@@ -32,6 +40,15 @@
   be read, login fails without issuing either a challenge or a session.
   A challenge token can mint at most one session: it is atomically consumed on successful verification
   (`totpservice.ConsumeChallenge`), so replaying it cannot create a second session.
+- Passkey login (`Partial`, deployment opt-in): the forum acts as the WebAuthn relying party and
+  starts a discoverable credential ceremony requiring authenticator user verification. A successful
+  assertion creates the same revocable `jti` + `user_sessions` session as other forum logins. Passkey
+  login is an independent passwordless sign-in path, including for accounts with TOTP enabled; TOTP
+  remains required on password login. Registration is available only to an existing signed-in
+  account. Adding, renaming or revoking a credential requires a fresh password check and, when TOTP
+  is enabled, a current TOTP code. Account closure removes credentials and pending ceremonies.
+  Email/password recovery does not depend on passkeys.
+  The implementation decision is recorded in [MADR 0091](../decisions/0091-forum-owned-cross-platform-passkeys.md).
 - GitHub OAuth and Google OAuth (goth): callbacks bind or sign in and issue a session token. Google
   requests only `openid`, `email`, and `profile` scopes; its email is treated as trusted for account
   binding only when the Google userinfo response contains `verified_email=true`. GitHub/Google OAuth callbacks
@@ -42,6 +59,10 @@
   only through password registration, where the `allowedDomains` allowlist is enforced. Provider credential changes
   require a process restart; saving a new site callback URL in the admin console refreshes the
   providers immediately.
+- The Web login page derives GitHub and Google availability from the providers registered in the
+  running server. A missing provider is shown as a disabled, localized control without a login link;
+  a direct request to its OAuth start route returns the shared localized error page with HTTP 503.
+  Configured providers continue through the existing Goth state, callback and session flow.
 
 ### Tongji unified sign-in
 
@@ -67,7 +88,11 @@ establish a password. Closing an account keeps the ordinary retained-email reser
 identity reservation survives unlink, replacement and closure to prevent repeat signup and initial-point
 claims; it contains no user ID, email, school ID or credentials and cannot authenticate a user.
 Registration completion uses a ten-minute HttpOnly browser proof and independent CSRF token,
-with no school credentials in the browser. Validation failures allow retry; success consumes the
+with no school credentials in the browser. School-verified registration distinguishes occupied,
+reserved and banned usernames, prompting the user to choose another name. Signup closure and daily
+quota retain their dedicated messages; unexpected failures remain generic. Failed submissions create
+no partial account or campus binding and keep the proof usable until its original deadline.
+Validation failures allow retry; success consumes the
 proof and resumes the original safe destination, including App OIDC. Restart or expiration requires
 fresh school authentication. See [the decision](../decisions/0034-tongji-registration-completion.md).
 
@@ -97,6 +122,13 @@ Web login returns home; account binding returns to settings. A continuation star
 cannot become an account-binding operation if another forum session appears in the browser. Tongji
 retains the continuation in its server-side login transaction and resumes the same OIDC bridge; school
 credentials are never returned to Dart.
+
+`Partial`: when the deployment enables passkeys, iOS and Android can sign in with a discoverable
+passkey through the platform credential provider. Existing accounts can add, rename and revoke
+credentials from account security after password reauthentication and TOTP when enabled. Passkey
+sign-in requires user verification and issues the ordinary forum session; email/password recovery
+remains available. Device acceptance, including Android OEM credential-provider behavior, has not
+been completed.
 
 On Android, Google, GitHub and Tongji use one RFC 8252 external-system-browser path. The app builds
 the authorization request itself with PKCE S256, independent `state` and `nonce`, and the provider
@@ -135,6 +167,9 @@ included in the URL, page body or JavaScript. See [mobile experience](mobile-exp
 - **Password login** is protected by forum-side TOTP (RFC 6238, optional, opt-in). Secrets are stored
   AES-256-GCM encrypted (key derived from `app.signingKey`); recovery codes are stored hashed and are
   single-use; verification attempts are rate-limited per user (10 failures / 15 min).
+- Passkey login requires WebAuthn user verification and signs in independently of password/TOTP.
+  TOTP remains an additional step only for password login; credential-management changes still
+  require password and enabled TOTP reauthentication.
 - **GitHub/Google/Tongji and built-in OIDC logins** do not run forum TOTP; MFA for those paths is a
   `Decision needed` (the built-in provider reuses the authenticated forum session, so a future phase
   may enforce forum TOTP there as well).
@@ -145,6 +180,35 @@ included in the URL, page body or JavaScript. See [mobile experience](mobile-exp
 display name and profile links belong to the public profile. Email, verification notices and pending
 email-change confirmation appear in a separate private section. Email supports sign-in, verification
 and account recovery; it is not included in the public user card or profile.
+
+`Current`: members choose who can see five profile sections — topics, activity, liked topics,
+following list and followers list — from Web Settings → Privacy → Profile visibility and the
+app's account settings (Account, security & privacy) → Privacy → Profile visibility. Audiences
+are everyone, signed-in members,
+your followers, mutual follows and only you; liked topics offer everyone, followers and only you;
+follow lists omit signed-in members. Every account starts with everyone. The server enforces the
+choice for profile HTML, page JSON and the app: hidden sections return no rows or pagination
+cursor, and timeline posts, likes and follows also obey their own sections. The owner always sees
+everything: Web adds a note above a restricted list naming who else can see it, and the app puts
+that on the tab lock instead. Other members and guests see
+a "not public" state that names the owner and the reason; guests get a sign-in action only when
+signing in could reveal the section. Blocked viewers and failed reads see the section as hidden.
+Web and app profile tabs carry a small lock on hidden sections for visitors and on restricted ones
+for the owner. When a section
+is hidden for followers or mutual follows, following from the profile re-reads it so it opens in
+place; unfollowing keeps what was already shown until the next load.
+Changes apply on the next request; profile pages are `private, no-store`. Widening an audience asks
+for confirmation because older activity becomes visible again. Old Web switches that were stored only
+in the browser are offered once for migration and never applied silently. See
+[0088](../decisions/0088-profile-section-privacy.md).
+
+`Current`: profile visibility controls profile aggregation only. Topics and replies stay visible in
+categories, search and their discussions; user cards keep follower, topic and like counts; bookmarks
+remain owner-only. Settings copy states this scope, and Web and app settings list bookmarks as a
+fixed "only you" row with no picker; the owner's bookmarks tab carries the lock too.
+
+`Decision needed`: private accounts with follow approval, message and mention permissions, hiding
+social counts and badges, and moderator access rules beyond today's public profile.
 
 ## Account lifecycle
 
@@ -238,6 +302,12 @@ and account recovery; it is not included in the public user card or profile.
   change-password form still requires the old password), so email-less OAuth users on mobile
   need the Web settings page or an administrator; administrators retain the console command
   for recovery.
+- Account closure and contribution statistics: `Current`. Closure soft-deletes the `users` row; a
+  closed account is excluded from contributor counts, user ranking and per-user detail, and rebuilding
+  the aggregates never recreates the closed author's identity. Its already-published content keeps
+  counting toward category and site content totals under the ordinary publication rules. Anonymous
+  content never carries user attribution, and per-user figures resolve only public human ownership;
+  counting definitions live in [forum](forum.md#content-contribution-statistics).
 - Ban/freeze: the forum `users.is_frozen` flag is authoritative; the OIDC userinfo endpoint and
   exchange path reject frozen accounts.
 - Content deletion/export: `Current` for the implemented forum and admin flows. Users can list,
@@ -259,7 +329,7 @@ and account recovery; it is not included in the public user card or profile.
   shown exactly once. The database stores only a SHA-256 hash plus a non-secret 8-char prefix used
   for efficient lookup; the plaintext token is never logged or stored. The admin UI cannot dismiss an
   in-flight rotation and resets copy state for every newly issued one-time token.
-- Each Agent has zero or one configurable webhook endpoint. Only public HTTP(S) endpoints are accepted;
+- Each Agent has zero or one configurable webhook endpoint. Only public HTTPS endpoints on port 443 are accepted;
   loopback, private/link-local IPs, IPv6 zone identifiers, credentials, fragments, and legacy numeric IP
   spellings are rejected. Rotating the token invalidates the old one immediately. Disabling an Agent
   **revokes** its credential: the stored token hash is cleared, so a leaked token can never validate
@@ -268,6 +338,23 @@ and account recovery; it is not included in the public user card or profile.
   instead of silently dropping one new token. Rotation, disablement, and profile edits update only
   their owned columns so concurrent security changes cannot be reverted by a stale full-row save.
   Agent deletion is not supported.
+- `Current`: activated, unfrozen human creators manage only Agents whose `created_by` matches
+  their account; station administrators (`role_id = 1` or a role with `Admin` permission) manage all Agents. This includes profile,
+  credential, event subscription and Webhook recovery operations. Agent creation and the global
+  comment policy retain their administrator permission gates. The management shell does not grant
+  other administrator capabilities.
+- `Current`: the bot's public profile offers an editor to its human creator and station administrators
+  for nickname, avatar, cover, bio, signature and website. Custom avatars use the operator's upload
+  permission and quota, then update the bot's avatar; the operator remains signed in as themselves.
+  Avatar uploads apply immediately, while the other profile fields apply on Save.
+- `Current`: creators and station administrators correct eligible Agent topics and replies directly
+  through the management editor. The bot remains the author, while revisions and the audit record
+  identify the real human operator. Only active, published, nonanonymous forum content is eligible;
+  edits reuse moderation and keep the last approved version public while review is pending.
+  A revision conflict preserves the local draft and requires an explicit reload. This creates no
+  bot login, impersonation session or ability to publish new content as the bot. See
+  [the direct-correction decision](../decisions/0087-agent-owner-content-maintenance.md) and
+  [the Agent runbook](../operations/agents.md#human-management-and-content-correction).
 - Human-auth isolation: bot rows are rejected by password login, forgot/reset password, OAuth
   (goth) login/binding, password change, TOTP setup/enable/disable, and
   human session creation/listing (the JWT session middleware never resolves a bot user). Admin
@@ -279,8 +366,39 @@ and account recovery; it is not included in the public user card or profile.
   and fallback credentials are never accepted, and every failed credential resolves to the same
   `auth.required` 401 envelope. Agent writes reuse the human topic/post rate limits (IP + bot
   userId) and skip only browser-specific honeypot, captcha, and new-user cooldown gates. Topic
-  creation always publishes (`topicStatus=1`).
-- Mention parsing, webhook sending, OAuth/session/scopes for Agents remain `Planned`.
+  creation requests publication (`topicStatus=1`); moderation can return a pending result.
+  Topic authors can prohibit robot replies through the immediate
+  [topic policy](forum.md#robot-reply-control), enforced at reply entry, transactional submission, and first public approval for REST and MCP.
+- `Current`: new Agents atomically receive and wear the `robot` badge. Upgrade backfill grants/wears
+  it for bots with no selected badge, preserves other selections, and does not notify twice or change
+  human accounts. Bot identities remain separated from ordinary human login/search/role assignment.
+- `Current`: public human mentions, direct replies and comments on Agent topics produce durable,
+  recipient-isolated events. Priority is direct reply, then mention, then topic comment; one logical
+  event per occurrence/Agent. Bot, anonymous, non-forum, draft, pending, deleted and blocked sources
+  cannot authorize directed delivery. Separately subscribed `forum.topic_created` and
+  `forum.post_created` broadcasts include public human and bot posts, exclude self-delivery, and
+  bound bot chains. Public edits notify only new mentions relative to the last public
+  revision, including approved pending edits. Web and Flutter editors use dedicated public mention
+  candidates and identify bots. Flutter device acceptance remains `Partial` pending runtime checks.
+- `Current`: pull/ACK, signed Webhooks, independent subscription/destination generations, bounded
+  workers/retries, admin diagnostics/replay, source-linked idempotent writes, REST/MCP contracts and
+  development-snapshot isolation are implemented. Local protocol and database validation is separate
+  from deployment or external-runner acceptance. Read/receiver success does not acknowledge handling.
+  Token rotation/disablement revalidates open MCP sessions; content-write tools keep their own gates.
+- `Current`: administrators can disable new Agent comments globally or per topic. Already committed
+  idempotent writes still replay; topic creation, event delivery and ACK keep their existing gates.
+  The [Agent runbook](../operations/agents.md) owns the broadcast bounds and policy controls.
+- `Current`: the admin content contribution statistics keep the two populations apart — category
+  summaries report human (`contributorCount`) and Agent (`agentContributorCount`) contributors in
+  separate fields, and user ranking/detail select exactly one actor type through `actorType` (human
+  by default), so bot contributions never inflate a human figure or the reverse. Agent accounts stay
+  visible by their real identity to administrators; counting definitions live in
+  [forum](forum.md#content-contribution-statistics).
+- `Partial`: external model execution/daily scheduling and Synergy Clarus/Holos processing depend on
+  the operator's runner. The [runtime tutorial](../../examples/agent-runtime/README.md) supplies durable
+  intake, daily keys and remote MCP configuration; live Synergy and production receivers need external
+  acceptance. OAuth/session/scopes for Agents remain `Planned`. The
+  [Agent runbook](../operations/agents.md) owns activation, limits, secrets and recovery.
 
 ## Credential transport & CSRF boundary
 
@@ -355,7 +473,7 @@ support.
   template default `server.url = "http://localhost"` is left untouched — issue #113).
 - Enumeration resistance: login errors do not distinguish "user not found / wrong password", and
   unknown accounts run the same-cost PBKDF2 verification as real ones so response time does not
-  reveal whether a username/email is registered. Registration collapses username/email-taken into
+  reveal whether a username/email is registered. Password registration collapses username/email-taken into
   the same generic `auth.register.failed` body as other failures (never `auth.username.exists` /
   `auth.email.exists`) and always runs both existence queries, so the error body no longer reveals
   which field is taken. The registration protocol itself (immediate account creation + session vs.
@@ -401,7 +519,30 @@ user caches or offline storage.
 
 Private-note editing waits for a successful read of the current owner’s notes. Loading or failed reads keep editing disabled and offer retry, preventing an unseen existing note from being cleared or overwritten.
 
+## Avatar frames and nickname styles
+
+`Current`: administrator-granted avatar frames and nickname styles can be independently previewed,
+equipped and removed in Web and Flutter settings. Hub is the entitlement/equipment source, and
+anonymous identities never inherit their owner's cosmetics. See [profile decorations](profile-decorations.md)
+for selection, administration, recovery and business-integration boundaries.
+
 ## Profile badge display
+
+`Current` — Site managers can upload SVG, PNG, WebP or GIF artwork from `/admin/badges`.
+Existing embedded `/static/badges/` paths and image links remain editable. Uploads create
+unique `/static/badges/normalized/<uuid>` paths through `/api/admin/badge-asset`; saving binds the asset to the badge, while
+unsaved previews expire after 24 hours and unreferenced replaced/deleted artwork is reclaimed.
+SVG is rendered to PNG using the same bounded, self-contained vector policy as avatar frames;
+New badge uploads are centered and uniformly scaled by visible alpha content to the system
+artwork's ink radius of 10/24. Transparent margins and rectangular source canvases do not
+shrink the visible logo. Static artwork is stored as a 512 px transparent PNG. GIFs use one
+shared viewport across all composited frames, retain frame delays and loop count, and render
+at up to 256 px subject to the composited-canvas pixel budget. This prevents per-frame scale or position
+jumps; GIF palette quantization reserves transparency for the normalized padding. Completely
+transparent badges are rejected. Badge artwork has no square or transparent-center requirement.
+The editor previews avatar wear and the profile badge on light and dark backgrounds; uploading
+blocks save/close and an upload failure preserves the existing draft for retry.
+
 
 `Current` — Users independently choose one avatar badge and zero to five public
 profile-card badges in an explicit order. Unconfigured profiles retain their first
@@ -413,10 +554,12 @@ remains available separately.
 Avatar badge chips use each badge's preset background in light and dark themes.
 System badge artwork is normalized to one optical size, and the icon area is a fixed
 share of the chip, so every system icon keeps the same even margin inside the circular
-chip at every avatar size instead of reaching its rim. Custom badges (any icon URL
-outside `/static/badges/`) keep their original framing: a 2px inset in the web chip
+chip at every avatar size instead of reaching its rim. Legacy custom badges (un-normalized UUID assets under `/static/badges/` and any icon URL
+outside that directory) keep their original framing: a 2px inset in the web chip
 and a 60% artwork box in the mobile medallion, since their artwork often fills its
-canvas edge to edge. Badge responses append an artwork version
+canvas edge to edge. New `normalized/` uploads carry the same optical margin as system artwork
+and use the same 88% Web avatar-chip area and 70% mobile medallion artwork box. Existing
+URLs are never overwritten; re-upload legacy artwork to apply normalization. Badge responses append an artwork version
 (`?v=<n>`) to built-in `/static/badges/` icon URLs, so redrawn artwork reaches
 users despite the long `/static` browser cache.
 

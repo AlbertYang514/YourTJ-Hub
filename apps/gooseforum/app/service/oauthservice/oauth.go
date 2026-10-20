@@ -60,6 +60,10 @@ var (
 	googleProvider atomic.Pointer[google.Provider]
 )
 
+// ErrOAuthProviderUnavailable indicates that the requested Goth provider is not
+// registered in this process.
+var ErrOAuthProviderUnavailable = errors.New("OAuth provider unavailable")
+
 // InitOAuth configures available OAuth providers.
 func InitOAuth() {
 	appleauthservice.Init()
@@ -112,14 +116,32 @@ func initOAuthProvidersLocked() {
 }
 
 // BeginOAuthAuthHandler serializes provider lookup with runtime provider refresh.
-func BeginOAuthAuthHandler(w http.ResponseWriter, r *http.Request) {
+func BeginOAuthAuthHandler(w http.ResponseWriter, r *http.Request) error {
 	oauthProviderMu.RLock()
 	defer oauthProviderMu.RUnlock()
+	if !oauthProviderRegisteredLocked(r.URL.Query().Get("provider")) {
+		return ErrOAuthProviderUnavailable
+	}
 	if err := prepareOIDCResume(w, r); err != nil {
 		http.Error(w, "Invalid OAuth continuation", http.StatusBadRequest)
-		return
+		return nil
 	}
 	gothic.BeginAuthHandler(w, r)
+	return nil
+}
+
+// IsOAuthProviderReady reports whether the running process has registered the
+// provider used by the existing OAuth route. The registry is the runtime source
+// of truth after startup and callback URL refreshes.
+func IsOAuthProviderReady(provider string) bool {
+	oauthProviderMu.RLock()
+	defer oauthProviderMu.RUnlock()
+	return oauthProviderRegisteredLocked(provider)
+}
+
+func oauthProviderRegisteredLocked(provider string) bool {
+	_, err := goth.GetProvider(provider)
+	return err == nil
 }
 
 // CompleteOAuthUserAuth serializes provider lookup and user fetching with
@@ -140,10 +162,10 @@ func CompleteOAuthUserAuth(w http.ResponseWriter, r *http.Request) (goth.User, s
 }
 
 func initGitHubProviderWithCredentials(credentials oauthCredentials) goth.Provider {
-	callbackURL := strings.TrimRight(strings.TrimSpace(hotdataserve.GetSiteSettingsConfigCache().SiteUrl), "/") + "/api/auth/github/callback"
+	callbackURL := githubOAuthCallbackURL()
 	clientID := strings.TrimSpace(credentials.clientID)
 	clientSecret := strings.TrimSpace(credentials.clientSecret)
-	if clientID == "" || clientSecret == "" {
+	if clientID == "" || clientSecret == "" || callbackURL == "" {
 		slog.Warn("GitHub OAuth配置缺失，跳过初始化")
 		return nil
 	}
@@ -185,12 +207,20 @@ func googleOAuthConfig() (clientID, clientSecret, callbackURL string) {
 }
 
 func googleOAuthCallbackURL() string {
+	return oauthCallbackURL(ProviderGoogle)
+}
+
+func githubOAuthCallbackURL() string {
+	return oauthCallbackURL(ProviderGitHub)
+}
+
+func oauthCallbackURL(provider string) string {
 	siteURL := strings.TrimRight(strings.TrimSpace(hotdataserve.GetSiteSettingsConfigCache().SiteUrl), "/")
 	parsedURL, err := url.Parse(siteURL)
 	if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
 		return ""
 	}
-	return siteURL + "/api/auth/google/callback"
+	return siteURL + "/api/auth/" + provider + "/callback"
 }
 
 // initGoogleProvider returns a Google provider when configured.

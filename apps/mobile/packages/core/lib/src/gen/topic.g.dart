@@ -9,7 +9,11 @@ part of 'topic.dart';
 _$UserBriefPayloadImpl _$$UserBriefPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$UserBriefPayloadImpl(
+  decoration: UserDecoration.parse(json['decoration']),
   id: (json['id'] as num).toInt(),
+  kind: json['kind'] as String?,
+  publicUid: json['publicUid'] as String?,
+  profileUrl: json['profileUrl'] as String?,
   username: json['username'] as String,
   nickname: json['nickname'] as String?,
   avatarUrl: json['avatarUrl'] as String,
@@ -21,7 +25,11 @@ _$UserBriefPayloadImpl _$$UserBriefPayloadImplFromJson(
 Map<String, dynamic> _$$UserBriefPayloadImplToJson(
   _$UserBriefPayloadImpl instance,
 ) => <String, dynamic>{
+  'decoration': instance.decoration,
   'id': instance.id,
+  'kind': instance.kind,
+  'publicUid': instance.publicUid,
+  'profileUrl': instance.profileUrl,
   'username': instance.username,
   'nickname': instance.nickname,
   'avatarUrl': instance.avatarUrl,
@@ -124,6 +132,9 @@ Map<String, dynamic> _$$CategoryBriefPayloadImplToJson(
 
 _$TopicPayloadImpl _$$TopicPayloadImplFromJson(Map<String, dynamic> json) =>
     _$TopicPayloadImpl(
+      feedTrace: json['feedTrace'] as String?,
+      feedPosition: (json['feedPosition'] as num?)?.toInt(),
+      feedReason: json['feedReason'] as String?,
       id: (json['id'] as num).toInt(),
       title: json['title'] as String,
       description: json['description'] as String,
@@ -160,6 +171,9 @@ _$TopicPayloadImpl _$$TopicPayloadImplFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$$TopicPayloadImplToJson(_$TopicPayloadImpl instance) =>
     <String, dynamic>{
+      'feedTrace': instance.feedTrace,
+      'feedPosition': instance.feedPosition,
+      'feedReason': instance.feedReason,
       'id': instance.id,
       'title': instance.title,
       'description': instance.description,
@@ -186,6 +200,7 @@ Map<String, dynamic> _$$TopicPayloadImplToJson(_$TopicPayloadImpl instance) =>
 _$TopicDetailPayloadImpl _$$TopicDetailPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$TopicDetailPayloadImpl(
+  agentRepliesDisabled: json['agentRepliesDisabled'] as bool? ?? false,
   id: (json['id'] as num).toInt(),
   title: json['title'] as String,
   description: json['description'] as String,
@@ -218,6 +233,7 @@ _$TopicDetailPayloadImpl _$$TopicDetailPayloadImplFromJson(
 Map<String, dynamic> _$$TopicDetailPayloadImplToJson(
   _$TopicDetailPayloadImpl instance,
 ) => <String, dynamic>{
+  'agentRepliesDisabled': instance.agentRepliesDisabled,
   'id': instance.id,
   'title': instance.title,
   'description': instance.description,
@@ -243,42 +259,42 @@ Map<String, dynamic> _$$TopicDetailPayloadImplToJson(
   'updatedAt': instance.updatedAt,
 };
 
-_$PostPayloadImpl _$$PostPayloadImplFromJson(Map<String, dynamic> json) =>
-    _$PostPayloadImpl(
-      mentions:
-          (json['mentions'] as List<dynamic>?)
-              ?.map((e) => PostMention.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const <PostMention>[],
-      id: (json['id'] as num).toInt(),
-      topicId: (json['topicId'] as num).toInt(),
-      postNo: (json['postNo'] as num).toInt(),
-      content: json['content'] as String,
-      renderedContent: json['renderedContent'] as String,
-      processStatus: (json['processStatus'] as num).toInt(),
-      isHidden: json['isHidden'] as bool,
-      isAuthorDeleted: json['isAuthorDeleted'] as bool? ?? false,
-      isModeratorRemoved: json['isModeratorRemoved'] as bool? ?? false,
-      canModerate: json['canModerate'] as bool,
-      author: UserBriefPayload.fromJson(json['author'] as Map<String, dynamic>),
-      isAnonymous: json['isAnonymous'] as bool? ?? false,
-      createdAt: json['createdAt'] as String,
-      replyToPostId: (json['replyToPostId'] as num?)?.toInt(),
-      replyToUserId: (json['replyToUserId'] as num?)?.toInt(),
-      replyToUsername: json['replyToUsername'] as String?,
-      isOwnPost: json['isOwnPost'] as bool,
-      updatedAt: json['updatedAt'] as String?,
-      lastEditor: json['lastEditor'] == null
-          ? null
-          : UserBriefPayload.fromJson(
-              json['lastEditor'] as Map<String, dynamic>,
-            ),
-      lastEditedAt: json['lastEditedAt'] as String?,
-      revisionCount: (json['revisionCount'] as num?)?.toInt(),
-      likeCount: (json['likeCount'] as num).toInt(),
-      isLiked: json['isLiked'] as bool,
-      isBookmarked: json['isBookmarked'] as bool,
-    );
+_$PostPayloadImpl _$$PostPayloadImplFromJson(
+  Map<String, dynamic> json,
+) => _$PostPayloadImpl(
+  mentions:
+      (json['mentions'] as List<dynamic>?)
+          ?.map((e) => PostMention.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <PostMention>[],
+  id: (json['id'] as num).toInt(),
+  topicId: (json['topicId'] as num).toInt(),
+  postNo: (json['postNo'] as num).toInt(),
+  content: json['content'] as String,
+  renderedContent: json['renderedContent'] as String,
+  processStatus: (json['processStatus'] as num).toInt(),
+  isHidden: json['isHidden'] as bool,
+  isAuthorDeleted: json['isAuthorDeleted'] as bool? ?? false,
+  isModeratorRemoved: json['isModeratorRemoved'] as bool? ?? false,
+  canModerate: json['canModerate'] as bool,
+  author: UserBriefPayload.fromJson(json['author'] as Map<String, dynamic>),
+  isAnonymous: json['isAnonymous'] as bool? ?? false,
+  createdAt: json['createdAt'] as String,
+  replyToPostId: (json['replyToPostId'] as num?)?.toInt(),
+  replyToUserId: (json['replyToUserId'] as num?)?.toInt(),
+  replyToUsername: json['replyToUsername'] as String?,
+  isOwnPost: json['isOwnPost'] as bool,
+  updatedAt: json['updatedAt'] as String?,
+  lastEditor: json['lastEditor'] == null
+      ? null
+      : UserBriefPayload.fromJson(json['lastEditor'] as Map<String, dynamic>),
+  lastEditedAt: json['lastEditedAt'] as String?,
+  revisionCount: (json['revisionCount'] as num?)?.toInt(),
+  likeCount: (json['likeCount'] as num).toInt(),
+  isLiked: json['isLiked'] as bool,
+  isBookmarked: json['isBookmarked'] as bool,
+  images: (json['images'] as List<dynamic>?)?.map((e) => e as String).toList(),
+);
 
 Map<String, dynamic> _$$PostPayloadImplToJson(_$PostPayloadImpl instance) =>
     <String, dynamic>{
@@ -307,6 +323,7 @@ Map<String, dynamic> _$$PostPayloadImplToJson(_$PostPayloadImpl instance) =>
       'likeCount': instance.likeCount,
       'isLiked': instance.isLiked,
       'isBookmarked': instance.isBookmarked,
+      'images': instance.images,
     };
 
 _$ReplyTargetPayloadImpl _$$ReplyTargetPayloadImplFromJson(
@@ -390,6 +407,7 @@ Map<String, dynamic> _$$TopicDetailPropsImplToJson(
 _$TopicDetailPermissionsImpl _$$TopicDetailPermissionsImplFromJson(
   Map<String, dynamic> json,
 ) => _$TopicDetailPermissionsImpl(
+  canManageAgentReplies: json['canManageAgentReplies'] as bool? ?? false,
   isOwnTopic: json['isOwnTopic'] as bool,
   canPost: json['canPost'] as bool,
   canModerateTopic: json['canModerateTopic'] as bool,
@@ -398,6 +416,7 @@ _$TopicDetailPermissionsImpl _$$TopicDetailPermissionsImplFromJson(
 Map<String, dynamic> _$$TopicDetailPermissionsImplToJson(
   _$TopicDetailPermissionsImpl instance,
 ) => <String, dynamic>{
+  'canManageAgentReplies': instance.canManageAgentReplies,
   'isOwnTopic': instance.isOwnTopic,
   'canPost': instance.canPost,
   'canModerateTopic': instance.canModerateTopic,

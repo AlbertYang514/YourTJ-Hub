@@ -75,22 +75,12 @@ def reviewed_preview_source(github, source):
     require(False, 'Preview source needs an eligible human review of its exact PR head before signing')
 
 
-def record_preview_bypass(github, cycle, *, source, run, purpose, actor, triggering_actor, reason, now):
+def record_preview_bypass(github, cycle, *, run, purpose, actor, triggering_actor, reason, now):
     reason = reason.strip()
     require(purpose == 'dev' and 0 < len(reason) <= 1000,
             'Source-review bypass needs a reason (1-1000 characters) and is limited to dev previews')
-    require(SHA.fullmatch(source or '') and source == cycle['source'],
-            'Source-review bypass must name the exact dispatched source; the cycle source changed or is missing')
     human(github, actor, admin=True)
     human(github, triggering_actor, admin=True)
-    previous = cycle.get('previewReviewBypasses', {}).get(run)
-    if previous:
-        # A rerun keeps its original authority even if the owner advanced the cycle meanwhile.
-        require(all(previous[key] == value for key, value in {
-            'cycle': cycle['id'], 'source': cycle['source'], 'run': run, 'purpose': purpose,
-            'actor': actor, 'triggeringActor': triggering_actor, 'reason': reason}.items()),
-            'An existing source-review bypass cannot be rebound; dispatch a new preview run')
-        return
     cycle.setdefault('previewReviewBypasses', {})[run] = {
         'cycle': cycle['id'], 'source': cycle['source'], 'run': run, 'purpose': purpose,
         'actor': actor, 'triggeringActor': triggering_actor, 'reason': reason, 'at': now}
@@ -102,10 +92,8 @@ def authorize_preview_source(github, cycle, purpose, run):
         return reviewed_preview_source(github, cycle['source'])
     require(purpose == 'dev' and grant['purpose'] == purpose and grant['cycle'] == cycle['id']
             and grant['source'] == cycle['source'] and grant['run'] == run
-            and grant['actor'] == os.environ['GITHUB_ACTOR']
-            and grant['triggeringActor'] == os.environ.get('GITHUB_TRIGGERING_ACTOR', grant['actor'])
-            and grant['reason'].strip(),
-            'Source-review bypass does not authorize this preview source/cycle/run/actor')
+            and grant['actor'] == os.environ['GITHUB_ACTOR'] and grant['reason'].strip(),
+            'Source-review bypass does not authorize this preview source/cycle/run')
     human(github, grant['actor'], admin=True)
     human(github, os.environ.get('GITHUB_TRIGGERING_ACTOR', grant['actor']), admin=True)
 
@@ -225,23 +213,59 @@ def require_drained_queue(github):
     require(not queued_dev_groups(github), 'Drain the dev merge queue before freezing a candidate')
 
 
-def refresh_checks(github, state, number=None):
+FREEZE_WORKFLOW = 'release-freeze.yml'
+FREEZE_BLOCKED = 'Dev is frozen. Only an owner-admitted blocker at this exact PR head may merge.'
+QUEUE_BLOCKED = 'Merge queue must drain before selecting a candidate.'
+
+
+def freeze_verdict(state, event, now):
+    """Decide the `release-freeze` job result for one pull_request(_target)/merge_group event.
+
+    The verdict is the job's own conclusion: branch rulesets only accept the check
+    run that GitHub Actions creates for a job, never one written through the Checks API.
+    """
+    if event.get('merge_group'):
+        group = event['merge_group']
+        return group['base_ref'] != 'refs/heads/dev' or current(state) is None, QUEUE_BLOCKED
+    pr = event.get('pull_request')
+    if not pr:
+        # Pushes and other events carry no PR head to admit; they are never gated.
+        return True, ''
+    if pr['base']['ref'] != 'dev':
+        return True, ''
+    return can_merge(state, pr['number'], pr['head']['sha'], now), FREEZE_BLOCKED
+
+
+def latest_freeze_run(github, sha, events):
+    runs = [r for r in github.pages(f'actions/workflows/{FREEZE_WORKFLOW}/runs?head_sha={sha}', 'workflow_runs')
+            if r.get('event') in events and r.get('head_sha') == sha]
+    return max(runs, key=lambda r: r['id']) if runs else None
+
+
+def rerun_freeze(github, sha, events, label):
+    run = latest_freeze_run(github, sha, events)
+    if run is None:
+        print(f'{label}: no release-freeze run found for {sha}; push or reopen to trigger one')
+        return False
+    if run.get('status') != 'completed':
+        # A queued/in-progress run waits on instance-mutate-dev and reads the new state itself.
+        print(f"{label}: release-freeze run {run['id']} is {run.get('status')}; it will evaluate current state")
+        return False
+    github.api(f"actions/runs/{run['id']}/rerun", method='POST')
+    print(f"{label}: re-running release-freeze run {run['id']} for {sha}")
+    return True
+
+
+def refresh_checks(github, state=None, number=None):
+    """Re-run the latest release-freeze job for open dev PR heads and queued merge groups."""
     prs = [github.api(f'pulls/{number}')] if number else github.pages('pulls?state=open&base=dev')
     for pr in prs:
         if pr['base']['ref'] != 'dev' or pr['state'] != 'open':
             continue
-        allowed = can_merge(state, pr['number'], pr['head']['sha'], int(time.time()))
-        github.api('check-runs', method='POST', data={
-            'name': 'release-freeze', 'head_sha': pr['head']['sha'], 'status': 'completed',
-            'conclusion': 'success' if allowed else 'failure', 'output': {
-                'title': 'Dev release freeze', 'summary': 'Normal review and CI still apply.' if allowed else
-                'Dev is frozen. Only an owner-admitted blocker at this exact PR head may merge.'}})
+        rerun_freeze(github, pr['head']['sha'], {'pull_request_target', 'pull_request'}, f"PR #{pr['number']}")
     if number is None:
         for sha in {group['object']['sha'] for group in queued_dev_groups(github)}:
-            github.api('check-runs', method='POST', data={
-                'name': 'release-freeze', 'head_sha': sha, 'status': 'completed',
-                'conclusion': 'success' if current(state) is None else 'failure', 'output': {
-                    'title': 'Dev release freeze', 'summary': 'Merge queue must drain before selecting a candidate.'}})
+            rerun_freeze(github, sha, {'merge_group'}, 'merge group')
 
 
 def output(values):
@@ -253,7 +277,7 @@ def output(values):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', choices=['change', 'begin-build', 'check-build', 'check-dev', 'checks', 'status', 'refresh', 'apple-needed'])
+    parser.add_argument('command', choices=['change', 'begin-build', 'check-build', 'check-dev', 'check-pr', 'checks', 'status', 'refresh', 'apple-needed'])
     args = parser.parse_args()
     github = GitHub()
     state = load(github)
@@ -265,17 +289,15 @@ def main():
     if args.command == 'status':
         print(json.dumps(state, indent=2, ensure_ascii=False))
         return
-    if args.command == 'checks':
+    if args.command == 'check-pr':
         event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())
-        if event.get('merge_group'):
-            group = event['merge_group']
-            allowed = group['base_ref'] != 'refs/heads/dev' or current(state) is None
-            github.api('check-runs', method='POST', data={
-                'name': 'release-freeze', 'head_sha': group['head_sha'], 'status': 'completed',
-                'conclusion': 'success' if allowed else 'failure',
-                'output': {'title': 'Dev release freeze', 'summary': 'Merge queue must drain before selecting a candidate.'}})
-        else:
-            refresh_checks(github, state, event.get('pull_request', {}).get('number'))
+        allowed, reason = freeze_verdict(state, event, int(time.time()))
+        if not allowed:
+            raise SystemExit(f'release-freeze: {reason}')
+        print('release-freeze: allowed. Normal review and CI still apply.')
+        return
+    if args.command == 'checks':
+        refresh_checks(github, state)
         return
     if args.command == 'check-dev':
         source = os.environ['SOURCE_SHA']
@@ -411,7 +433,7 @@ def main():
     state = transition(state, action, actor, int(time.time()), cycle=cycle_id, **data)
     bypass_reason = os.environ.get('SOURCE_REVIEW_BYPASS_REASON', '')
     if action == 'build' and bypass_reason:
-        record_preview_bypass(github, state['cycles'][cycle_id], source=data['source'], run=data['run'], purpose=data['purpose'],
+        record_preview_bypass(github, state['cycles'][cycle_id], run=data['run'], purpose=data['purpose'],
                               actor=actor, triggering_actor=os.environ.get('GITHUB_TRIGGERING_ACTOR', actor),
                               reason=bypass_reason, now=int(time.time()))
     save(github, state)

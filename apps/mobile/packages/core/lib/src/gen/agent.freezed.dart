@@ -340,9 +340,14 @@ AgentTopicItem _$AgentTopicItemFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$AgentTopicItem {
+  bool get agentRepliesDisabled => throw _privateConstructorUsedError;
+  UserBriefPayload? get author => throw _privateConstructorUsedError;
   int get id => throw _privateConstructorUsedError;
   String get title => throw _privateConstructorUsedError;
   String get excerpt => throw _privateConstructorUsedError;
+
+  /// Topic gallery image URLs (issue #1228); older servers omit it.
+  List<String>? get images => throw _privateConstructorUsedError;
   List<int> get categoryIds => throw _privateConstructorUsedError;
   int get userId => throw _privateConstructorUsedError;
   int get status => throw _privateConstructorUsedError;
@@ -372,9 +377,12 @@ abstract class $AgentTopicItemCopyWith<$Res> {
   ) = _$AgentTopicItemCopyWithImpl<$Res, AgentTopicItem>;
   @useResult
   $Res call({
+    bool agentRepliesDisabled,
+    UserBriefPayload? author,
     int id,
     String title,
     String excerpt,
+    List<String>? images,
     List<int> categoryIds,
     int userId,
     int status,
@@ -386,6 +394,8 @@ abstract class $AgentTopicItemCopyWith<$Res> {
     int createdAt,
     int updatedAt,
   });
+
+  $UserBriefPayloadCopyWith<$Res>? get author;
 }
 
 /// @nodoc
@@ -403,9 +413,12 @@ class _$AgentTopicItemCopyWithImpl<$Res, $Val extends AgentTopicItem>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? agentRepliesDisabled = null,
+    Object? author = freezed,
     Object? id = null,
     Object? title = null,
     Object? excerpt = null,
+    Object? images = freezed,
     Object? categoryIds = null,
     Object? userId = null,
     Object? status = null,
@@ -419,6 +432,14 @@ class _$AgentTopicItemCopyWithImpl<$Res, $Val extends AgentTopicItem>
   }) {
     return _then(
       _value.copyWith(
+            agentRepliesDisabled: null == agentRepliesDisabled
+                ? _value.agentRepliesDisabled
+                : agentRepliesDisabled // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            author: freezed == author
+                ? _value.author
+                : author // ignore: cast_nullable_to_non_nullable
+                      as UserBriefPayload?,
             id: null == id
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
@@ -431,6 +452,10 @@ class _$AgentTopicItemCopyWithImpl<$Res, $Val extends AgentTopicItem>
                 ? _value.excerpt
                 : excerpt // ignore: cast_nullable_to_non_nullable
                       as String,
+            images: freezed == images
+                ? _value.images
+                : images // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
             categoryIds: null == categoryIds
                 ? _value.categoryIds
                 : categoryIds // ignore: cast_nullable_to_non_nullable
@@ -475,6 +500,20 @@ class _$AgentTopicItemCopyWithImpl<$Res, $Val extends AgentTopicItem>
           as $Val,
     );
   }
+
+  /// Create a copy of AgentTopicItem
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $UserBriefPayloadCopyWith<$Res>? get author {
+    if (_value.author == null) {
+      return null;
+    }
+
+    return $UserBriefPayloadCopyWith<$Res>(_value.author!, (value) {
+      return _then(_value.copyWith(author: value) as $Val);
+    });
+  }
 }
 
 /// @nodoc
@@ -487,9 +526,12 @@ abstract class _$$AgentTopicItemImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    bool agentRepliesDisabled,
+    UserBriefPayload? author,
     int id,
     String title,
     String excerpt,
+    List<String>? images,
     List<int> categoryIds,
     int userId,
     int status,
@@ -501,6 +543,9 @@ abstract class _$$AgentTopicItemImplCopyWith<$Res>
     int createdAt,
     int updatedAt,
   });
+
+  @override
+  $UserBriefPayloadCopyWith<$Res>? get author;
 }
 
 /// @nodoc
@@ -517,9 +562,12 @@ class __$$AgentTopicItemImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? agentRepliesDisabled = null,
+    Object? author = freezed,
     Object? id = null,
     Object? title = null,
     Object? excerpt = null,
+    Object? images = freezed,
     Object? categoryIds = null,
     Object? userId = null,
     Object? status = null,
@@ -533,6 +581,14 @@ class __$$AgentTopicItemImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$AgentTopicItemImpl(
+        agentRepliesDisabled: null == agentRepliesDisabled
+            ? _value.agentRepliesDisabled
+            : agentRepliesDisabled // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        author: freezed == author
+            ? _value.author
+            : author // ignore: cast_nullable_to_non_nullable
+                  as UserBriefPayload?,
         id: null == id
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
@@ -545,6 +601,10 @@ class __$$AgentTopicItemImplCopyWithImpl<$Res>
             ? _value.excerpt
             : excerpt // ignore: cast_nullable_to_non_nullable
                   as String,
+        images: freezed == images
+            ? _value._images
+            : images // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
         categoryIds: null == categoryIds
             ? _value._categoryIds
             : categoryIds // ignore: cast_nullable_to_non_nullable
@@ -594,9 +654,12 @@ class __$$AgentTopicItemImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$AgentTopicItemImpl implements _AgentTopicItem {
   const _$AgentTopicItemImpl({
+    this.agentRepliesDisabled = false,
+    this.author,
     required this.id,
     required this.title,
     required this.excerpt,
+    final List<String>? images,
     required final List<int> categoryIds,
     required this.userId,
     required this.status,
@@ -607,17 +670,37 @@ class _$AgentTopicItemImpl implements _AgentTopicItem {
     this.lastPostedAt,
     required this.createdAt,
     required this.updatedAt,
-  }) : _categoryIds = categoryIds;
+  }) : _images = images,
+       _categoryIds = categoryIds;
 
   factory _$AgentTopicItemImpl.fromJson(Map<String, dynamic> json) =>
       _$$AgentTopicItemImplFromJson(json);
 
+  @override
+  @JsonKey()
+  final bool agentRepliesDisabled;
+  @override
+  final UserBriefPayload? author;
   @override
   final int id;
   @override
   final String title;
   @override
   final String excerpt;
+
+  /// Topic gallery image URLs (issue #1228); older servers omit it.
+  final List<String>? _images;
+
+  /// Topic gallery image URLs (issue #1228); older servers omit it.
+  @override
+  List<String>? get images {
+    final value = _images;
+    if (value == null) return null;
+    if (_images is EqualUnmodifiableListView) return _images;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
   final List<int> _categoryIds;
   @override
   List<int> get categoryIds {
@@ -647,7 +730,7 @@ class _$AgentTopicItemImpl implements _AgentTopicItem {
 
   @override
   String toString() {
-    return 'AgentTopicItem(id: $id, title: $title, excerpt: $excerpt, categoryIds: $categoryIds, userId: $userId, status: $status, processStatus: $processStatus, replyCount: $replyCount, viewCount: $viewCount, postCount: $postCount, lastPostedAt: $lastPostedAt, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'AgentTopicItem(agentRepliesDisabled: $agentRepliesDisabled, author: $author, id: $id, title: $title, excerpt: $excerpt, images: $images, categoryIds: $categoryIds, userId: $userId, status: $status, processStatus: $processStatus, replyCount: $replyCount, viewCount: $viewCount, postCount: $postCount, lastPostedAt: $lastPostedAt, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -655,9 +738,13 @@ class _$AgentTopicItemImpl implements _AgentTopicItem {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$AgentTopicItemImpl &&
+            (identical(other.agentRepliesDisabled, agentRepliesDisabled) ||
+                other.agentRepliesDisabled == agentRepliesDisabled) &&
+            (identical(other.author, author) || other.author == author) &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.title, title) || other.title == title) &&
             (identical(other.excerpt, excerpt) || other.excerpt == excerpt) &&
+            const DeepCollectionEquality().equals(other._images, _images) &&
             const DeepCollectionEquality().equals(
               other._categoryIds,
               _categoryIds,
@@ -684,9 +771,12 @@ class _$AgentTopicItemImpl implements _AgentTopicItem {
   @override
   int get hashCode => Object.hash(
     runtimeType,
+    agentRepliesDisabled,
+    author,
     id,
     title,
     excerpt,
+    const DeepCollectionEquality().hash(_images),
     const DeepCollectionEquality().hash(_categoryIds),
     userId,
     status,
@@ -718,9 +808,12 @@ class _$AgentTopicItemImpl implements _AgentTopicItem {
 
 abstract class _AgentTopicItem implements AgentTopicItem {
   const factory _AgentTopicItem({
+    final bool agentRepliesDisabled,
+    final UserBriefPayload? author,
     required final int id,
     required final String title,
     required final String excerpt,
+    final List<String>? images,
     required final List<int> categoryIds,
     required final int userId,
     required final int status,
@@ -737,11 +830,19 @@ abstract class _AgentTopicItem implements AgentTopicItem {
       _$AgentTopicItemImpl.fromJson;
 
   @override
+  bool get agentRepliesDisabled;
+  @override
+  UserBriefPayload? get author;
+  @override
   int get id;
   @override
   String get title;
   @override
   String get excerpt;
+
+  /// Topic gallery image URLs (issue #1228); older servers omit it.
+  @override
+  List<String>? get images;
   @override
   List<int> get categoryIds;
   @override

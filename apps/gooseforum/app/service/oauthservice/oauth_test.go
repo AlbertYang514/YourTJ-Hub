@@ -17,6 +17,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/datamigration"
 	"github.com/markbates/goth"
+	"github.com/markbates/goth/providers/github"
 	"github.com/markbates/goth/providers/google"
 	"gorm.io/gorm"
 )
@@ -43,6 +44,7 @@ func TestUnbindFailureHidesStorageDetails(t *testing.T) {
 
 func setupGoogleOAuthProviderConfig(t *testing.T, siteURL string) {
 	t.Helper()
+	goth.ClearProviders()
 	conn := db.Connect()
 	if err := conn.AutoMigrate(&pageConfig.Entity{}); err != nil {
 		t.Fatalf("migrate page_config: %v", err)
@@ -103,6 +105,38 @@ func TestInitGoogleProviderUsesConfiguredCredentialsAndScopes(t *testing.T) {
 	}
 	if got := parsed.Query().Get("scope"); got != "openid email profile" {
 		t.Fatalf("Google OAuth scope = %q, want %q", got, "openid email profile")
+	}
+}
+
+func TestInitGitHubProviderRegistersRuntimeAvailabilityAndAbsoluteCallback(t *testing.T) {
+	setupGoogleOAuthProviderConfig(t, "https://hub.example.test/")
+	preferences.Set("github.client_id", "test-github-client-id")
+	preferences.Set("github.client_secret", "test-github-client-secret")
+	t.Cleanup(func() {
+		preferences.Set("github.client_id", "")
+		preferences.Set("github.client_secret", "")
+	})
+
+	if IsOAuthProviderReady(ProviderGitHub) {
+		t.Fatal("IsOAuthProviderReady(github) = true before provider registration, want false")
+	}
+	InitOAuth()
+	if !IsOAuthProviderReady(ProviderGitHub) {
+		t.Fatal("IsOAuthProviderReady(github) = false after InitOAuth(), want true")
+	}
+	provider, err := goth.GetProvider(ProviderGitHub)
+	if err != nil {
+		t.Fatalf("goth.GetProvider(%q) error = %v", ProviderGitHub, err)
+	}
+	githubProvider, ok := provider.(*github.Provider)
+	if !ok {
+		t.Fatalf("GitHub provider type = %T, want *github.Provider", provider)
+	}
+	if githubProvider.CallbackURL != "https://hub.example.test/api/auth/github/callback" {
+		t.Fatalf("GitHub callback URL = %q, want absolute site callback", githubProvider.CallbackURL)
+	}
+	if IsOAuthProviderReady("unknown-provider") {
+		t.Fatal("unknown provider reported ready")
 	}
 }
 

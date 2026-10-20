@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/decoration"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
@@ -48,7 +49,9 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 
 	// 关键新表必须存在（issue #8 回归点；agents 为本仓库 Agent 模型新增表）
 	for _, table := range []string{
+		"feed_seen_state",
 		"user_blocks",
+		"user_privacy_settings",
 		"user_sessions",
 		"user_totp",
 		"user_totp_recovery_codes",
@@ -58,6 +61,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 		"oidc_access_tokens",
 		"users",
 		"agents",
+		"anonymous_personas", "anonymous_bindings", "anonymous_name_quotas", "anonymous_name_batches", "anonymous_reveal_audits",
 		// PK 排课数据域（Issue #187 / #186）：13 表。
 		"pk_calendar",
 		"pk_campus",
@@ -86,6 +90,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 		"inbox_campaign_run",
 		"inbox_delivery",
 		"inbox_claim",
+		"moderation_appeals",
 	} {
 		if !db.Migrator().HasTable(table) {
 			t.Errorf("table %q missing after postgres migration", table)
@@ -98,12 +103,20 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 	if !db.Migrator().HasColumn(&users.EntityComplete{}, "actor_type") {
 		t.Error("users.actor_type column missing after postgres migration")
 	}
+	// Agent 评论策略（管理端按主题禁止 Agent 评论）：topics.agent_comment_disabled。
+	if !db.Migrator().HasColumn(&topics.Entity{}, "agent_comment_disabled") {
+		t.Error("topics.agent_comment_disabled column missing after postgres migration")
+	}
+	if !db.Migrator().HasColumn(&users.EntityComplete{}, "anonymous_governance_blocked") || !db.Migrator().HasColumn(&topics.Entity{}, "persona_uid") {
+		t.Fatal("anonymous columns missing")
+	}
 	assertUniqueUserEmailSchema(t, db)
 	assertPkFetchLogLeaseSchema(t, db)
 	assertPointsSourceKeySchema(t, db)
 	assertCourseTeacherIdentitySchema(t, db)
 	assertSearchMaintenanceSchema(t, db)
 	assertCourseAggregationSchema(t, db)
+	assertModerationAppealsSchema(t, db)
 }
 
 // TestSchemaUpgradeCreatesNewTablesOnPostgreSQL 模拟存量实例升级场景：
@@ -129,6 +142,12 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 		t.Fatalf("AutoMigrate legacy subset failed: %v", err)
 	}
 	if err := db.Migrator().DropColumn(&userOAuth.Entity{}, "apple_refresh_token"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Migrator().DropColumn(&users.EntityComplete{}, "anonymous_governance_blocked"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Migrator().DropColumn(&topics.Entity{}, "persona_uid"); err != nil {
 		t.Fatal(err)
 	}
 	// The current model includes actor_type, but a true legacy users table did
@@ -200,7 +219,9 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 		t.Fatal("Apple revocation column missing after upgrade")
 	}
 	for _, table := range []string{
+		"feed_seen_state",
 		"user_blocks",
+		"user_privacy_settings",
 		"user_sessions",
 		"user_totp",
 		"user_totp_recovery_codes",
@@ -230,6 +251,7 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 		"inbox_campaign_run",
 		"inbox_delivery",
 		"inbox_claim",
+		"moderation_appeals",
 	} {
 		if !db.Migrator().HasTable(table) {
 			t.Errorf("table %q missing after upgrade migration", table)
@@ -244,6 +266,10 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if !db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_username") {
 		t.Error("users username unique index missing after upgrade migration")
 	}
+	if !db.Migrator().HasColumn(&users.EntityComplete{}, "anonymous_governance_blocked") || !db.Migrator().HasColumn(&topics.Entity{}, "persona_uid") {
+		t.Fatal("anonymous columns missing")
+	}
+	assertModerationAppealsSchema(t, db)
 	assertUniqueUserEmailSchema(t, db)
 	assertPkFetchLogLeaseSchema(t, db)
 	assertPointsSourceKeySchema(t, db)
@@ -438,5 +464,56 @@ func assertSearchMaintenanceSchema(t *testing.T, db *gorm.DB) {
 	}
 	if err := db.Create(&taskQueue.Entity{Type: taskQueue.SearchMaintenanceType, Status: taskQueue.StatusRetrying}).Error; err != nil {
 		t.Fatalf("terminal job did not release slot: %v", err)
+	}
+}
+
+func TestDecorationFrameScaleUpgradeOnPostgreSQL(t *testing.T) {
+	dsn := os.Getenv("YOURTJ_TEST_PG_URL")
+	if dsn == "" {
+		t.Skip("YOURTJ_TEST_PG_URL not set; skipping PostgreSQL migration test")
+	}
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{TranslateError: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Migrator().DropTable(&decoration.Definition{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&decoration.Definition{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Migrator().DropColumn(&decoration.Definition{}, "asset_scale"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec(`INSERT INTO decoration_definitions (code, name, kind, light_colors, dark_colors, is_enabled, sort_order, asset_url)
+		VALUES ('legacy-frame', 'Legacy frame', 'avatarFrame', '["#166534"]', '["#86EFAC"]', true, 1, '/static/decorations/tea-garden-v1.png')`).Error; err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if err := db.AutoMigrate(&decoration.Definition{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var frame decoration.Definition
+	if err := db.First(&frame, "code = ?", "legacy-frame").Error; err != nil {
+		t.Fatal(err)
+	}
+	if frame.AssetScale != 1.25 || frame.Name != "Legacy frame" || !frame.IsEnabled {
+		t.Fatalf("upgrade changed existing appearance: %+v", frame)
+	}
+}
+
+func assertModerationAppealsSchema(t *testing.T, conn *gorm.DB) {
+	t.Helper()
+	if !conn.Migrator().HasTable("moderation_appeals") {
+		t.Fatal("appeal table missing")
+	}
+	for _, column := range []string{"post_id", "revision_id", "reason", "status", "review_reason", "review_actor_id", "reviewed_at", "original_review_reason", "original_review_actor_id", "original_reviewed_at"} {
+		if !conn.Migrator().HasColumn("moderation_appeals", column) {
+			t.Errorf("appeal column %s missing", column)
+		}
+	}
+	if !conn.Migrator().HasIndex("moderation_appeals", "uniq_moderation_appeal_revision") {
+		t.Fatal("one-appeal-per-revision constraint missing")
 	}
 }

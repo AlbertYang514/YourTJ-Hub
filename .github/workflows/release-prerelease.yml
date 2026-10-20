@@ -3,11 +3,10 @@ on:
   workflow_dispatch:
     inputs:
       cycle: {description: 'Existing cycle ID; empty starts a new dev freeze', type: string}
-      source: {description: 'Full current dev SHA; also required for any source-review bypass, including an existing cycle', type: string}
+      source: {description: 'Full current dev SHA for a new cycle', type: string}
       issue: {description: 'Release tracking issue for a new cycle', type: string}
       channels: {description: 'Production scope for a new cycle', type: string, default: 'web,android,ios-testflight,ios-app-store'}
       artifacts: {description: 'Preview artifacts: web,android,ios; empty = all for purpose. Production rehearsal: android,ios only.', type: string}
-      ios_existing_run: {description: 'Optional original upload run to resume its processed Apple build. Requires cycle, exact source, artifacts=ios, purpose=dev.', type: string}
       source_review_bypass_reason: {description: 'Optional admin-only source-review exception for this dev preview run; audited with source SHA and actor', type: string}
       purpose:
         description: 'Dev candidate or same-source production-configuration rehearsal'
@@ -25,9 +24,10 @@ jobs:
   begin:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # `cycle_control.py checks` re-runs release-freeze workflow runs, which needs actions: write.
     permissions:
       contents: write
-      actions: read
+      actions: write
       deployments: write
       pull-requests: read
       issues: read
@@ -56,10 +56,7 @@ jobs:
           PURPOSE: ${{ inputs.purpose }}
           ARTIFACTS: ${{ inputs.artifacts }}
           SOURCE_REVIEW_BYPASS_REASON: ${{ inputs.source_review_bypass_reason }}
-          IOS_EXISTING_RUN: ${{ inputs.ios_existing_run }}
-        run: |
-          if [ -n "$IOS_EXISTING_RUN" ]; then python3 scripts/release/preview_recovery.py; fi
-          python3 scripts/release/cycle_control.py begin-build
+        run: python3 scripts/release/cycle_control.py begin-build
       - name: Seal release state
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
@@ -131,7 +128,6 @@ jobs:
       version: ${{ steps.identity.outputs.version }}
       number: ${{ steps.identity.outputs.number }}
       tag: ${{ steps.identity.outputs.tag }}
-      apple_build: ${{ steps.identity.outputs.apple_build }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -142,7 +138,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CYCLE_ID: ${{ needs.begin.outputs.cycle }}
           PURPOSE: ${{ inputs.purpose }}
-          IOS_EXISTING_RUN: ${{ inputs.ios_existing_run }}
         run: python3 scripts/release/preview.py
   dev:
     needs: [begin, validated]
@@ -180,8 +175,6 @@ jobs:
       purpose: ${{ inputs.purpose }}
       version: ${{ needs.identity.outputs.version }}
       number: ${{ needs.identity.outputs.number }}
-      recover: ${{ inputs.ios_existing_run != '' }}
-      apple_build: ${{ needs.identity.outputs.apple_build }}
     secrets: inherit
   ready:
     needs: [begin, validated, identity, dev, android, ios]

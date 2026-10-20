@@ -1,12 +1,15 @@
 package taskQueue
 
 import (
+	"errors"
+	"strings"
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func Create(entity *Entity) error {
@@ -32,23 +35,45 @@ func CreateTx(tx *gorm.DB, entity *Entity) error {
 // GetPendingTasks 获取待处理的任务
 func GetPendingTasks(limit int) (tasks []*Entity) {
 	builder().Where(queryopt.In("status", []int{StatusPending, StatusRetrying})).
+		Where("next_run_at IS NULL OR next_run_at <= ?", time.Now()).
 		Order("id asc").
 		Limit(limit).
 		Find(&tasks)
 	return
 }
 
+// typeFamilyQuery 返回 type 列的族匹配谓词（"type LIKE ?", prefix+"%"）。族标识
+// 既可能是任务族常量（"webpush."），也可能是历史行上的「族 + id」
+// （"webpush.123"）；族常量自带尾点，补上 "%" 后两者都命中，且不会溢出到
+// "webpush2." 之类的兄弟族（因此不能去掉尾点）。
+func typeFamilyQuery(typePrefix string) (string, string) {
+	return "type LIKE ?", typePrefix + "%"
+}
+
 // GetPendingTasksByType 获取指定类型前缀的待处理任务（按 type 前缀隔离 worker）。
 func GetPendingTasksByType(typePrefix string, limit int) (tasks []*Entity) {
 	query := builder()
 	if typePrefix != "" {
-		query = query.Where("type LIKE ?", typePrefix+"%")
+		query = query.Where(typeFamilyQuery(typePrefix))
 	}
 	query.Where(queryopt.In("status", []int{StatusPending, StatusRetrying})).
+		Where("next_run_at IS NULL OR next_run_at <= ?", time.Now()).
 		Order("id asc").
 		Limit(limit).
 		Find(&tasks)
 	return
+}
+
+// PendingManagedGroups selects one due job per Agent per polling batch so an
+// unhealthy receiver cannot monopolize the queue behind a long same-Agent run.
+func PendingManagedGroups(typePrefix string, limit int) (tasks []*Entity) {
+	if typePrefix != "agent-webhook." {
+		return GetPendingTasksByType(typePrefix, limit)
+	}
+	clause, like := typeFamilyQuery(typePrefix)
+	sub := builder().Select("MIN(id)").Where(clause+" AND status IN (?, ?)", like, StatusPending, StatusRetrying).Where("next_run_at IS NULL OR next_run_at <= ?", time.Now()).Group("schedule_group")
+	builder().Where("id IN (?)", sub).Order("id asc").Limit(limit).Find(&tasks)
+	return tasks
 }
 
 // emailTypeQuery 返回邮件 worker 的类型匹配条件（email.* 前缀 + 存量
@@ -67,6 +92,7 @@ func GetPendingEmailTasks(limit int) (tasks []*Entity) {
 	builder().
 		Where(clause, args...).
 		Where(queryopt.In("status", []int{StatusPending, StatusRetrying})).
+		Where("next_run_at IS NULL OR next_run_at <= ?", time.Now()).
 		Order("id asc").
 		Limit(limit).
 		Find(&tasks)
@@ -80,10 +106,14 @@ func GetPendingEmailTasks(limit int) (tasks []*Entity) {
 // 并发 worker 同时领取同一任务时只有一个成功（RowsAffected=1），其余返回
 // claimed=false —— 取代原先"查询 pending + 无守卫更新 running"的两步分离，
 // 消除多 worker 重复领取与重复外部副作用。
-func ClaimTask(id uint64) (entity Entity, claimed bool, err error) {
-	err = db.Connect().Transaction(func(tx *gorm.DB) error {
+func ClaimTask(id uint64) (Entity, bool, error) { return ClaimTaskWithDB(db.Connect(), id) }
+
+// ClaimTaskWithDB keeps owner semantics usable on isolated migration/PG fixtures.
+func ClaimTaskWithDB(conn *gorm.DB, id uint64) (entity Entity, claimed bool, err error) {
+	err = conn.Transaction(func(tx *gorm.DB) error {
 		res := tx.Table(tableName).
 			Where("id = ? AND status IN (?, ?)", id, StatusPending, StatusRetrying).
+			Where("next_run_at IS NULL OR next_run_at <= ?", time.Now()).
 			Updates(map[string]any{
 				"status":       StatusRunning,
 				"processed_at": time.Now(),
@@ -159,7 +189,7 @@ func IncrementRetryCountOwned(id uint64, token string) error {
 // QueryByTypeDesc returns tasks of the given type prefix, newest first.
 func QueryByTypeDesc(typePrefix string, limit int) *gorm.DB {
 	return builder().
-		Where("type LIKE ?", typePrefix+"%").
+		Where(typeFamilyQuery(typePrefix)).
 		Order("id desc").
 		Limit(limit)
 }
@@ -189,7 +219,7 @@ func GetByID(id any) (entity Entity, err error) {
 func RecoverStaleRunning(typePrefix string, staleAfter time.Duration) error {
 	cutoff := time.Now().Add(-staleAfter)
 	return builder().
-		Where("type LIKE ?", typePrefix+"%").
+		Where(typeFamilyQuery(typePrefix)).
 		Where("status = ?", StatusRunning).
 		Where("processed_at < ?", cutoff).
 		Updates(map[string]any{
@@ -231,7 +261,7 @@ func DeleteTerminalByTypePrefix(typePrefix string, statuses []int, before time.T
 	for {
 		var ids []uint64
 		if err := builder().
-			Where("type LIKE ?", typePrefix+"%").
+			Where(typeFamilyQuery(typePrefix)).
 			Where("status IN ?", statuses).
 			Where("processed_at < ?", before).
 			Order("id asc").
@@ -251,4 +281,116 @@ func DeleteTerminalByTypePrefix(typePrefix string, statuses []int, before time.T
 			return total, nil
 		}
 	}
+}
+
+// TransitionOwnedTx couples a domain result with its task's fenced transition.
+// Returning false requires the caller to roll back all domain writes.
+func TransitionOwnedTx(tx *gorm.DB, id uint64, token string, status uint8, due *time.Time, lastError string) (bool, error) {
+	r := tx.Model(&Entity{}).Where("id = ? AND status = ? AND lease_token = ?", id, StatusRunning, token).Updates(map[string]any{"status": status, "next_run_at": due, "last_error": lastError, "processed_at": time.Now()})
+	return r.RowsAffected == 1, r.Error
+}
+
+// FailOwnedTx counts an infrastructure failure together with its fenced task
+// transition. Domain owners update their recovery diagnostics in the same tx.
+func FailOwnedTx(tx *gorm.DB, id uint64, token string, status uint8, due *time.Time, lastError string) (bool, error) {
+	r := tx.Model(&Entity{}).Where("id = ? AND status = ? AND lease_token = ?", id, StatusRunning, token).Updates(map[string]any{
+		"status": status, "next_run_at": due, "last_error": lastError,
+		"processed_at": time.Now(), "retry_count": gorm.Expr("retry_count + 1"),
+	})
+	return r.RowsAffected == 1, r.Error
+}
+func OwnedTx(tx *gorm.DB, id uint64, token string) (bool, error) {
+	var n int64
+	err := tx.Model(&Entity{}).Where("id = ? AND status = ? AND lease_token = ?", id, StatusRunning, token).Count(&n).Error
+	return n == 1, err
+}
+
+// RetryOwned persists delay for managed Agent workers; no sleeping worker.
+func RetryOwned(id uint64, token string, due time.Time, lastError string, maxAttempts uint8) error {
+	return db.Connect().Transaction(func(tx *gorm.DB) error {
+		var row Entity
+		if err := tx.Where("id = ? AND status = ? AND lease_token = ?", id, StatusRunning, token).First(&row).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		status := uint8(StatusRetrying)
+		if row.RetryCount+1 >= maxAttempts {
+			status = StatusFailed
+		}
+		r := tx.Model(&Entity{}).Where("id = ? AND status = ? AND lease_token = ?", id, StatusRunning, token).Updates(map[string]any{"status": status, "next_run_at": due, "retry_count": row.RetryCount + 1, "last_error": lastError, "processed_at": time.Now()})
+		return r.Error
+	})
+}
+func ResetTerminalTx(tx *gorm.DB, id uint64, due time.Time) error {
+	return tx.Model(&Entity{}).Where("id = ? AND status IN (?, ?)", id, StatusFailed, StatusSuccess).Updates(map[string]any{"status": StatusPending, "retry_count": 0, "next_run_at": due, "last_error": "", "lease_token": ""}).Error
+}
+
+// CancelPendingIDsTx leaves already permitted/running attempts in flight.
+func CancelPendingIDsTx(tx *gorm.DB, ids []uint64, reason string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return tx.Model(&Entity{}).Where("id IN ? AND status IN (?, ?)", ids, StatusPending, StatusRetrying).Updates(map[string]any{"status": StatusSuccess, "last_error": reason, "processed_at": time.Now()}).Error
+}
+
+// ActivePayloads is a bounded lookup for owner-domain queue indicators.
+func ActivePayloads(taskType string, payloads []string) (result []string) {
+	if len(payloads) == 0 {
+		return
+	}
+	builder().Where("type = ? AND task_json IN ? AND status IN ?", taskType, payloads, []uint8{StatusPending, StatusRunning, StatusRetrying}).Pluck("task_json", &result)
+	return
+}
+
+// CreateDeduplicatedTx keeps source/recipient/channel identity unique. It
+// reports whether a row was actually inserted: a repeated dedup_key is
+// suppressed by ON CONFLICT DO NOTHING and still returns no error, so callers
+// that log or trace the enqueue must not treat "no error" as "staged".
+func CreateDeduplicatedTx(tx *gorm.DB, entity *Entity) (bool, error) {
+	result := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "dedup_key"}}, DoNothing: true}).Create(entity)
+	return result.RowsAffected > 0, result.Error
+}
+
+// ThrottlePush reserves a recent low-value group before sending; PostgreSQL
+// advisory locks serialize the same group across server workers. The count is
+// restricted to typePrefix (the throttled row's own task family) so that a
+// future task family reusing the same schedule_group string cannot silently
+// suppress this one; an empty prefix counts every family, which preserves the
+// behaviour for types that carry no family separator.
+func ThrottlePush(id uint64, typePrefix, group string, before time.Time) (bool, error) {
+	blocked := false
+	err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		if tx.Name() == "postgres" {
+			if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtext(?))", group).Error; err != nil {
+				return err
+			}
+		}
+		query := tx.Model(&Entity{}).
+			Where("schedule_group = ? AND id <> ? AND status IN (?, ?) AND processed_at > ?", group, id, StatusRunning, StatusSuccess, before)
+		if typePrefix != "" {
+			query = query.Where(typeFamilyQuery(typePrefix))
+		}
+		var count int64
+		if err := query.Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			blocked = true
+			return nil
+		}
+		return tx.Model(&Entity{}).Where("id = ?", id).Update("schedule_group", group).Error
+	})
+	return blocked, err
+}
+
+// TypePrefix 返回任务类型所属的任务族前缀（"webpush.123" → "webpush."）；
+// 类型不含分隔符时返回空串，表示无法归属到某个族。任务族的常量类型
+// （"webpush."）本身即该族标识，尾点保留。
+func TypePrefix(taskType string) string {
+	if index := strings.LastIndex(taskType, "."); index >= 0 {
+		return taskType[:index+1]
+	}
+	return ""
 }

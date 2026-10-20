@@ -10,7 +10,7 @@ import { AdminPermission, canVisitAdminPath, configureAdminAccess } from '../src
 const adminSrc = resolve(__dirname, '../src/admin')
 
 function sidebarMenuUrls(): string[] {
-  const src = readFileSync(resolve(adminSrc, 'components/layout/AppSidebar.vue'), 'utf8')
+  const src = readFileSync(resolve(adminSrc, 'runtime/navigation.ts'), 'utf8')
   const urls = [...src.matchAll(/url: '(\/admin[^']*)'/g)].map((m) => m[1])
   return [...new Set(urls)]
 }
@@ -27,7 +27,28 @@ function whitelistPaths(): string[] {
   return [...block.matchAll(/'(\/admin[^']*)':/g)].map((m) => m[1])
 }
 
+test('bot creators can access only Agent management without receiving admin permission', () => {
+  configureAdminAccess([], true)
+  expect(canVisitAdminPath('/admin/agents')).toBe(true)
+  expect(canVisitAdminPath('/admin')).toBe(false)
+  expect(canVisitAdminPath('/admin/users')).toBe(false)
+  configureAdminAccess([])
+  expect(canVisitAdminPath('/admin/agents')).toBe(false)
+})
+
 describe('admin 权限白名单与菜单/路由一致性(回归: AI 课程总结/滥用防护跳转 bug)', () => {
+  test('anonymous administration requires user management and an explicit private grant', () => {
+    for (const permissions of [[], [0], [1], [7]]) {
+      configureAdminAccess(permissions)
+      expect(canVisitAdminPath('/admin/anonymous-identities')).toBe(false)
+    }
+    for (const permissions of [[0, 7], [1, 7]]) {
+      configureAdminAccess(permissions)
+      expect(canVisitAdminPath('/admin/anonymous-identities')).toBe(true)
+    }
+    configureAdminAccess([AdminPermission.Admin])
+    expect(canVisitAdminPath('/admin/feed-statistics')).toBe(true)
+  })
   test('侧边栏每个菜单项 URL 都在权限白名单中', () => {
     const urls = sidebarMenuUrls()
     const whitelist = whitelistPaths()

@@ -2,6 +2,7 @@ package notificationservice
 
 import (
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/anonymousidentityservice"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
@@ -14,9 +15,9 @@ const (
 	MaxNotificationPageSize     = 50
 )
 
-func GetNotificationCursorList(userId uint64, pageSize int, cursor uint64, unreadOnly bool) ([]*eventNotification.Entity, uint64, bool, error) {
+func GetNotificationCursorList(userId uint64, pageSize int, cursor uint64, unreadOnly bool, category ...string) ([]*eventNotification.Entity, uint64, bool, error) {
 	pageSize = normalizePageSize(pageSize)
-	notifications, err := eventNotification.QueryByUserId(userId, pageSize+1, cursor, unreadOnly)
+	notifications, err := eventNotification.QueryByUserId(userId, pageSize+1, cursor, unreadOnly, category...)
 	if err != nil {
 		return nil, 0, false, err
 	}
@@ -59,10 +60,29 @@ func hydrateNotifications(notifications []*eventNotification.Entity) error {
 		return fmt.Errorf("load notification topic titles: %w", err)
 	}
 
+	uids := make([]string, 0, len(notifications))
+	for _, n := range notifications {
+		if n.Payload.ActorPersonaUID != "" {
+			uids = append(uids, n.Payload.ActorPersonaUID)
+		}
+	}
+	personas := anonymousidentityservice.Lookup(uids)
 	// 转换数据
 	lo.ForEach(notifications, func(notification *eventNotification.Entity, _ int) {
-		if userInfo, ok := userMap[notification.Payload.ActorId]; ok {
+		if notification.Payload.ActorPersonaUID != "" {
+			public := personas[notification.Payload.ActorPersonaUID]
+			notification.Payload.ActorId = 0
+			notification.Payload.ActorName = public.Name
+			notification.Payload.Extra.ProfileURL = public.ProfileURL
+		}
+		if userInfo, ok := userMap[notification.Payload.ActorId]; ok && notification.Payload.ActorPersonaUID == "" {
 			notification.Payload.ActorName = userInfo.Username
+		}
+		// Review subjects describe the reviewed version (including untitled bodies
+		// and redacted rejections), not the currently public topic title.
+		switch notification.EventType {
+		case eventNotification.EventTypeReviewPending, eventNotification.EventTypeReviewApproved, eventNotification.EventTypeReviewRejected:
+			return
 		}
 		if topicInfo, ok := topicMap[notification.Payload.TopicId]; ok {
 			notification.Payload.TopicTitle = topicInfo.Title

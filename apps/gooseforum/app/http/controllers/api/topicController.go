@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"time"
@@ -12,6 +13,8 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agentWrites"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postUserAction"
@@ -23,16 +26,24 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentcommentservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentwriteservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/anonymousidentityservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/contentdeleteservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/feedservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicpolicyservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicunseenservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
+	"github.com/spf13/cast"
 	"gorm.io/gorm"
 )
 
@@ -44,10 +55,14 @@ func requestContext(c *gin.Context) context.Context {
 }
 
 func betterRequestContext[T any](req component.BetterRequest[T]) context.Context {
-	if req.Context != nil {
-		return req.Context
+	ctx := req.Context
+	if ctx == nil {
+		ctx = requestContext(req.GinContext)
 	}
-	return requestContext(req.GinContext)
+	if req.GinContext != nil {
+		ctx = feedservice.AttributionContext(ctx, req.UserId, cast.ToUint64(req.GinContext.GetHeader("X-Goose-Feed-Topic")), req.GinContext.GetHeader("X-Goose-Feed-Trace"), cast.ToInt(req.GinContext.GetHeader("X-Goose-Feed-Position")))
+	}
+	return ctx
 }
 
 func detachedRequestContext(c *gin.Context) context.Context {
@@ -127,20 +142,28 @@ func postSourceLimit(maxPostLength int) int {
 }
 
 type WriteTopicReq struct {
-	TopicId     uint64   `json:"topicId"`
-	Content     string   `json:"content" validate:"required"`
-	Title       string   `json:"title"` // 瞬间（contentType=2）可留空，其余类型由 writeTopic 强制非空
-	CategoryId  []uint64 `json:"categoryId" validate:"min=1,max=3"`
-	TopicStatus int8     `json:"topicStatus" validate:"oneof=0 1"`
-	Website     string   `json:"website,omitempty"` // 蜜罐字段，正常用户不可见
-	CaptchaId   string   `json:"captchaId,omitempty"`
-	CaptchaCode string   `json:"captchaCode,omitempty"`
-	ContentType int8     `json:"contentType" validate:"oneof=0 1 2 3"` // 内容类型：0=默认, 1=提问, 2=想法, 3=文章
-	Images      []string `json:"images,omitempty"`
+	AgentRepliesDisabled bool     `json:"agentRepliesDisabled"`
+	Identity             string   `json:"identity,omitempty"`
+	TopicId              uint64   `json:"topicId"`
+	Content              string   `json:"content" validate:"required"`
+	Title                string   `json:"title"` // 瞬间（contentType=2）可留空，其余类型由 writeTopic 强制非空
+	CategoryId           []uint64 `json:"categoryId" validate:"min=1,max=3"`
+	TopicStatus          int8     `json:"topicStatus" validate:"oneof=0 1"`
+	Website              string   `json:"website,omitempty"` // 蜜罐字段，正常用户不可见
+	CaptchaId            string   `json:"captchaId,omitempty"`
+	CaptchaCode          string   `json:"captchaCode,omitempty"`
+	ContentType          int8     `json:"contentType" validate:"oneof=0 1 2 3"` // 内容类型：0=默认, 1=提问, 2=想法, 3=文章
+	Images               []string `json:"images,omitempty"`
 }
 
 // WriteTopic creates or updates a topic and its first post.
 func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
+	if req.Params.Identity == "persona" {
+		req.GinContext.Set(middleware.SkipUpdateUserActivity, true)
+	}
+	if req.Params.Identity != "" && req.Params.Identity != "member" && req.Params.Identity != "persona" {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
 	return writeTopic(req, false)
 }
 
@@ -148,6 +171,10 @@ func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
 // browser-only guards (honeypot, captcha, new-user cooldown); every other
 // rule and side effect behaves identically for human and Agent writers.
 func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) component.Response {
+	return writeTopicWithMaintenance(req, agent, nil)
+}
+
+func writeTopicWithMaintenance(req component.BetterRequest[WriteTopicReq], agent bool, maintenance *botContentMaintenance) component.Response {
 	// 获取发布设置
 	postingConfig := hotdataserve.GetPostingSettingsConfigCache()
 
@@ -172,7 +199,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	}
 
 	// 新用户高频发帖触发验证码（浏览器专用，Agent 跳过）
-	if !agent {
+	if !agent && maintenance == nil {
 		rateLimitConfig := hotdataserve.GetRateLimitConfigCache()
 		if newUserCaptchaRequired(userEntity.CreatedAt, req.UserId, "topic.write", rateLimitConfig.NewUserCaptchaAfterPosts, rateLimitConfig.NewUserCaptchaDays) {
 			if ok, needCaptcha := checkCaptchaForRequest(req.GinContext, req.Params.CaptchaId, req.Params.CaptchaCode, true, rateLimitConfig.MinSubmitSeconds, "topic.write"); !ok {
@@ -248,7 +275,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	}
 
 	// 检查新用户冷却时间（浏览器专用，Agent 跳过）
-	if !agent && postingConfig.TextControl.NewUserPostCooldownMinutes > 0 {
+	if !agent && maintenance == nil && postingConfig.TextControl.NewUserPostCooldownMinutes > 0 {
 		cooldownTime := userEntity.CreatedAt.Add(time.Duration(postingConfig.TextControl.NewUserPostCooldownMinutes) * time.Minute)
 		if time.Now().Before(cooldownTime) {
 			minutes := postingConfig.TextControl.NewUserPostCooldownMinutes
@@ -261,11 +288,18 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		}
 	}
 
-	// 敏感词检查（标题+内容）
-	pendingReview, _, policyErr := checkContentPolicy(req.UserId, req.Params.Title+"\n"+req.Params.Content, "topic", req.Params.TopicId)
-	if policyErr != nil {
-		return component.FailResponseError(policyErr)
+	// Committed Agent writes replay before moderation routing and creation quotas.
+	if agent {
+		cached, lookupErr := agentwriteservice.Lookup(betterRequestContext(req), req.UserId)
+		if lookupErr != nil {
+			return agentWriteFailure(lookupErr)
+		}
+		if cached != nil {
+			return agentReplayResponse(req.UserId, cached)
+		}
 	}
+	pendingReview := false
+
 	var topic topics.Entity
 	var firstPost posts.Entity
 	var oldCategoryIds []uint64
@@ -304,6 +338,24 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 			return component.FailResponseCode(component.MessageTopicDailyLimit, nil)
 		}
 		topic.UserId = req.UserId
+		topic.AgentRepliesDisabled = req.Params.AgentRepliesDisabled
+	}
+	if req.Params.TopicId == 0 {
+		if agent && req.Params.Identity != "" && req.Params.Identity != "member" {
+			return component.FailResponseCode(component.MessageCommentAnonymousNotAllowed, nil)
+		}
+		uid, err := anonymousidentityservice.Default(betterRequestContext(req)).Resolve(req.UserId, req.Params.Identity)
+		if err != nil {
+			return component.FailResponseCode(component.MessageCode(anonymousidentityservice.ErrorCode(err)), nil)
+		}
+		topic.PersonaUID = uid
+		firstPost.PersonaUID = uid
+		firstPost.IsAnonymous = uid != ""
+	} else if req.Params.Identity != "" && ((req.Params.Identity == "persona") != (topic.PersonaUID != "")) {
+		return component.FailResponseCode(component.MessageCommentAnonymousNotAllowed, nil)
+	}
+	if topic.PersonaUID != "" {
+		req.GinContext.Set(middleware.SkipUpdateUserActivity, true)
 	}
 	topic.CategoryIds = req.Params.CategoryId
 	topic.Status = req.Params.TopicStatus
@@ -320,29 +372,55 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 			topic.FirstImageURL = topic.ImageUrls[0]
 		}
 	}
-	// AI 图文审查（issue #975）：敏感词已转审时不再花 AI 成本；放在所有权/限额
-	// 校验之后，避免为注定被拒的请求调用模型。
+	// The request only chooses a route; all model work runs after the durable save.
 	var aiCheck *moderationservice.AIModeration
-	if !pendingReview {
+	if req.Params.TopicStatus == 1 {
 		var aiPending bool
-		var aiErr error
-		aiCheck, aiPending, aiErr = applyAIModeration(req.GinContext, betterRequestContext(req), moderationservice.AIContentInput{
+		aiCheck, aiPending = applyAIModeration(betterRequestContext(req), moderationservice.AIContentInput{
 			AuthorID: req.UserId, SubjectType: moderationDecision.SubjectTopic, SubjectID: req.Params.TopicId,
 			Title: req.Params.Title, Content: req.Params.Content, Gallery: topic.ImageUrls,
 		})
-		if aiErr != nil {
-			return component.FailResponseError(aiErr)
-		}
 		pendingReview = aiPending
 	}
 	if pendingReview {
 		topic.ProcessStatus = topics.ProcessStatusPending
+	}
+	if pendingReview {
+		firstPost.TopicId, firstPost.PostNo, firstPost.UserId = topic.Id, 1, req.UserId
+		firstPost.Content, firstPost.RenderedHTML = req.Params.Content, postservice.RenderPostHTML(req.Params.Content)
+		firstPost.RenderedVersion, firstPost.ContentType = markdown2html.GetPostVersion(), req.Params.ContentType
+		if agent {
+			var reservation *agentwriteservice.Reservation
+			var replay *agentWrites.Entry
+			err = publicationservice.SubmitWithHooks(betterRequestContext(req), &topic, &firstPost, func(tx *gorm.DB) error {
+				var beginErr error
+				reservation, replay, beginErr = agentwriteservice.BeginTx(betterRequestContext(req), tx, req.UserId)
+				return beginErr
+			}, func(tx *gorm.DB) error {
+				return agentwriteservice.FinishTx(betterRequestContext(req), tx, req.UserId, reservation, topic.Id, firstPost.Id)
+			})
+			if errors.Is(err, agentwriteservice.ErrReplay) {
+				return agentReplayResponse(req.UserId, replay)
+			}
+			if err != nil {
+				return agentWriteFailure(err)
+			}
+		} else if err := submitMaintainedContent(betterRequestContext(req), &topic, &firstPost, maintenance); err != nil {
+			if maintenance != nil {
+				return botContentFailure(err)
+			}
+			return component.FailResponseCode(component.MessageOperationFailed, nil)
+		}
+		hotdataserve.InvalidateTopicListCacheForCategories(append(oldCategoryIds, topic.CategoryIds...)...)
+		recordSuccessfulWrite(req.UserId, "topic.write")
+		return publishSuccess(topic.Id, true)
 	}
 	// 覆写首帖正文前保存旧内容/旧状态：存量帖子（无版本快照）首次编辑时
 	// 惰性播种 v1 = 旧正文；v1 的状态必须取旧状态，而非本次待审覆写后的
 	// Pending（否则此前公开的旧正文会对非版主永久隐藏，review 发现）。
 	oldContent := firstPost.Content
 	oldProcessStatus := firstPost.ProcessStatus
+	topic.ProcessStatus, firstPost.ProcessStatus = topics.ProcessStatusNormal, posts.ProcessStatusNormal
 	if topic.Id > 0 {
 		if firstPost.Id == 0 {
 			return component.FailResponseCode(component.MessageTopicNotFound, nil)
@@ -358,20 +436,50 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	// 记录是否为编辑：事务内 topics.CreateTx 会回填 topic.Id，因此提交后分支判断
 	// 必须使用此快照（isEdit），不能复用已被回填的 topic.Id。
 	isEdit := topic.Id > 0
+	// Markdown mention/sticker resolution can query the database. Render before
+	// opening the content transaction so SQLite's single connection cannot wait
+	// on itself, and PostgreSQL does not hold content locks during rendering.
+	renderedContent := firstPost.RenderedHTML
+	if !isEdit {
+		renderedContent = postservice.RenderPostHTML(req.Params.Content)
+	}
+	var reservation *agentwriteservice.Reservation
+	var replay *agentWrites.Entry
 	// 单事务原子提交：话题 + 首帖 + 指针（首/末帖 ID、最后回复时间）+ 分类索引。
 	// 任一步失败整体回滚，不留孤立话题/缺首帖/缺分类索引；事件与缓存失效仅在提交后执行。
 	err = db.ConnectContext(betterRequestContext(req)).Transaction(func(tx *gorm.DB) error {
+		if maintenance != nil {
+			if err := maintenance.CheckTx(tx); err != nil {
+				return err
+			}
+		}
+		if agent {
+			var reserveErr error
+			reservation, replay, reserveErr = agentwriteservice.BeginTx(betterRequestContext(req), tx, req.UserId)
+			if reserveErr != nil {
+				return reserveErr
+			}
+		}
 		if isEdit {
 			// 锁序与 UpdatePost 首楼分支保持一致（posts → topics）：先写
 			// firstPost 行、再写 topic 派生字段。若这里先锁 topics 再锁
 			// posts，与 UpdatePost 的 posts→topics 形成锁环，同一话题双
 			// 路径并发编辑时可能死锁（数据库回滚其中一个事务）。
+			if err := postservice.LockPersonaContentTx(tx, &firstPost); err != nil {
+				return err
+			}
 			if err := posts.SaveTx(tx, &firstPost); err != nil {
 				return err
 			}
+			if topic.Status != 1 || firstPost.ProcessStatus != posts.ProcessStatusNormal || firstPost.IsAnonymous {
+				if err := agenteventservice.WithdrawContentTx(tx, topic.Id, 0); err != nil {
+					return err
+				}
+			}
+
 			// 首楼编辑追加版本历史 + 最后编辑者/时间（与 UpdatePost 同语义）。
 			// 存量帖子无版本快照时用旧正文惰性播种 v1（状态取编辑前 oldProcessStatus）。
-			if err := postservice.AppendPostRevisionWithOld(tx, &firstPost, req.UserId, firstPost.ProcessStatus, oldContent, oldProcessStatus); err != nil {
+			if err := postservice.AppendPostRevisionWithOld(tx, &firstPost, maintenanceEditor(req.UserId, maintenance), firstPost.ProcessStatus, oldContent, oldProcessStatus); err != nil {
 				return err
 			}
 			// 只更新话题编辑者可写的字段（标题/分类/上下架/摘要/首图等），
@@ -386,15 +494,19 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 			topic.PostCount = 1
 			topic.PostSeq = 1
 			topic.Posters = []topics.Poster{{UserID: req.UserId}}
+			if topic.PersonaUID != "" {
+				topic.Posters = nil
+			}
 			if err := topics.CreateTx(tx, &topic); err != nil {
 				return err
 			}
 			firstPost = posts.Entity{
+				PersonaUID: topic.PersonaUID, IsAnonymous: topic.PersonaUID != "",
 				TopicId:         topic.Id,
 				PostNo:          1,
 				UserId:          req.UserId,
 				Content:         req.Params.Content,
-				RenderedHTML:    postservice.RenderPostHTML(req.Params.Content),
+				RenderedHTML:    renderedContent,
 				RenderedVersion: markdown2html.GetPostVersion(),
 				ProcessStatus:   posts.ProcessStatusNormal,
 				ContentType:     req.Params.ContentType,
@@ -417,19 +529,47 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 				return err
 			}
 		}
+		if !agent {
+			var plan *agenteventservice.WriteCapturePlan
+			if maintenance != nil {
+				plan = maintenance.Capture
+			}
+			if err := agenteventservice.CapturePublicTx(tx, &firstPost, plan); err != nil {
+				return err
+			}
+		}
 		if err := topicCategoryIndex.ReplaceTopicCategoriesTx(tx, topic.Id, req.Params.CategoryId); err != nil {
 			return err
 		}
-		return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
+		if err := searchservice.EnqueueTopicSearchTask(tx, topic.Id); err != nil {
+			return err
+		}
+		if maintenance != nil {
+			return maintenance.AuditTx(tx)
+		}
+		if agent {
+			return agentwriteservice.FinishTx(betterRequestContext(req), tx, req.UserId, reservation, topic.Id, firstPost.Id)
+		}
+		return nil
 	})
+	if errors.Is(err, agentwriteservice.ErrReplay) {
+		return agentReplayResponse(req.UserId, replay)
+	}
 	if err != nil {
+		if maintenance != nil {
+			return botContentFailure(err)
+		}
+		if agent {
+			return agentWriteFailure(err)
+		}
 		slog.Error("topic write transaction failed", "topicId", topic.Id, "isEdit", isEdit, "err", err)
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 
-	// 待审内容的图片登记为 PENDING：审核通过前对匿名读者不可读（issue #975）。
+	// PENDING keeps both drafts and review candidates private. File reads also
+	// check the submitted content/version before granting moderator preview.
 	fileusageservice.RegisterTopicInlineImagesOwned(topic.Id, req.UserId, firstPost.Content, topic.ImageUrls,
-		topic.ProcessStatus == topics.ProcessStatusPending)
+		topic.ProcessStatus == topics.ProcessStatusPending || topic.Status == 0)
 	finishAIModeration(aiCheck, topic.Id)
 	categoryIDs := append(append([]uint64(nil), oldCategoryIds...), topic.CategoryIds...)
 	hotdataserve.InvalidateTopicListCacheForCategories(categoryIDs...)
@@ -445,11 +585,11 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 			eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
 			eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.PostUpdatedEvent{
 				TopicId: topic.Id, PostId: firstPost.Id, PostNo: firstPost.PostNo, UserId: req.UserId,
-				OldContent: oldContent, NewContent: firstPost.Content, IsAnonymous: firstPost.IsAnonymous,
+				OldContent: oldContent, NewContent: firstPost.Content, IsAnonymous: firstPost.IsAnonymous, PersonaUID: firstPost.PersonaUID,
 			})
 		}
 	} else {
-		if topic.Status == 1 && !pendingReview {
+		if topic.Status == 1 && !pendingReview && topic.PersonaUID == "" {
 			userStatistics.WriteTopic(req.UserId)
 		}
 		userservice.InvalidateUserPublicProfileCache(req.UserId)
@@ -461,7 +601,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		}
 	}
 	recordSuccessfulWrite(req.UserId, "topic.write")
-	return publishSuccess(topic.Id, pendingReview, aiCheck.Deferred())
+	return publishSuccess(topic.Id, pendingReview)
 }
 
 type TopicStatusReq struct {
@@ -481,6 +621,21 @@ func UpdateTopicStatus(req component.BetterRequest[TopicStatusReq]) component.Re
 	if topic.UserId != req.UserId {
 		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
+	if topic.VisibilityStatus != topics.VisibilityActive {
+		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
+	}
+	if req.Params.TopicStatus == 1 && topic.Status == 0 {
+		first := posts.Get(topic.FirstPostId)
+		input := moderationservice.AIContentInput{AuthorID: req.UserId, SubjectType: moderationDecision.SubjectTopic, SubjectID: topic.Id, Title: topic.Title, Content: first.Content, Gallery: topic.ImageUrls}
+		if moderationservice.NeedsSubmissionReview(betterRequestContext(req), input) {
+			topic.Status = 1
+			if err := publicationservice.Submit(betterRequestContext(req), &topic, &first); err != nil {
+				return component.FailResponseCode(component.MessageTopicSaveFailed, nil)
+			}
+			hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
+			return publishSuccess(true, true)
+		}
+	}
 	nextStatus := req.Params.TopicStatus
 	if nextStatus == 1 && topic.ProcessStatus != topics.ProcessStatusNormal {
 		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
@@ -490,8 +645,27 @@ func UpdateTopicStatus(req component.BetterRequest[TopicStatusReq]) component.Re
 	}
 	topic.Status = nextStatus
 	if err := db.ConnectContext(betterRequestContext(req)).Transaction(func(tx *gorm.DB) error {
+		if topic.FirstPostId > 0 {
+			if _, err := posts.GetUnscopedTx(tx, topic.FirstPostId); err != nil {
+				return err
+			}
+		}
 		if err := topics.UpdateStatusTx(tx, topic.Id, nextStatus); err != nil {
 			return err
+		}
+		if nextStatus == 1 && topic.FirstPostId > 0 {
+			p, err := posts.GetCurrentTx(tx, topic.FirstPostId)
+			if err != nil {
+				return err
+			}
+			if err := agenteventservice.CapturePublicTx(tx, &p); err != nil {
+				return err
+			}
+		}
+		if nextStatus != 1 {
+			if err := agenteventservice.WithdrawContentTx(tx, topic.Id, 0); err != nil {
+				return err
+			}
 		}
 		return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
 	}); err != nil {
@@ -505,12 +679,14 @@ func UpdateTopicStatus(req component.BetterRequest[TopicStatusReq]) component.Re
 	// 不发布 TopicUpdatedEvent：下架属用户隐私操作，不触发 webhook 通知。
 	llmsservice.ClearCache()
 	if topic.Status == 1 {
+		fileusageservice.PromotePendingTopicFiles(topic.Id, firstPost.Id)
 		eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 	}
 	return component.SuccessResponse(true)
 }
 
 type CreatePostReq struct {
+	Identity      string `json:"identity,omitempty"`
 	TopicId       uint64 `json:"topicId"`
 	Content       string `json:"content"`
 	ReplyToPostId uint64 `json:"replyToPostId"`
@@ -637,6 +813,20 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 		return component.FailResponseCode(component.MessageCommentAnonymousNotAllowed, nil)
 	}
 
+	personaUID := ""
+	if req.Params.Identity == "persona" {
+		req.GinContext.Set(middleware.SkipUpdateUserActivity, true)
+	}
+	if req.Params.Identity != "" && req.Params.Identity != "member" {
+		if agent || topicEntity.TopicType != topics.TopicTypeForum || req.Params.IsAnonymous {
+			return component.FailResponseCode(component.MessageCommentAnonymousNotAllowed, nil)
+		}
+		var resolveErr error
+		personaUID, resolveErr = anonymousidentityservice.Default(betterRequestContext(req)).Resolve(req.UserId, req.Params.Identity)
+		if resolveErr != nil {
+			return component.FailResponseCode(component.MessageCode(anonymousidentityservice.ErrorCode(resolveErr)), nil)
+		}
+	}
 	postEntity := &posts.Entity{
 		TopicId:         req.Params.TopicId,
 		Content:         content,
@@ -644,32 +834,73 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 		RenderedVersion: markdown2html.GetPostVersion(),
 		UserId:          req.UserId,
 		ReplyToPostId:   req.Params.ReplyToPostId,
-		IsAnonymous:     req.Params.IsAnonymous,
+		IsAnonymous:     req.Params.IsAnonymous || personaUID != "",
+		PersonaUID:      personaUID,
 	}
 
-	// 敏感词检查
-	pendingReview, _, policyErr := checkContentPolicy(req.UserId, content, "post", 0)
-	if policyErr != nil {
-		return component.FailResponseError(policyErr)
+	// Committed replies replay before policy and asynchronous review routing.
+	if agent {
+		cached, lookupErr := agentwriteservice.Lookup(betterRequestContext(req), req.UserId)
+		if lookupErr != nil {
+			return agentWriteFailure(lookupErr)
+		}
+		if cached != nil {
+			return agentReplayResponse(req.UserId, cached)
+		}
+		// 幂等重放先于策略检查：已提交的成功写不受后续策略变更影响；
+		// 新写入则在此按全站开关与主题标记拒绝。
+		if !agentcommentservice.AllowsAgentComment(topicEntity) {
+			return agentWriteFailure(agentcommentservice.ErrAgentCommentDisabled)
+		}
 	}
+	if topicEntity.AgentRepliesDisabled && userEntity.IsBot() {
+		return component.FailResponseCode(component.MessageTopicAgentRepliesDisabled, nil)
+	}
+	pendingReview := false
+
 	var aiCheck *moderationservice.AIModeration
 	if !pendingReview {
 		var aiPending bool
-		var aiErr error
-		aiCheck, aiPending, aiErr = applyAIModeration(req.GinContext, betterRequestContext(req), moderationservice.AIContentInput{
+		aiCheck, aiPending = applyAIModeration(betterRequestContext(req), moderationservice.AIContentInput{
 			AuthorID: req.UserId, SubjectType: moderationDecision.SubjectPost, Content: content,
 		})
-		if aiErr != nil {
-			return component.FailResponseError(aiErr)
-		}
 		pendingReview = aiPending
 	}
 	if pendingReview {
 		postEntity.ProcessStatus = posts.ProcessStatusPending
 	}
 
-	err = postservice.CreateTopicPost(postEntity, topicEntity)
+	if agent {
+		var reservation *agentwriteservice.Reservation
+		var replay *agentWrites.Entry
+		before := func(tx *gorm.DB) error {
+			var beginErr error
+			reservation, replay, beginErr = agentwriteservice.BeginTx(betterRequestContext(req), tx, req.UserId)
+			return beginErr
+		}
+		after := func(tx *gorm.DB) error {
+			return agentwriteservice.FinishTx(betterRequestContext(req), tx, req.UserId, reservation, postEntity.TopicId, postEntity.Id)
+		}
+		if pendingReview {
+			err = publicationservice.SubmitWithHooks(betterRequestContext(req), &topicEntity, postEntity, before, after)
+		} else {
+			err = postservice.CreateTopicPostWithHooks(postEntity, topicEntity, before, after)
+		}
+		if errors.Is(err, agentwriteservice.ErrReplay) {
+			return agentReplayResponse(req.UserId, replay)
+		}
+	} else if pendingReview {
+		err = publicationservice.Submit(betterRequestContext(req), &topicEntity, postEntity)
+	} else {
+		err = postservice.CreateTopicPost(postEntity, topicEntity)
+	}
 	if err != nil {
+		if errors.Is(err, topicpolicyservice.ErrAgentRepliesDisabled) {
+			return component.FailResponseCode(component.MessageTopicAgentRepliesDisabled, nil)
+		}
+		if agent {
+			return agentWriteFailure(err)
+		}
 		return component.FailResponseCode(
 			component.MessageCommentCreateFailed,
 
@@ -679,10 +910,14 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	if err := topicunseenservice.MarkVisited(req.UserId, topicEntity.Id, postEntity.Id, time.Now()); err != nil {
 		slog.Warn("mark created post visited failed", "userId", req.UserId, "topicId", topicEntity.Id, "postId", postEntity.Id, "error", err)
 	}
-	fileusageservice.RegisterPostInlineImagesOwned(postEntity.Id, req.UserId, postEntity.Content, pendingReview)
-	finishAIModeration(aiCheck, postEntity.Id)
 	if !pendingReview {
-		userStatistics.WriteComment(req.UserId)
+		fileusageservice.RegisterPostInlineImagesOwned(postEntity.Id, req.UserId, postEntity.Content, false)
+		finishAIModeration(aiCheck, postEntity.Id)
+	}
+	if !pendingReview {
+		if !postEntity.IsAnonymous {
+			userStatistics.WriteComment(req.UserId)
+		}
 	}
 	userservice.InvalidateUserPublicProfileCache(req.UserId)
 	hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
@@ -705,7 +940,7 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 			TopicAuthorId:       topicEntity.UserId,
 			ReplyToPostId:       req.Params.ReplyToPostId,
 			ReplyToPostAuthorId: parentPostAuthorID,
-			IsAnonymous:         postEntity.IsAnonymous,
+			IsAnonymous:         postEntity.IsAnonymous, PersonaUID: postEntity.PersonaUID,
 		})
 	}
 	// 发帖计数无条件累加（与 WriteTopic 的 topic.write 一致），
@@ -720,7 +955,7 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 		"postNo":          postEntity.PostNo,
 		"renderedContent": postEntity.RenderedHTML,
 		"isAnswer":        isAnswer,
-	}, pendingReview, aiCheck.Deferred())
+	}, pendingReview)
 }
 
 type DeletePostReq struct {
@@ -739,17 +974,32 @@ type UpdatePostReq struct {
 // 搜索索引；所有内容编辑在同一事务内追加版本历史（post_revisions，
 // 用户只读查看）并更新最后编辑者/时间。
 func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
+	return updatePostWithMaintenance(req, nil)
+}
+
+func updatePostWithMaintenance(req component.BetterRequest[UpdatePostReq], maintenance *botContentMaintenance) component.Response {
 	postingConfig := hotdataserve.GetPostingSettingsConfigCache()
 	postEntity := posts.Get(req.Params.PostId)
+	if postEntity.PersonaUID != "" {
+		req.GinContext.Set(middleware.SkipUpdateUserActivity, true)
+	}
 	if postEntity.Id == 0 {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
 	if postEntity.UserId != req.UserId {
 		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
+	user, err := req.GetUser()
+	if err != nil {
+		return component.FailResponseCode(component.MessageUserFetchFailed, nil)
+	}
+	if _, err := component.CheckUserPermission(&user, component.PermissionActionComment); err != nil {
+		return component.FailResponseError(err)
+	}
 	// 话题可见性守卫：与 LikePost/BookmarkPost 一致，禁止在读路径不可见（隐藏/封禁）的话题中编辑回复
 	topicEntity := topics.GetSimple(postEntity.TopicId)
-	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
+	canEditTopic := forum.CanViewTopicSimple(&topicEntity, req.UserId) || (postEntity.PostNo == 1 && topicEntity.UserId == req.UserId)
+	if topicEntity.Id == 0 || topicEntity.VisibilityStatus != topics.VisibilityActive || postEntity.VisibilityStatus != posts.VisibilityActive || !canEditTopic {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
 	// wiki 分站首楼由 wiki_page_revisions 版本流独占（review High：此前
@@ -791,26 +1041,19 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 
 	}
 
-	// 敏感词检查：block 直接拦截；review 转待审（编辑后的内容进入审核队列）
-	pendingReview, _, policyErr := checkContentPolicy(req.UserId, content, "post", postEntity.Id)
-	if policyErr != nil {
-		return component.FailResponseError(policyErr)
-	}
+	// Sensitive words and AI share the durable submission path.
+	pendingReview := false
 	// AI 图文审查：首楼编辑按话题审查（与审核队列的话题条目对齐），回复按回复审查。
 	var aiCheck *moderationservice.AIModeration
-	if !pendingReview {
+	if !pendingReview && topicEntity.Status == 1 {
 		aiInput := moderationservice.AIContentInput{
 			AuthorID: req.UserId, SubjectType: moderationDecision.SubjectPost, SubjectID: postEntity.Id, Content: content,
 		}
 		if postEntity.PostNo == 1 {
-			aiInput.SubjectType, aiInput.SubjectID, aiInput.Title = moderationDecision.SubjectTopic, topicEntity.Id, topicEntity.Title
+			aiInput.SubjectType, aiInput.SubjectID, aiInput.Title, aiInput.Gallery = moderationDecision.SubjectTopic, topicEntity.Id, topicEntity.Title, topicEntity.ImageUrls
 		}
 		var aiPending bool
-		var aiErr error
-		aiCheck, aiPending, aiErr = applyAIModeration(req.GinContext, betterRequestContext(req), aiInput)
-		if aiErr != nil {
-			return component.FailResponseError(aiErr)
-		}
+		aiCheck, aiPending = applyAIModeration(betterRequestContext(req), aiInput)
 		pendingReview = aiPending
 	}
 	// 覆写正文前捕获旧状态：存量帖子首次编辑惰性播种 v1 时，v1 的状态
@@ -833,19 +1076,55 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 		// 编辑分支同语义），保证列表卡片、搜索文档与正文一致。
 		topicEntity.Excerpt = markdown2html.ExtractDescription(content, 200)
 		topicEntity.FirstImageURL = markdown2html.ExtractFirstImageURL(content)
-		topicEntity.ImageUrls = markdown2html.ExtractImageURLs(content)
+		if postEntity.ContentType == posts.ContentTypeArticle {
+			topicEntity.ImageUrls = markdown2html.ExtractImageURLs(content)
+		}
+		if topicEntity.FirstImageURL == "" && len(topicEntity.ImageUrls) > 0 {
+			topicEntity.FirstImageURL = topicEntity.ImageUrls[0]
+		}
 		if pendingReview {
 			topicEntity.ProcessStatus = topics.ProcessStatusPending
 		}
 	}
 
+	if pendingReview {
+		if err := submitMaintainedContent(betterRequestContext(req), &topicEntity, &postEntity, maintenance); err != nil {
+			if maintenance != nil {
+				return botContentFailure(err)
+			}
+			return component.FailResponseCode(component.MessagePostUpdateFailed, nil)
+		}
+		return publishSuccess(map[string]any{"id": postEntity.Id, "postNo": postEntity.PostNo, "content": content, "renderedContent": postEntity.RenderedHTML, "updatedAt": time.Now().Format(time.RFC3339), "lastEditorId": maintenanceEditor(req.UserId, maintenance), "lastEditedAt": postEntity.LastEditedAt.Format(time.RFC3339), "revisionCount": postRevisions.CountByPostIds([]uint64{postEntity.Id})[postEntity.Id]}, true)
+	}
+	postEntity.ProcessStatus = posts.ProcessStatusNormal
+	if isFirstPost {
+		topicEntity.ProcessStatus = topics.ProcessStatusNormal
+	}
+
 	now := time.Now()
 	if err := db.ConnectContext(betterRequestContext(req)).Transaction(func(tx *gorm.DB) error {
+		if maintenance != nil {
+			if err := maintenance.CheckTx(tx); err != nil {
+				return err
+			}
+		}
+		if err := postservice.LockPersonaContentTx(tx, &postEntity); err != nil {
+			return err
+		}
 		if err := posts.SaveTx(tx, &postEntity); err != nil {
 			return err
 		}
+		if postEntity.ProcessStatus != posts.ProcessStatusNormal || postEntity.IsAnonymous {
+			targetPostID := postEntity.Id
+			if isFirstPost {
+				targetPostID = 0
+			}
+			if err := agenteventservice.WithdrawContentTx(tx, postEntity.TopicId, targetPostID); err != nil {
+				return err
+			}
+		}
 		// 版本历史与帖子更新同事务：追加失败则整体回滚，不留无版本的编辑。
-		if err := postservice.AppendPostRevisionWithOld(tx, &postEntity, req.UserId, postEntity.ProcessStatus, oldContent, oldProcessStatus); err != nil {
+		if err := postservice.AppendPostRevisionWithOld(tx, &postEntity, maintenanceEditor(req.UserId, maintenance), postEntity.ProcessStatus, oldContent, oldProcessStatus); err != nil {
 			return err
 		}
 		if isFirstPost {
@@ -856,23 +1135,38 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 			if err := topics.UpdateFirstPostDerivedTx(tx, &topicEntity); err != nil {
 				return err
 			}
-			return searchservice.EnqueueTopicSearchTask(tx, topicEntity.Id)
+			if err := searchservice.EnqueueTopicSearchTask(tx, topicEntity.Id); err != nil {
+				return err
+			}
+		}
+		var plan *agenteventservice.WriteCapturePlan
+		if maintenance != nil {
+			plan = maintenance.Capture
+		}
+		if err := agenteventservice.CapturePublicTx(tx, &postEntity, plan); err != nil {
+			return err
+		}
+		if maintenance != nil {
+			return maintenance.AuditTx(tx)
 		}
 		return nil
 	}); err != nil {
+		if maintenance != nil {
+			return botContentFailure(err)
+		}
 		return component.FailResponseCode(
 			component.MessagePostUpdateFailed,
 
 			component.MessageParams{"error": err.Error()})
 	}
-	postEntity.LastEditorId = req.UserId
+	postEntity.LastEditorId = maintenanceEditor(req.UserId, maintenance)
 	postEntity.LastEditedAt = &now
 
 	fileusageservice.RegisterPostInlineImagesOwned(postEntity.Id, req.UserId, postEntity.Content,
-		postEntity.ProcessStatus == posts.ProcessStatusPending)
+		postEntity.ProcessStatus == posts.ProcessStatusPending || topicEntity.Status == 0)
 	if isFirstPost {
-		fileusageservice.RegisterTopicInlineImagesOwned(topicEntity.Id, req.UserId, postEntity.Content, nil,
-			topicEntity.ProcessStatus == topics.ProcessStatusPending)
+		fileusageservice.RegisterTopicInlineImagesOwned(topicEntity.Id, req.UserId, postEntity.Content, topicEntity.ImageUrls,
+			topicEntity.ProcessStatus == topics.ProcessStatusPending || topicEntity.Status == 0)
 		finishAIModeration(aiCheck, topicEntity.Id)
 	} else {
 		finishAIModeration(aiCheck, postEntity.Id)
@@ -900,7 +1194,7 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 			UserId:      req.UserId,
 			OldContent:  oldContent,
 			NewContent:  postEntity.Content,
-			IsAnonymous: postEntity.IsAnonymous,
+			IsAnonymous: postEntity.IsAnonymous, PersonaUID: postEntity.PersonaUID,
 		})
 	}
 
@@ -913,7 +1207,7 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 		"lastEditorId":    postEntity.LastEditorId,
 		"lastEditedAt":    postEntity.LastEditedAt.Format(time.RFC3339),
 		"revisionCount":   postRevisions.CountByPostIds([]uint64{postEntity.Id})[postEntity.Id],
-	}, pendingReview, aiCheck.Deferred())
+	}, pendingReview)
 }
 
 func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {
@@ -980,12 +1274,18 @@ func LikeTopic(req component.BetterRequest[LikeTopicReq]) component.Response {
 	if state.Id != 0 && (state.LikedAt != nil) == targetLiked {
 		return component.SuccessResponse(true)
 	}
-	if topicUserAction.SetLiked(req.UserId, topicEntity.Id, targetLiked) {
+	changed, err := topicUserAction.SetState(betterRequestContext(req), req.UserId, topicEntity.Id, "liked_at", targetLiked)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	if changed {
 		// 仅状态迁移时执行统计与事件副作用（并发重复请求不会重复计数）
 		if targetLiked {
 			topics.IncrementLike(topicEntity)
-			userStatistics.LikeTopic(topicEntity.UserId)
-			userStatistics.GivenLike(req.UserId)
+			if topicEntity.PersonaUID == "" {
+				userStatistics.LikeTopic(topicEntity.UserId)
+				userStatistics.GivenLike(req.UserId)
+			}
 			userservice.InvalidateUserPublicProfileCache(topicEntity.UserId)
 			userservice.InvalidateUserPublicProfileCache(req.UserId)
 			hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
@@ -999,8 +1299,10 @@ func LikeTopic(req component.BetterRequest[LikeTopicReq]) component.Response {
 			})
 		} else {
 			topics.DecrementLike(topicEntity)
-			userStatistics.CancelLikeTopic(topicEntity.UserId)
-			userStatistics.CancelGivenLike(req.UserId)
+			if topicEntity.PersonaUID == "" {
+				userStatistics.CancelLikeTopic(topicEntity.UserId)
+				userStatistics.CancelGivenLike(req.UserId)
+			}
 			userservice.InvalidateUserPublicProfileCache(topicEntity.UserId)
 			userservice.InvalidateUserPublicProfileCache(req.UserId)
 			hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
@@ -1033,7 +1335,11 @@ func BookmarkTopic(req component.BetterRequest[BookmarkTopicReq]) component.Resp
 		return component.SuccessResponse(true)
 	}
 
-	if topicUserAction.SetBookmarked(req.UserId, topicEntity.Id, targetBookmarked) {
+	changed, err := topicUserAction.SetState(betterRequestContext(req), req.UserId, topicEntity.Id, "bookmarked_at", targetBookmarked)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	if changed {
 		updateBookmarkStats(req.UserId, targetBookmarked)
 		userservice.InvalidateUserPublicProfileCache(req.UserId)
 	}
@@ -1105,12 +1411,20 @@ func LikePost(req component.BetterRequest[LikePostReq]) component.Response {
 		return component.SuccessResponse(true)
 	}
 
-	if postUserAction.SetLiked(req.UserId, postEntity.Id, targetLiked) {
+	changed, err := postUserAction.SetState(betterRequestContext(req), req.UserId, postEntity.Id, postEntity.TopicId, "liked_at", targetLiked)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	if changed {
 		// 仅状态迁移时执行统计与事件副作用（并发重复请求不会重复计数）
 		if targetLiked {
-			userStatistics.GivenLike(req.UserId)
+			if postEntity.PersonaUID == "" {
+				userStatistics.GivenLike(req.UserId)
+			}
 			// 楼层点赞计入作者"获赞"统计，并发布点赞事件（动态/徽章/通知）
-			userStatistics.LikeTopic(postEntity.UserId)
+			if postEntity.PersonaUID == "" {
+				userStatistics.LikeTopic(postEntity.UserId)
+			}
 			eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.PostLikedEvent{
 				UserId:     postEntity.UserId,
 				PostId:     postEntity.Id,
@@ -1120,8 +1434,10 @@ func LikePost(req component.BetterRequest[LikePostReq]) component.Response {
 				LikerId:    req.UserId,
 			})
 		} else {
-			userStatistics.CancelGivenLike(req.UserId)
-			userStatistics.CancelLikeTopic(postEntity.UserId)
+			if postEntity.PersonaUID == "" {
+				userStatistics.CancelGivenLike(req.UserId)
+				userStatistics.CancelLikeTopic(postEntity.UserId)
+			}
 		}
 		userservice.InvalidateUserPublicProfileCache(postEntity.UserId)
 		userservice.InvalidateUserPublicProfileCache(req.UserId)
@@ -1158,7 +1474,11 @@ func BookmarkPost(req component.BetterRequest[BookmarkPostReq]) component.Respon
 		return component.SuccessResponse(true)
 	}
 
-	if postUserAction.SetBookmarked(req.UserId, postEntity.Id, targetBookmarked) {
+	changed, err := postUserAction.SetState(betterRequestContext(req), req.UserId, postEntity.Id, postEntity.TopicId, "bookmarked_at", targetBookmarked)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	if changed {
 		updateBookmarkStats(req.UserId, targetBookmarked)
 		userservice.InvalidateUserPublicProfileCache(req.UserId)
 	}

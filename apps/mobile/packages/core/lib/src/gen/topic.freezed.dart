@@ -21,7 +21,12 @@ UserBriefPayload _$UserBriefPayloadFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$UserBriefPayload {
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration => throw _privateConstructorUsedError;
   int get id => throw _privateConstructorUsedError;
+  String? get kind => throw _privateConstructorUsedError;
+  String? get publicUid => throw _privateConstructorUsedError;
+  String? get profileUrl => throw _privateConstructorUsedError;
   String get username => throw _privateConstructorUsedError;
   String? get nickname => throw _privateConstructorUsedError;
   String get avatarUrl => throw _privateConstructorUsedError;
@@ -45,7 +50,11 @@ abstract class $UserBriefPayloadCopyWith<$Res> {
   ) = _$UserBriefPayloadCopyWithImpl<$Res, UserBriefPayload>;
   @useResult
   $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     int id,
+    String? kind,
+    String? publicUid,
+    String? profileUrl,
     String username,
     String? nickname,
     String avatarUrl,
@@ -70,7 +79,11 @@ class _$UserBriefPayloadCopyWithImpl<$Res, $Val extends UserBriefPayload>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? id = null,
+    Object? kind = freezed,
+    Object? publicUid = freezed,
+    Object? profileUrl = freezed,
     Object? username = null,
     Object? nickname = freezed,
     Object? avatarUrl = null,
@@ -78,10 +91,26 @@ class _$UserBriefPayloadCopyWithImpl<$Res, $Val extends UserBriefPayload>
   }) {
     return _then(
       _value.copyWith(
+            decoration: freezed == decoration
+                ? _value.decoration
+                : decoration // ignore: cast_nullable_to_non_nullable
+                      as UserDecoration?,
             id: null == id
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
                       as int,
+            kind: freezed == kind
+                ? _value.kind
+                : kind // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            publicUid: freezed == publicUid
+                ? _value.publicUid
+                : publicUid // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            profileUrl: freezed == profileUrl
+                ? _value.profileUrl
+                : profileUrl // ignore: cast_nullable_to_non_nullable
+                      as String?,
             username: null == username
                 ? _value.username
                 : username // ignore: cast_nullable_to_non_nullable
@@ -128,7 +157,11 @@ abstract class _$$UserBriefPayloadImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     int id,
+    String? kind,
+    String? publicUid,
+    String? profileUrl,
     String username,
     String? nickname,
     String avatarUrl,
@@ -153,7 +186,11 @@ class __$$UserBriefPayloadImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? id = null,
+    Object? kind = freezed,
+    Object? publicUid = freezed,
+    Object? profileUrl = freezed,
     Object? username = null,
     Object? nickname = freezed,
     Object? avatarUrl = null,
@@ -161,10 +198,26 @@ class __$$UserBriefPayloadImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$UserBriefPayloadImpl(
+        decoration: freezed == decoration
+            ? _value.decoration
+            : decoration // ignore: cast_nullable_to_non_nullable
+                  as UserDecoration?,
         id: null == id
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
                   as int,
+        kind: freezed == kind
+            ? _value.kind
+            : kind // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        publicUid: freezed == publicUid
+            ? _value.publicUid
+            : publicUid // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        profileUrl: freezed == profileUrl
+            ? _value.profileUrl
+            : profileUrl // ignore: cast_nullable_to_non_nullable
+                  as String?,
         username: null == username
             ? _value.username
             : username // ignore: cast_nullable_to_non_nullable
@@ -190,7 +243,11 @@ class __$$UserBriefPayloadImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$UserBriefPayloadImpl implements _UserBriefPayload {
   const _$UserBriefPayloadImpl({
+    @JsonKey(fromJson: UserDecoration.parse) this.decoration,
     required this.id,
+    this.kind,
+    this.publicUid,
+    this.profileUrl,
     required this.username,
     this.nickname,
     required this.avatarUrl,
@@ -201,7 +258,16 @@ class _$UserBriefPayloadImpl implements _UserBriefPayload {
       _$$UserBriefPayloadImplFromJson(json);
 
   @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  final UserDecoration? decoration;
+  @override
   final int id;
+  @override
+  final String? kind;
+  @override
+  final String? publicUid;
+  @override
+  final String? profileUrl;
   @override
   final String username;
   @override
@@ -213,7 +279,7 @@ class _$UserBriefPayloadImpl implements _UserBriefPayload {
 
   @override
   String toString() {
-    return 'UserBriefPayload(id: $id, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, wornBadge: $wornBadge)';
+    return 'UserBriefPayload(decoration: $decoration, id: $id, kind: $kind, publicUid: $publicUid, profileUrl: $profileUrl, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, wornBadge: $wornBadge)';
   }
 
   @override
@@ -221,7 +287,14 @@ class _$UserBriefPayloadImpl implements _UserBriefPayload {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$UserBriefPayloadImpl &&
+            (identical(other.decoration, decoration) ||
+                other.decoration == decoration) &&
             (identical(other.id, id) || other.id == id) &&
+            (identical(other.kind, kind) || other.kind == kind) &&
+            (identical(other.publicUid, publicUid) ||
+                other.publicUid == publicUid) &&
+            (identical(other.profileUrl, profileUrl) ||
+                other.profileUrl == profileUrl) &&
             (identical(other.username, username) ||
                 other.username == username) &&
             (identical(other.nickname, nickname) ||
@@ -234,8 +307,18 @@ class _$UserBriefPayloadImpl implements _UserBriefPayload {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, id, username, nickname, avatarUrl, wornBadge);
+  int get hashCode => Object.hash(
+    runtimeType,
+    decoration,
+    id,
+    kind,
+    publicUid,
+    profileUrl,
+    username,
+    nickname,
+    avatarUrl,
+    wornBadge,
+  );
 
   /// Create a copy of UserBriefPayload
   /// with the given fields replaced by the non-null parameter values.
@@ -256,7 +339,11 @@ class _$UserBriefPayloadImpl implements _UserBriefPayload {
 
 abstract class _UserBriefPayload implements UserBriefPayload {
   const factory _UserBriefPayload({
+    @JsonKey(fromJson: UserDecoration.parse) final UserDecoration? decoration,
     required final int id,
+    final String? kind,
+    final String? publicUid,
+    final String? profileUrl,
     required final String username,
     final String? nickname,
     required final String avatarUrl,
@@ -267,7 +354,16 @@ abstract class _UserBriefPayload implements UserBriefPayload {
       _$UserBriefPayloadImpl.fromJson;
 
   @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration;
+  @override
   int get id;
+  @override
+  String? get kind;
+  @override
+  String? get publicUid;
+  @override
+  String? get profileUrl;
   @override
   String get username;
   @override
@@ -1426,6 +1522,9 @@ TopicPayload _$TopicPayloadFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$TopicPayload {
+  String? get feedTrace => throw _privateConstructorUsedError;
+  int? get feedPosition => throw _privateConstructorUsedError;
+  String? get feedReason => throw _privateConstructorUsedError;
   int get id => throw _privateConstructorUsedError;
   String get title => throw _privateConstructorUsedError;
   String get description => throw _privateConstructorUsedError;
@@ -1469,6 +1568,9 @@ abstract class $TopicPayloadCopyWith<$Res> {
   ) = _$TopicPayloadCopyWithImpl<$Res, TopicPayload>;
   @useResult
   $Res call({
+    String? feedTrace,
+    int? feedPosition,
+    String? feedReason,
     int id,
     String title,
     String description,
@@ -1510,6 +1612,9 @@ class _$TopicPayloadCopyWithImpl<$Res, $Val extends TopicPayload>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? feedTrace = freezed,
+    Object? feedPosition = freezed,
+    Object? feedReason = freezed,
     Object? id = null,
     Object? title = null,
     Object? description = null,
@@ -1534,6 +1639,18 @@ class _$TopicPayloadCopyWithImpl<$Res, $Val extends TopicPayload>
   }) {
     return _then(
       _value.copyWith(
+            feedTrace: freezed == feedTrace
+                ? _value.feedTrace
+                : feedTrace // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            feedPosition: freezed == feedPosition
+                ? _value.feedPosition
+                : feedPosition // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            feedReason: freezed == feedReason
+                ? _value.feedReason
+                : feedReason // ignore: cast_nullable_to_non_nullable
+                      as String?,
             id: null == id
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
@@ -1644,6 +1761,9 @@ abstract class _$$TopicPayloadImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    String? feedTrace,
+    int? feedPosition,
+    String? feedReason,
     int id,
     String title,
     String description,
@@ -1685,6 +1805,9 @@ class __$$TopicPayloadImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? feedTrace = freezed,
+    Object? feedPosition = freezed,
+    Object? feedReason = freezed,
     Object? id = null,
     Object? title = null,
     Object? description = null,
@@ -1709,6 +1832,18 @@ class __$$TopicPayloadImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$TopicPayloadImpl(
+        feedTrace: freezed == feedTrace
+            ? _value.feedTrace
+            : feedTrace // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        feedPosition: freezed == feedPosition
+            ? _value.feedPosition
+            : feedPosition // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        feedReason: freezed == feedReason
+            ? _value.feedReason
+            : feedReason // ignore: cast_nullable_to_non_nullable
+                  as String?,
         id: null == id
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
@@ -1802,6 +1937,9 @@ class __$$TopicPayloadImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$TopicPayloadImpl implements _TopicPayload {
   const _$TopicPayloadImpl({
+    this.feedTrace,
+    this.feedPosition,
+    this.feedReason,
     required this.id,
     required this.title,
     required this.description,
@@ -1831,6 +1969,12 @@ class _$TopicPayloadImpl implements _TopicPayload {
   factory _$TopicPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$TopicPayloadImplFromJson(json);
 
+  @override
+  final String? feedTrace;
+  @override
+  final int? feedPosition;
+  @override
+  final String? feedReason;
   @override
   final int id;
   @override
@@ -1907,7 +2051,7 @@ class _$TopicPayloadImpl implements _TopicPayload {
 
   @override
   String toString() {
-    return 'TopicPayload(id: $id, title: $title, description: $description, contentType: $contentType, firstImageUrl: $firstImageUrl, images: $images, imageMetadata: $imageMetadata, url: $url, author: $author, participants: $participants, categories: $categories, replyCount: $replyCount, viewCount: $viewCount, likeCount: $likeCount, pinWeight: $pinWeight, processStatus: $processStatus, activityText: $activityText, lastUpdateTime: $lastUpdateTime, unseen: $unseen, liked: $liked, bookmarked: $bookmarked)';
+    return 'TopicPayload(feedTrace: $feedTrace, feedPosition: $feedPosition, feedReason: $feedReason, id: $id, title: $title, description: $description, contentType: $contentType, firstImageUrl: $firstImageUrl, images: $images, imageMetadata: $imageMetadata, url: $url, author: $author, participants: $participants, categories: $categories, replyCount: $replyCount, viewCount: $viewCount, likeCount: $likeCount, pinWeight: $pinWeight, processStatus: $processStatus, activityText: $activityText, lastUpdateTime: $lastUpdateTime, unseen: $unseen, liked: $liked, bookmarked: $bookmarked)';
   }
 
   @override
@@ -1915,6 +2059,12 @@ class _$TopicPayloadImpl implements _TopicPayload {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$TopicPayloadImpl &&
+            (identical(other.feedTrace, feedTrace) ||
+                other.feedTrace == feedTrace) &&
+            (identical(other.feedPosition, feedPosition) ||
+                other.feedPosition == feedPosition) &&
+            (identical(other.feedReason, feedReason) ||
+                other.feedReason == feedReason) &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.title, title) || other.title == title) &&
             (identical(other.description, description) ||
@@ -1962,6 +2112,9 @@ class _$TopicPayloadImpl implements _TopicPayload {
   @override
   int get hashCode => Object.hashAll([
     runtimeType,
+    feedTrace,
+    feedPosition,
+    feedReason,
     id,
     title,
     description,
@@ -2001,6 +2154,9 @@ class _$TopicPayloadImpl implements _TopicPayload {
 
 abstract class _TopicPayload implements TopicPayload {
   const factory _TopicPayload({
+    final String? feedTrace,
+    final int? feedPosition,
+    final String? feedReason,
     required final int id,
     required final String title,
     required final String description,
@@ -2027,6 +2183,12 @@ abstract class _TopicPayload implements TopicPayload {
   factory _TopicPayload.fromJson(Map<String, dynamic> json) =
       _$TopicPayloadImpl.fromJson;
 
+  @override
+  String? get feedTrace;
+  @override
+  int? get feedPosition;
+  @override
+  String? get feedReason;
   @override
   int get id;
   @override
@@ -2084,6 +2246,7 @@ TopicDetailPayload _$TopicDetailPayloadFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$TopicDetailPayload {
+  bool get agentRepliesDisabled => throw _privateConstructorUsedError;
   int get id => throw _privateConstructorUsedError;
   String get title => throw _privateConstructorUsedError;
   String get description => throw _privateConstructorUsedError;
@@ -2127,6 +2290,7 @@ abstract class $TopicDetailPayloadCopyWith<$Res> {
   ) = _$TopicDetailPayloadCopyWithImpl<$Res, TopicDetailPayload>;
   @useResult
   $Res call({
+    bool agentRepliesDisabled,
     int id,
     String title,
     String description,
@@ -2170,6 +2334,7 @@ class _$TopicDetailPayloadCopyWithImpl<$Res, $Val extends TopicDetailPayload>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? agentRepliesDisabled = null,
     Object? id = null,
     Object? title = null,
     Object? description = null,
@@ -2196,6 +2361,10 @@ class _$TopicDetailPayloadCopyWithImpl<$Res, $Val extends TopicDetailPayload>
   }) {
     return _then(
       _value.copyWith(
+            agentRepliesDisabled: null == agentRepliesDisabled
+                ? _value.agentRepliesDisabled
+                : agentRepliesDisabled // ignore: cast_nullable_to_non_nullable
+                      as bool,
             id: null == id
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
@@ -2314,6 +2483,7 @@ abstract class _$$TopicDetailPayloadImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    bool agentRepliesDisabled,
     int id,
     String title,
     String description,
@@ -2357,6 +2527,7 @@ class __$$TopicDetailPayloadImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? agentRepliesDisabled = null,
     Object? id = null,
     Object? title = null,
     Object? description = null,
@@ -2383,6 +2554,10 @@ class __$$TopicDetailPayloadImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$TopicDetailPayloadImpl(
+        agentRepliesDisabled: null == agentRepliesDisabled
+            ? _value.agentRepliesDisabled
+            : agentRepliesDisabled // ignore: cast_nullable_to_non_nullable
+                  as bool,
         id: null == id
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
@@ -2484,6 +2659,7 @@ class __$$TopicDetailPayloadImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$TopicDetailPayloadImpl implements _TopicDetailPayload {
   const _$TopicDetailPayloadImpl({
+    this.agentRepliesDisabled = false,
     required this.id,
     required this.title,
     required this.description,
@@ -2514,6 +2690,9 @@ class _$TopicDetailPayloadImpl implements _TopicDetailPayload {
   factory _$TopicDetailPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$TopicDetailPayloadImplFromJson(json);
 
+  @override
+  @JsonKey()
+  final bool agentRepliesDisabled;
   @override
   final int id;
   @override
@@ -2586,7 +2765,7 @@ class _$TopicDetailPayloadImpl implements _TopicDetailPayload {
 
   @override
   String toString() {
-    return 'TopicDetailPayload(id: $id, title: $title, description: $description, contentType: $contentType, firstImageUrl: $firstImageUrl, images: $images, url: $url, topicStatus: $topicStatus, processStatus: $processStatus, authorDeleted: $authorDeleted, moderatorRemoved: $moderatorRemoved, author: $author, participants: $participants, categories: $categories, replyCount: $replyCount, maxPostNo: $maxPostNo, viewCount: $viewCount, likeCount: $likeCount, isLiked: $isLiked, isBookmarked: $isBookmarked, isWatched: $isWatched, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'TopicDetailPayload(agentRepliesDisabled: $agentRepliesDisabled, id: $id, title: $title, description: $description, contentType: $contentType, firstImageUrl: $firstImageUrl, images: $images, url: $url, topicStatus: $topicStatus, processStatus: $processStatus, authorDeleted: $authorDeleted, moderatorRemoved: $moderatorRemoved, author: $author, participants: $participants, categories: $categories, replyCount: $replyCount, maxPostNo: $maxPostNo, viewCount: $viewCount, likeCount: $likeCount, isLiked: $isLiked, isBookmarked: $isBookmarked, isWatched: $isWatched, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -2594,6 +2773,8 @@ class _$TopicDetailPayloadImpl implements _TopicDetailPayload {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$TopicDetailPayloadImpl &&
+            (identical(other.agentRepliesDisabled, agentRepliesDisabled) ||
+                other.agentRepliesDisabled == agentRepliesDisabled) &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.title, title) || other.title == title) &&
             (identical(other.description, description) ||
@@ -2644,6 +2825,7 @@ class _$TopicDetailPayloadImpl implements _TopicDetailPayload {
   @override
   int get hashCode => Object.hashAll([
     runtimeType,
+    agentRepliesDisabled,
     id,
     title,
     description,
@@ -2688,6 +2870,7 @@ class _$TopicDetailPayloadImpl implements _TopicDetailPayload {
 
 abstract class _TopicDetailPayload implements TopicDetailPayload {
   const factory _TopicDetailPayload({
+    final bool agentRepliesDisabled,
     required final int id,
     required final String title,
     required final String description,
@@ -2716,6 +2899,8 @@ abstract class _TopicDetailPayload implements TopicDetailPayload {
   factory _TopicDetailPayload.fromJson(Map<String, dynamic> json) =
       _$TopicDetailPayloadImpl.fromJson;
 
+  @override
+  bool get agentRepliesDisabled;
   @override
   int get id;
   @override
@@ -2803,6 +2988,9 @@ mixin _$PostPayload {
   bool get isLiked => throw _privateConstructorUsedError;
   bool get isBookmarked => throw _privateConstructorUsedError;
 
+  /// Topic gallery, only on the visible first post (issue #1228).
+  List<String>? get images => throw _privateConstructorUsedError;
+
   /// Serializes this PostPayload to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -2846,6 +3034,7 @@ abstract class $PostPayloadCopyWith<$Res> {
     int likeCount,
     bool isLiked,
     bool isBookmarked,
+    List<String>? images,
   });
 
   $UserBriefPayloadCopyWith<$Res> get author;
@@ -2892,6 +3081,7 @@ class _$PostPayloadCopyWithImpl<$Res, $Val extends PostPayload>
     Object? likeCount = null,
     Object? isLiked = null,
     Object? isBookmarked = null,
+    Object? images = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -2995,6 +3185,10 @@ class _$PostPayloadCopyWithImpl<$Res, $Val extends PostPayload>
                 ? _value.isBookmarked
                 : isBookmarked // ignore: cast_nullable_to_non_nullable
                       as bool,
+            images: freezed == images
+                ? _value.images
+                : images // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
           )
           as $Val,
     );
@@ -3060,6 +3254,7 @@ abstract class _$$PostPayloadImplCopyWith<$Res>
     int likeCount,
     bool isLiked,
     bool isBookmarked,
+    List<String>? images,
   });
 
   @override
@@ -3107,6 +3302,7 @@ class __$$PostPayloadImplCopyWithImpl<$Res>
     Object? likeCount = null,
     Object? isLiked = null,
     Object? isBookmarked = null,
+    Object? images = freezed,
   }) {
     return _then(
       _$PostPayloadImpl(
@@ -3210,6 +3406,10 @@ class __$$PostPayloadImplCopyWithImpl<$Res>
             ? _value.isBookmarked
             : isBookmarked // ignore: cast_nullable_to_non_nullable
                   as bool,
+        images: freezed == images
+            ? _value._images
+            : images // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
       ),
     );
   }
@@ -3244,7 +3444,9 @@ class _$PostPayloadImpl implements _PostPayload {
     required this.likeCount,
     required this.isLiked,
     required this.isBookmarked,
-  }) : _mentions = mentions;
+    final List<String>? images,
+  }) : _mentions = mentions,
+       _images = images;
 
   factory _$PostPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$PostPayloadImplFromJson(json);
@@ -3310,9 +3512,22 @@ class _$PostPayloadImpl implements _PostPayload {
   @override
   final bool isBookmarked;
 
+  /// Topic gallery, only on the visible first post (issue #1228).
+  final List<String>? _images;
+
+  /// Topic gallery, only on the visible first post (issue #1228).
+  @override
+  List<String>? get images {
+    final value = _images;
+    if (value == null) return null;
+    if (_images is EqualUnmodifiableListView) return _images;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
   @override
   String toString() {
-    return 'PostPayload(mentions: $mentions, id: $id, topicId: $topicId, postNo: $postNo, content: $content, renderedContent: $renderedContent, processStatus: $processStatus, isHidden: $isHidden, isAuthorDeleted: $isAuthorDeleted, isModeratorRemoved: $isModeratorRemoved, canModerate: $canModerate, author: $author, isAnonymous: $isAnonymous, createdAt: $createdAt, replyToPostId: $replyToPostId, replyToUserId: $replyToUserId, replyToUsername: $replyToUsername, isOwnPost: $isOwnPost, updatedAt: $updatedAt, lastEditor: $lastEditor, lastEditedAt: $lastEditedAt, revisionCount: $revisionCount, likeCount: $likeCount, isLiked: $isLiked, isBookmarked: $isBookmarked)';
+    return 'PostPayload(mentions: $mentions, id: $id, topicId: $topicId, postNo: $postNo, content: $content, renderedContent: $renderedContent, processStatus: $processStatus, isHidden: $isHidden, isAuthorDeleted: $isAuthorDeleted, isModeratorRemoved: $isModeratorRemoved, canModerate: $canModerate, author: $author, isAnonymous: $isAnonymous, createdAt: $createdAt, replyToPostId: $replyToPostId, replyToUserId: $replyToUserId, replyToUsername: $replyToUsername, isOwnPost: $isOwnPost, updatedAt: $updatedAt, lastEditor: $lastEditor, lastEditedAt: $lastEditedAt, revisionCount: $revisionCount, likeCount: $likeCount, isLiked: $isLiked, isBookmarked: $isBookmarked, images: $images)';
   }
 
   @override
@@ -3362,7 +3577,8 @@ class _$PostPayloadImpl implements _PostPayload {
                 other.likeCount == likeCount) &&
             (identical(other.isLiked, isLiked) || other.isLiked == isLiked) &&
             (identical(other.isBookmarked, isBookmarked) ||
-                other.isBookmarked == isBookmarked));
+                other.isBookmarked == isBookmarked) &&
+            const DeepCollectionEquality().equals(other._images, _images));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -3394,6 +3610,7 @@ class _$PostPayloadImpl implements _PostPayload {
     likeCount,
     isLiked,
     isBookmarked,
+    const DeepCollectionEquality().hash(_images),
   ]);
 
   /// Create a copy of PostPayload
@@ -3437,6 +3654,7 @@ abstract class _PostPayload implements PostPayload {
     required final int likeCount,
     required final bool isLiked,
     required final bool isBookmarked,
+    final List<String>? images,
   }) = _$PostPayloadImpl;
 
   factory _PostPayload.fromJson(Map<String, dynamic> json) =
@@ -3492,6 +3710,10 @@ abstract class _PostPayload implements PostPayload {
   bool get isLiked;
   @override
   bool get isBookmarked;
+
+  /// Topic gallery, only on the visible first post (issue #1228).
+  @override
+  List<String>? get images;
 
   /// Create a copy of PostPayload
   /// with the given fields replaced by the non-null parameter values.
@@ -4446,6 +4668,7 @@ TopicDetailPermissions _$TopicDetailPermissionsFromJson(
 
 /// @nodoc
 mixin _$TopicDetailPermissions {
+  bool get canManageAgentReplies => throw _privateConstructorUsedError;
   bool get isOwnTopic => throw _privateConstructorUsedError;
   bool get canPost => throw _privateConstructorUsedError;
   bool get canModerateTopic => throw _privateConstructorUsedError;
@@ -4467,7 +4690,12 @@ abstract class $TopicDetailPermissionsCopyWith<$Res> {
     $Res Function(TopicDetailPermissions) then,
   ) = _$TopicDetailPermissionsCopyWithImpl<$Res, TopicDetailPermissions>;
   @useResult
-  $Res call({bool isOwnTopic, bool canPost, bool canModerateTopic});
+  $Res call({
+    bool canManageAgentReplies,
+    bool isOwnTopic,
+    bool canPost,
+    bool canModerateTopic,
+  });
 }
 
 /// @nodoc
@@ -4488,12 +4716,17 @@ class _$TopicDetailPermissionsCopyWithImpl<
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? canManageAgentReplies = null,
     Object? isOwnTopic = null,
     Object? canPost = null,
     Object? canModerateTopic = null,
   }) {
     return _then(
       _value.copyWith(
+            canManageAgentReplies: null == canManageAgentReplies
+                ? _value.canManageAgentReplies
+                : canManageAgentReplies // ignore: cast_nullable_to_non_nullable
+                      as bool,
             isOwnTopic: null == isOwnTopic
                 ? _value.isOwnTopic
                 : isOwnTopic // ignore: cast_nullable_to_non_nullable
@@ -4521,7 +4754,12 @@ abstract class _$$TopicDetailPermissionsImplCopyWith<$Res>
   ) = __$$TopicDetailPermissionsImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({bool isOwnTopic, bool canPost, bool canModerateTopic});
+  $Res call({
+    bool canManageAgentReplies,
+    bool isOwnTopic,
+    bool canPost,
+    bool canModerateTopic,
+  });
 }
 
 /// @nodoc
@@ -4539,12 +4777,17 @@ class __$$TopicDetailPermissionsImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? canManageAgentReplies = null,
     Object? isOwnTopic = null,
     Object? canPost = null,
     Object? canModerateTopic = null,
   }) {
     return _then(
       _$TopicDetailPermissionsImpl(
+        canManageAgentReplies: null == canManageAgentReplies
+            ? _value.canManageAgentReplies
+            : canManageAgentReplies // ignore: cast_nullable_to_non_nullable
+                  as bool,
         isOwnTopic: null == isOwnTopic
             ? _value.isOwnTopic
             : isOwnTopic // ignore: cast_nullable_to_non_nullable
@@ -4566,6 +4809,7 @@ class __$$TopicDetailPermissionsImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$TopicDetailPermissionsImpl implements _TopicDetailPermissions {
   const _$TopicDetailPermissionsImpl({
+    this.canManageAgentReplies = false,
     required this.isOwnTopic,
     required this.canPost,
     required this.canModerateTopic,
@@ -4575,6 +4819,9 @@ class _$TopicDetailPermissionsImpl implements _TopicDetailPermissions {
       _$$TopicDetailPermissionsImplFromJson(json);
 
   @override
+  @JsonKey()
+  final bool canManageAgentReplies;
+  @override
   final bool isOwnTopic;
   @override
   final bool canPost;
@@ -4583,7 +4830,7 @@ class _$TopicDetailPermissionsImpl implements _TopicDetailPermissions {
 
   @override
   String toString() {
-    return 'TopicDetailPermissions(isOwnTopic: $isOwnTopic, canPost: $canPost, canModerateTopic: $canModerateTopic)';
+    return 'TopicDetailPermissions(canManageAgentReplies: $canManageAgentReplies, isOwnTopic: $isOwnTopic, canPost: $canPost, canModerateTopic: $canModerateTopic)';
   }
 
   @override
@@ -4591,6 +4838,8 @@ class _$TopicDetailPermissionsImpl implements _TopicDetailPermissions {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$TopicDetailPermissionsImpl &&
+            (identical(other.canManageAgentReplies, canManageAgentReplies) ||
+                other.canManageAgentReplies == canManageAgentReplies) &&
             (identical(other.isOwnTopic, isOwnTopic) ||
                 other.isOwnTopic == isOwnTopic) &&
             (identical(other.canPost, canPost) || other.canPost == canPost) &&
@@ -4600,8 +4849,13 @@ class _$TopicDetailPermissionsImpl implements _TopicDetailPermissions {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, isOwnTopic, canPost, canModerateTopic);
+  int get hashCode => Object.hash(
+    runtimeType,
+    canManageAgentReplies,
+    isOwnTopic,
+    canPost,
+    canModerateTopic,
+  );
 
   /// Create a copy of TopicDetailPermissions
   /// with the given fields replaced by the non-null parameter values.
@@ -4623,6 +4877,7 @@ class _$TopicDetailPermissionsImpl implements _TopicDetailPermissions {
 
 abstract class _TopicDetailPermissions implements TopicDetailPermissions {
   const factory _TopicDetailPermissions({
+    final bool canManageAgentReplies,
     required final bool isOwnTopic,
     required final bool canPost,
     required final bool canModerateTopic,
@@ -4631,6 +4886,8 @@ abstract class _TopicDetailPermissions implements TopicDetailPermissions {
   factory _TopicDetailPermissions.fromJson(Map<String, dynamic> json) =
       _$TopicDetailPermissionsImpl.fromJson;
 
+  @override
+  bool get canManageAgentReplies;
   @override
   bool get isOwnTopic;
   @override

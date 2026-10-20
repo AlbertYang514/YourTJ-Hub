@@ -14,9 +14,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/agentinstance"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo"
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/domainpolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/headmarkup"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/llmprovider"
@@ -34,6 +37,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/role"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
@@ -45,12 +49,14 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/contentdeleteservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/filemigrateservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/httpnotifyservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
@@ -58,11 +64,14 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/optlogger"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/themeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 )
@@ -85,6 +94,8 @@ func GetTrafficOverview(req component.BetterRequest[TrafficOverviewReq]) compone
 	endDate := req.Params.EndDate
 
 	if startDate == "" {
+		// 保留既有的 8 个自然日缺省（今天 + 前 7 天）：内容贡献统计用 7 天，两者差异是
+		// 有意的（issue #1166），不改动这个既有对外操作的缺省行为。
 		startDate = time.Now().AddDate(0, 0, -7).Format("2006-01-02")
 	}
 	if endDate == "" {
@@ -294,7 +305,7 @@ func SaveBadge(req component.BetterRequest[BadgeSaveReq]) component.Response {
 	entity.IsEnabled = params.IsEnabled
 	entity.IsWearable = params.IsWearable
 	entity.SortOrder = params.SortOrder
-	if err := badges.Save(&entity); err != nil {
+	if err := badgeservice.SaveDefinition(req.GinContext.Request.Context(), &entity); err != nil {
 		return component.FailResponseCode(component.MessageAdminBadgeSaveFailed, nil)
 	}
 	badgeservice.InvalidateDefinitions()
@@ -315,7 +326,7 @@ func DeleteBadge(req component.BetterRequest[BadgeDeleteReq]) component.Response
 	if badge.Type == badges.TypeSystem {
 		return component.FailResponseCode(component.MessageAdminBadgeSystemDeleteBlock, nil)
 	}
-	if err := badges.DeleteByCode(code); err != nil {
+	if err := badgeservice.DeleteDefinition(req.GinContext.Request.Context(), code); err != nil {
 		return component.FailResponseCode(component.MessageAdminBadgeDeleteFailed, nil)
 	}
 	badgeservice.InvalidateDefinitions()
@@ -436,6 +447,8 @@ type TopicsListReq struct {
 	PageSize int    `form:"pageSize"`
 	Search   string `form:"search"`
 	UserId   uint64 `form:"userId"`
+	// AgentCommentDisabled 非空时按「Agent 评论策略」标记过滤（管理面板用）。
+	AgentCommentDisabled *bool `form:"agentCommentDisabled"`
 }
 
 type TopicAdminBaseVo struct {
@@ -460,6 +473,8 @@ type TopicInfoAdminVo struct {
 	ReplyCount    uint64 `json:"replyCount"`
 	LikeCount     uint64 `json:"likeCount"`
 	PinWeight     int    `json:"pinWeight"`
+	// AgentCommentDisabled 该主题是否禁止 Agent 评论（Agent 评论策略面板）。
+	AgentCommentDisabled bool `json:"agentCommentDisabled"`
 }
 
 type TopicSourceReq struct {
@@ -473,7 +488,7 @@ type TopicSourceVo struct {
 
 func TopicsList(req component.BetterRequest[TopicsListReq]) component.Response {
 	param := req.Params
-	pageData := topics.PageForAdmin(topics.AdminPageQuery{Page: max(param.Page, 1), PageSize: param.PageSize, Search: param.Search, UserId: param.UserId})
+	pageData := topics.PageForAdmin(topics.AdminPageQuery{Page: max(param.Page, 1), PageSize: param.PageSize, Search: param.Search, UserId: param.UserId, AgentCommentDisabled: param.AgentCommentDisabled})
 	userIds := lo.Map(pageData.Data, func(t topics.Entity, _ int) uint64 {
 		return t.UserId
 	})
@@ -488,6 +503,12 @@ func TopicsList(req component.BetterRequest[TopicsListReq]) component.Response {
 				nickname = user.Nickname
 				userAvatarUrl = user.GetWebAvatarUrl()
 			}
+			if t.PersonaUID != "" {
+				t.UserId = 0
+				username = "匿名同学"
+				nickname = ""
+				userAvatarUrl = ""
+			}
 			return TopicInfoAdminVo{
 				TopicAdminBaseVo: TopicAdminBaseVo{
 					Id:            t.Id,
@@ -500,13 +521,14 @@ func TopicsList(req component.BetterRequest[TopicsListReq]) component.Response {
 					CreatedAt:     t.CreatedAt.Format(time.RFC3339),
 					UpdatedAt:     t.UpdatedAt.Format(time.RFC3339),
 				},
-				Username:      username,
-				Nickname:      nickname,
-				UserAvatarUrl: userAvatarUrl,
-				ViewCount:     t.ViewCount,
-				ReplyCount:    t.ReplyCount,
-				LikeCount:     t.LikeCount,
-				PinWeight:     t.PinWeight,
+				Username:             username,
+				Nickname:             nickname,
+				UserAvatarUrl:        userAvatarUrl,
+				ViewCount:            t.ViewCount,
+				ReplyCount:           t.ReplyCount,
+				LikeCount:            t.LikeCount,
+				PinWeight:            t.PinWeight,
+				AgentCommentDisabled: t.AgentCommentDisabled,
 			}
 		}),
 		Page:    pageData.Page,
@@ -527,11 +549,16 @@ func TopicSource(req component.BetterRequest[TopicSourceReq]) component.Response
 
 	return component.SuccessResponse(TopicSourceVo{
 		TopicAdminBaseVo: TopicAdminBaseVo{
-			Id:            topic.Id,
-			Title:         topic.Title,
-			Description:   topic.Excerpt,
-			CategoryId:    topic.CategoryIds,
-			UserId:        topic.UserId,
+			Id:          topic.Id,
+			Title:       topic.Title,
+			Description: topic.Excerpt,
+			CategoryId:  topic.CategoryIds,
+			UserId: func() uint64 {
+				if topic.PersonaUID != "" {
+					return 0
+				}
+				return topic.UserId
+			}(),
 			TopicStatus:   topic.Status,
 			ProcessStatus: topic.ProcessStatus,
 			CreatedAt:     topic.CreatedAt.Format(time.RFC3339),
@@ -588,8 +615,29 @@ func EditTopic(req component.BetterRequest[EditTopicReq]) component.Response {
 	}
 
 	if err := db.ConnectContext(requestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+		// Keep the first-post authorization fence ahead of the topic lock,
+		// matching event reads, source-linked replies and public edits.
+		if topic.FirstPostId > 0 {
+			if _, err := posts.GetUnscopedTx(tx, topic.FirstPostId); err != nil {
+				return err
+			}
+		}
 		if err := topics.UpdateProcessStatusTx(tx, topic.Id, req.Params.ProcessStatus); err != nil {
 			return err
+		}
+		if req.Params.ProcessStatus != topics.ProcessStatusNormal {
+			if err := agenteventservice.WithdrawContentTx(tx, topic.Id, 0); err != nil {
+				return err
+			}
+		}
+		if req.Params.ProcessStatus == topics.ProcessStatusNormal && topic.FirstPostId > 0 {
+			p, err := posts.GetCurrentTx(tx, topic.FirstPostId)
+			if err != nil {
+				return err
+			}
+			if err := agenteventservice.CapturePublicTx(tx, &p); err != nil {
+				return err
+			}
 		}
 		return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
 	}); err != nil {
@@ -911,17 +959,10 @@ type FileResourceItem struct {
 
 func FileResourcePage(req component.BetterRequest[FileResourcePageReq]) component.Response {
 	pageData := filedata.FileResourcePage(req.Params.Page, component.BoundPageSizeWithRange(req.Params.PageSize, 10, 50))
-	userIDs := lo.Map(pageData.List, func(item filedata.FileResource, _ int) uint64 {
-		return item.UserId
-	})
-	userMap := users.GetMapByIds(userIDs)
 	return component.SuccessPage(
 		lo.Map(pageData.List, func(item filedata.FileResource, _ int) FileResourceItem {
-			username := ""
-			if user := userMap[item.UserId]; user != nil {
-				username = user.Username
-			}
-			return FileResourceItem{FileResource: item, UploaderUsername: username}
+			item.UserId = 0
+			return FileResourceItem{FileResource: item, UploaderUsername: ""}
 		}),
 		pageData.Page,
 		pageData.PageSize,
@@ -1295,7 +1336,7 @@ func fillSponsorsConfigDefaults(config *pageConfig.SponsorsConfig) {
 // GetSiteSettings 获取站点设置
 func GetSiteSettings(req component.BetterRequest[component.Null]) component.Response {
 	defaultSettings := defaultconfig.GetDefaultSiteSettingsConfig()
-	res := pageConfig.GetConfigByPageType(pageConfig.SiteSettings, defaultSettings)
+	res := pageConfig.GetSiteSettingsConfig(defaultSettings)
 	return component.SuccessResponse(res)
 }
 
@@ -1307,12 +1348,27 @@ type SaveSiteSettingsReq struct {
 	Settings pageConfig.SiteSettingsConfig `json:"settings"`
 }
 
-// SaveSiteSettings 保存站点设置：站点 URL 与 logo URL 经字段策略校验后落库。
+// SaveSiteSettings 保存站点设置：站点 URL 与 logo URL 经字段策略校验后落库；
+// 外链免确认白名单经 domainpolicy 归一化（小写、去重、去空行），含非法条目
+// 时整单拒绝、绝不落库（issue #1200）；自定义 head 片段经 headmarkup 净化，
+// 只保留可进 <head> 的元素，结构标签与外壳自有标签（issue #1244）落库即被剥离。
 func SaveSiteSettings(req component.BetterRequest[SaveSiteSettingsReq]) component.Response {
 	settings := req.Params.Settings
 	if field := validateSiteSettingsURLs(&settings); field != "" {
 		return component.FailResponseCode(component.MessageAdminUrlInvalid, component.MessageParams{"field": field})
 	}
+	// 部署期间仍打开的旧管理端页面不会提交 trustedExternalDomains：JSON 里键缺失
+	// 时切片为 nil（显式空数组则是非 nil 空切片）。缺失按「保留现有清单」处理，
+	// 避免一次无关的站点设置保存静默停用白名单；显式空数组仍是清空操作。
+	if settings.TrustedExternalDomains == nil {
+		settings.TrustedExternalDomains = pageConfig.GetSiteSettingsConfig(defaultconfig.GetDefaultSiteSettingsConfig()).TrustedExternalDomains
+	}
+	kept, dropped := domainpolicy.CanonicalizeList(settings.TrustedExternalDomains)
+	if len(dropped) > 0 {
+		return component.FailResponseCode(component.MessageAdminExternalDomainInvalid, component.MessageParams{"domain": strings.TrimSpace(dropped[0])})
+	}
+	settings.TrustedExternalDomains = kept
+	settings.ExternalLinks = headmarkup.Sanitize(settings.ExternalLinks)
 	return savePageConfig(pageConfig.SiteSettings, settings, func() {
 		hotdataserve.ClearSiteSettingsConfigCache()
 		oauthservice.RefreshOAuthProviders()
@@ -1879,7 +1935,9 @@ type SaveHttpNotifySettingsReq struct {
 
 // SaveHttpNotifySettings 保存 HTTP 通知设置：各端点 secret 明文仅在请求瞬间存在——
 // 非空时 securestore 加密后落库；为空时按 id（无 id 按 url）保留已存密文/存量明文
-// （issue #324 S1）。
+// （issue #324 S1）。飞书通道的 webhook URL 同样按凭据处理：非空时加密落库，为空
+// 时保留同端点已存 URL 密文；缺 id 的端点由服务端补发 id，保证投递状态回写可按 id
+// 匹配（凭据型 URL 不落明文，无法按 url 匹配，issue #1049）。
 func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsReq]) component.Response {
 	input := req.Params.Settings
 	entity := pageConfig.GetByPageType(pageConfig.HttpNotify)
@@ -1894,11 +1952,33 @@ func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsRe
 	}
 	next := make([]pageConfig.HttpNotifyStorageEndpoint, 0, len(input.Endpoints))
 	for _, ep := range input.Endpoints {
+		channel := pageConfig.NormalizeHttpNotifyChannel(ep.ChannelType)
+		if channel == "" {
+			return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+		}
 		key := ep.Id
 		if key == "" {
 			key = ep.URL
 		}
 		orig := existing[key]
+		id := ep.Id
+		if id == "" {
+			id = uuid.NewString()
+		}
+		endpointURL := ep.URL
+		sealedURL := ""
+		if pageConfig.HttpNotifyURLIsSecret(channel) {
+			if plainURL := strings.TrimSpace(ep.URL); plainURL != "" {
+				encrypted, err := securestore.EncryptPurpose(plainURL, securestore.HttpNotifyURLPurpose)
+				if err != nil {
+					return component.FailResponseError(fmt.Errorf("加密 webhook 地址失败（请确认 app.signingKey 已配置）：%w", err))
+				}
+				sealedURL = encrypted
+			} else if pageConfig.HttpNotifyURLIsSecret(orig.ChannelType) {
+				sealedURL = orig.URLEncrypted
+			}
+			endpointURL = ""
+		}
 		sealed := orig.SecretEncrypted
 		legacy := orig.Secret
 		if secret := strings.TrimSpace(ep.Secret); secret != "" {
@@ -1910,10 +1990,13 @@ func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsRe
 			legacy = ""
 		}
 		next = append(next, pageConfig.HttpNotifyStorageEndpoint{
-			Id:                 ep.Id,
+			Id:                 id,
 			Name:               ep.Name,
+			ChannelType:        channel,
 			Enabled:            ep.Enabled,
-			URL:                ep.URL,
+			URL:                endpointURL,
+			URLEncrypted:       sealedURL,
+			Target:             strings.TrimSpace(ep.Target),
 			Secret:             legacy,
 			SecretEncrypted:    sealed,
 			Events:             ep.Events,
@@ -1924,6 +2007,71 @@ func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsRe
 		})
 	}
 	return savePageConfig(pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{Enabled: input.Enabled, Endpoints: next}, hotdataserve.ClearHttpNotifyConfigCache)
+}
+
+type TestHttpNotifyEndpointReq struct {
+	Endpoint pageConfig.HttpNotifyEndpointInput `json:"endpoint" validate:"required"`
+}
+
+// TestHttpNotifyEndpoint 用表单中的（可能未保存的）配置向单个回调地址同步发送一条
+// 测试消息，不落库、不计入失败次数（issue #1049）。地址、密钥或接收目标留空时沿用同 id 端点的
+// 已存值，与保存语义一致；只在通道类型未变时沿用（飞书地址是凭据，各通道密钥含义不同）。结果在
+// 成功信封内返回，失败原因不含请求地址。
+func TestHttpNotifyEndpoint(req component.BetterRequest[TestHttpNotifyEndpointReq]) component.Response {
+	input := req.Params.Endpoint
+	channel := pageConfig.NormalizeHttpNotifyChannel(input.ChannelType)
+	if channel == "" {
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
+	endpoint := pageConfig.HttpNotifyEndpoint{
+		Id:             input.Id,
+		Name:           input.Name,
+		ChannelType:    channel,
+		Enabled:        true,
+		URL:            strings.TrimSpace(input.URL),
+		Target:         strings.TrimSpace(input.Target),
+		Secret:         strings.TrimSpace(input.Secret),
+		TimeoutSeconds: input.TimeoutSeconds,
+	}
+	if input.Id != "" && (endpoint.URL == "" || endpoint.Secret == "" || endpoint.Target == "") {
+		for _, stored := range hotdataserve.GetHttpNotifyConfigCache().Endpoints {
+			if stored.Id != input.Id {
+				continue
+			}
+			// 已存地址和密钥都只在通道类型未变时沿用：切换通道后旧 HMAC 密钥不是
+			// 飞书签名密钥，也不是 AstrBot token，沿用只会得到令人困惑的签名失败。
+			if pageConfig.NormalizeHttpNotifyChannel(stored.ChannelType) != channel {
+				continue
+			}
+			if endpoint.URL == "" {
+				endpoint.URL = stored.URL
+			}
+			if endpoint.Secret == "" {
+				endpoint.Secret = stored.Secret
+			}
+			if endpoint.Target == "" {
+				endpoint.Target = stored.Target
+			}
+		}
+	}
+	failed := func(message string) component.Response {
+		return component.SuccessResponse(TestStorageConnectionResp{
+			Success:     false,
+			MessageCode: component.MessageAdminHttpNotifyTestFailed,
+			Params:      component.MessageParams{"error": message},
+		})
+	}
+	if endpoint.URL == "" {
+		return failed("url is required")
+	}
+	baseURI := strings.TrimRight(hotdataserve.GetSiteSettingsConfigCache().SiteUrl, "/")
+	if err := httpnotifyservice.SendTest(endpoint, baseURI, time.Now()); err != nil {
+		return failed(err.Error())
+	}
+	return component.SuccessResponse(TestStorageConnectionResp{
+		Success:     true,
+		MessageCode: component.MessageAdminHttpNotifyTestSuccess,
+	})
 }
 
 // GetStorageSettings 获取存储设置：仅回显是否已配置凭据，不回显凭据明文/密文
@@ -1961,6 +2109,13 @@ func SaveStorageSettings(req component.BetterRequest[SaveStorageSettingsReq]) co
 	storage.BucketLookup = input.BucketLookup
 	storage.Secure = input.Secure
 	storage.PublicUrlPrefix = input.PublicUrlPrefix
+	// 缺省时保留已存值（兼容未携带该字段的旧客户端）；非 s3 提供方恒为 false。
+	if input.ForceProxyUpload != nil {
+		storage.ForceProxyUpload = *input.ForceProxyUpload
+	}
+	if provider != storageservice.ProviderS3 {
+		storage.ForceProxyUpload = false
+	}
 	if key := strings.TrimSpace(input.AccessKey); key != "" {
 		sealed, err := securestore.EncryptPurpose(key, securestore.StorageAccessKeyPurpose)
 		if err != nil {
@@ -1977,7 +2132,13 @@ func SaveStorageSettings(req component.BetterRequest[SaveStorageSettingsReq]) co
 		storage.SecretKeyEncrypted = sealed
 		storage.SecretKey = ""
 	}
-	return savePageConfig(pageConfig.StorageSettingsPage, storage, hotdataserve.ClearStorageSettingsConfigCache)
+	return savePageConfig(pageConfig.StorageSettingsPage, storage, func() {
+		hotdataserve.ClearStorageSettingsConfigCache()
+		// Sticker URL caches are composed from storage settings; drop them
+		// together with the settings cache so a provider/URL-prefix switch
+		// does not serve stale sticker URLs for the cache TTL.
+		stickerservice.InvalidateCache()
+	})
 }
 
 type TestStorageConnectionReq struct {
@@ -2179,16 +2340,19 @@ func ImportData(c *gin.Context) {
 
 // 审核队列：待审内容（ProcessStatus=2）
 type ReviewQueueReq struct {
-	Kind     string `json:"kind" validate:"required,oneof=topic post"`
+	Kind     string `json:"kind" validate:"required,oneof=topic post sticker"`
 	Page     int    `json:"page"`
 	PageSize int    `json:"pageSize"`
 }
 
 type ReviewQueueItem struct {
-	Id      uint64 `json:"id"`
-	Title   string `json:"title"`
-	Excerpt string `json:"excerpt"`
-	UserId  uint64 `json:"userId"`
+	RevisionId   uint64 `json:"revisionId,omitempty"`
+	Content      string `json:"content,omitempty"`
+	ReviewReason string `json:"reviewReason,omitempty"`
+	Id           uint64 `json:"id"`
+	Title        string `json:"title"`
+	Excerpt      string `json:"excerpt"`
+	UserId       uint64 `json:"userId"`
 	// Username/Nickname 作者身份；备注名显示 note(display name) 需要昵称，无昵称时省略。
 	Username      string `json:"username"`
 	Nickname      string `json:"nickname,omitempty"`
@@ -2236,15 +2400,21 @@ func attachAiReview(items []ReviewQueueItem, subjectType string) {
 		ids = append(ids, item.Id)
 	}
 	decisions := moderationDecision.LatestForSubjects(subjectType, ids)
-	checking := moderationservice.DeferredChecking(subjectType, ids)
+	revisionIDs := make([]uint64, 0, len(items))
+	for _, item := range items {
+		if item.RevisionId != 0 {
+			revisionIDs = append(revisionIDs, item.RevisionId)
+		}
+	}
+	checking := publicationservice.Checking(revisionIDs)
 	for i := range items {
-		if checking[items[i].Id] {
+		if checking[items[i].RevisionId] {
 			// 检查中的条目不展示上一版本的旧结论。
 			items[i].AiChecking = true
 			continue
 		}
 		decision, ok := decisions[items[i].Id]
-		if !ok || decision.AppliedAction != moderationDecision.ActionReview {
+		if !ok || decision.AppliedAction != moderationDecision.ActionReview || (items[i].RevisionId != 0 && decision.RevisionId != items[i].RevisionId) {
 			continue
 		}
 		view := aiDecisionItem(decision)
@@ -2270,7 +2440,34 @@ func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint
 	}
 	items := make([]ReviewQueueItem, 0, pageSize)
 	var total int64
-	if req.Params.Kind == "topic" {
+	if req.Params.Kind == "sticker" {
+		entities, count, err := stickerservice.PendingReview(requestContext(req.GinContext), page, pageSize)
+		if err != nil {
+			slog.Error("admin sticker review queue: load stickers failed", "error", err)
+			return component.BuildResponse(http.StatusInternalServerError,
+				component.FailDataCode(component.MessageAdminReviewFailed, nil))
+		}
+		total = count
+		userIDs := make([]uint64, 0, len(entities))
+		for _, entity := range entities {
+			userIDs = append(userIDs, entity.CreatedBy)
+		}
+		userMap := users.GetMapByIds(userIDs)
+		for _, entity := range entities {
+			username := ""
+			nickname := ""
+			if user, ok := userMap[entity.CreatedBy]; ok {
+				username, nickname = user.Username, user.Nickname
+			}
+			items = append(items, ReviewQueueItem{
+				Id: entity.Id, Title: entity.Name,
+				UserId: entity.CreatedBy, Username: username, Nickname: nickname,
+				ProcessStatus: 2, CreatedAt: entity.CreatedAt.Format(time.RFC3339),
+				Images: []string{stickerservice.ResolveURLFor(entity)},
+			})
+		}
+		attachAiReview(items, moderationDecision.SubjectSticker)
+	} else if req.Params.Kind == "topic" {
 		result := topics.PagePendingReviewInCategories(page, pageSize, categoryIDs)
 		total = result.Total
 		userIDs := make([]uint64, 0, len(result.Data))
@@ -2279,6 +2476,15 @@ func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint
 		}
 		userMap := users.GetMapByIds(userIDs)
 		for _, t := range result.Data {
+			post := posts.Get(t.FirstPostId)
+			revision := postRevisions.Get(post.LatestRevisionId)
+			// The author may have submitted another revision after the queue query.
+			if len(categoryIDs) > 0 && revision.Id != 0 && !moderationservice.CanModerateAnyCategory(req.UserId, revision.CategoryIds) {
+				continue
+			}
+			if revision.Id != 0 {
+				publicationservice.ApplySnapshot(&t, &post, revision)
+			}
 			username := ""
 			nickname := ""
 			if u, ok := userMap[t.UserId]; ok {
@@ -2290,8 +2496,23 @@ func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint
 				excerpt = t.Title
 			}
 			items = append(items, ReviewQueueItem{
-				Id: t.Id, Title: t.Title, Excerpt: excerpt,
-				UserId: t.UserId, Username: username, Nickname: nickname,
+				Id: t.Id, Title: t.Title, Excerpt: excerpt, RevisionId: revision.Id, Content: post.Content, ReviewReason: revision.ReviewReason,
+				UserId: func() uint64 {
+					if t.PersonaUID != "" {
+						return 0
+					}
+					return t.UserId
+				}(), Username: func() string {
+					if t.PersonaUID != "" {
+						return "匿名同学"
+					}
+					return username
+				}(), Nickname: func() string {
+					if t.PersonaUID != "" {
+						return ""
+					}
+					return nickname
+				}(),
 				ProcessStatus: t.ProcessStatus,
 				CreatedAt:     t.CreatedAt.Format(time.RFC3339),
 				Images:        reviewQueueImages(t.ImageUrls),
@@ -2317,6 +2538,11 @@ func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint
 				component.FailDataCode(component.MessageAdminReviewFailed, nil))
 		}
 		for _, p := range result.Data {
+			revision := postRevisions.Get(p.LatestRevisionId)
+			if revision.Id != 0 {
+				dummy := topics.Entity{}
+				publicationservice.ApplySnapshot(&dummy, &p, revision)
+			}
 			username := ""
 			nickname := ""
 			if u, ok := userMap[p.UserId]; ok {
@@ -2332,8 +2558,23 @@ func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint
 				excerpt = excerpt[:120]
 			}
 			items = append(items, ReviewQueueItem{
-				Id: p.Id, Title: title, Excerpt: excerpt,
-				UserId: p.UserId, Username: username, Nickname: nickname,
+				Id: p.Id, Title: title, Excerpt: excerpt, RevisionId: revision.Id, Content: p.Content, ReviewReason: revision.ReviewReason,
+				UserId: func() uint64 {
+					if p.IsAnonymous {
+						return 0
+					}
+					return p.UserId
+				}(), Username: func() string {
+					if p.IsAnonymous {
+						return "匿名同学"
+					}
+					return username
+				}(), Nickname: func() string {
+					if p.IsAnonymous {
+						return ""
+					}
+					return nickname
+				}(),
 				ProcessStatus: p.ProcessStatus,
 				CreatedAt:     p.CreatedAt.Format(time.RFC3339),
 				TopicId:       p.TopicId, PostNo: p.PostNo,
@@ -2348,13 +2589,28 @@ func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint
 }
 
 type ReviewActionReq struct {
-	Kind    string `json:"kind" validate:"required,oneof=topic post"`
-	Id      uint64 `json:"id" validate:"required"`
-	Approve bool   `json:"approve"`
+	RevisionId uint64 `json:"revisionId"`
+	Reason     string `json:"reason" validate:"max=512"`
+	Kind       string `json:"kind" validate:"required,oneof=topic post sticker"`
+	Id         uint64 `json:"id" validate:"required"`
+	Approve    bool   `json:"approve"`
 }
 
 // ReviewAction 审核通过（ProcessStatus=0）或拒绝（ProcessStatus=1）。
 func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Response {
+	if req.Params.Kind == "sticker" {
+		err := stickerservice.ReviewPersonalSticker(requestContext(req.GinContext), req.Params.Id, req.Params.Approve, req.UserId)
+		switch {
+		case errors.Is(err, stickerservice.ErrNotFound):
+			return component.FailResponseCode(component.MessageAdminReviewNotFound, nil)
+		case errors.Is(err, stickerservice.ErrReviewProcessed):
+			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
+		case err != nil:
+			return component.FailResponseCode(component.MessageAdminReviewFailed, nil)
+		}
+		optlogger.UserOptCode(req.UserId, optlogger.ReviewSticker, req.Params.Id, "admin.opt.review.sticker", optlogger.MessageParams{"approve": req.Params.Approve})
+		return component.SuccessResponseCode("success", component.MessageOperationSuccess, nil)
+	}
 	return reviewContent(requestContext(req.GinContext), req.Params, req.UserId, false)
 }
 
@@ -2363,6 +2619,30 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 // 完全一致。自动结论不回写人工标签、不记操作日志；自动通过不通知作者（发布时
 // 已告知通过后公开），自动拒绝照常通知。
 func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, automatic bool) component.Response {
+	post := posts.Get(params.Id)
+	if params.Kind == "topic" {
+		post = posts.Get(topics.Get(params.Id).FirstPostId)
+	}
+	if post.LatestRevisionId != 0 {
+		if params.RevisionId == 0 || params.RevisionId != post.LatestRevisionId {
+			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
+		}
+		action := moderationDecision.ActionBlock
+		if params.Approve {
+			action = moderationDecision.ActionAllow
+		}
+		if err := publicationservice.Review(ctx, params.RevisionId, action, params.Reason, actorID); err != nil {
+			if errors.Is(err, publicationservice.ErrUnavailable) {
+				return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
+			}
+			return component.FailResponseCode(component.MessageOperationFailed, nil)
+		}
+		if !automatic {
+			optlogger.UserOptCode(actorID, optlogger.EditTopic, post.TopicId, "admin.opt.review.post", optlogger.MessageParams{"id": post.Id, "topicId": post.TopicId, "approve": params.Approve})
+		}
+		return component.SuccessResponseCode("success", component.MessageOperationSuccess, nil)
+	}
+
 	targetStatus := int8(0)
 	if !params.Approve {
 		targetStatus = 1
@@ -2380,13 +2660,43 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 		if topic.ProcessStatus != topics.ProcessStatusPending {
 			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
 		}
+		var priorPublic postRevisions.Entity
+		var hasPriorPublic bool
+		usePublicationBaseline := agentinstance.Current().ID != "" && agentinstance.Current().Epoch != ""
 		if err := db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
+			// Match first-post edits: post before topic, then participants/Agent.
+			if topic.FirstPostId > 0 {
+				if _, err := posts.GetUnscopedTx(tx, topic.FirstPostId); err != nil {
+					return err
+				}
+			}
 			if err := topics.UpdateProcessStatusTx(tx, topic.Id, targetStatus); err != nil {
 				return err
 			}
 			// 首楼同步状态
 			if topic.FirstPostId > 0 {
 				if err := posts.UpdateProcessStatusTx(tx, topic.FirstPostId, targetStatus); err != nil {
+					return err
+				}
+				if params.Approve {
+					if usePublicationBaseline {
+						var err error
+						priorPublic, hasPriorPublic, err = agenteventservice.PreviousPublicTx(tx, topic.FirstPostId)
+						if err != nil {
+							return err
+						}
+					}
+					post, err := posts.GetUnscopedTx(tx, topic.FirstPostId)
+					if err != nil {
+						return err
+					}
+					if err := agenteventservice.CapturePublicTx(tx, &post); err != nil {
+						return err
+					}
+				}
+			}
+			if !params.Approve {
+				if err := agenteventservice.WithdrawContentTx(tx, topic.Id, 0); err != nil {
 					return err
 				}
 			}
@@ -2414,10 +2724,15 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 		// 批准后补发事件：新建主题发完整发布事件（搜索索引/统计/积分/活动/通知），
 		// 编辑主题仅重建索引与通知，避免重复积分。
 		if params.Approve && topic.Status == 1 {
-			if userActivities.HasRecord(userActivities.ActionPost, userActivities.SubjectTopic, topic.Id) {
+			if hasPriorPublic {
+				eventbus.Publish(eventbus.DetachedContext(ctx), &eventhandlers.PostUpdatedEvent{TopicId: topic.Id, PostId: firstPost.Id, PostNo: firstPost.PostNo, UserId: firstPost.UserId, OldContent: priorPublic.Content, NewContent: firstPost.Content, IsAnonymous: firstPost.IsAnonymous})
+			}
+			if hasPriorPublic || (!usePublicationBaseline && userActivities.HasRecord(userActivities.ActionPost, userActivities.SubjectTopic, topic.Id)) {
 				eventbus.Publish(eventbus.DetachedContext(ctx), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
 			} else {
-				userStatistics.WriteTopic(topic.UserId)
+				if topic.PersonaUID == "" {
+					userStatistics.WriteTopic(topic.UserId)
+				}
 				eventbus.Publish(eventbus.DetachedContext(ctx), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 			}
 		}
@@ -2439,9 +2754,28 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
 		}
 		topicEntity := topics.GetSimple(post.TopicId)
+		var priorPublic postRevisions.Entity
+		var hasPriorPublic bool
+		usePublicationBaseline := agentinstance.Current().ID != "" && agentinstance.Current().Epoch != ""
 		if err := db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
 			if err := posts.UpdateProcessStatusTx(tx, post.Id, targetStatus); err != nil {
 				return err
+			}
+			if params.Approve {
+				if usePublicationBaseline {
+					var err error
+					priorPublic, hasPriorPublic, err = agenteventservice.PreviousPublicTx(tx, post.Id)
+					if err != nil {
+						return err
+					}
+				}
+				if err := agenteventservice.CapturePublicTx(tx, &post); err != nil {
+					return err
+				}
+			} else {
+				if err := agenteventservice.WithdrawContentTx(tx, post.TopicId, post.Id); err != nil {
+					return err
+				}
 			}
 			return searchservice.EnqueueTopicSearchTask(tx, topicEntity.Id)
 		}); err != nil {
@@ -2459,8 +2793,13 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 		}
 		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		// 批准后补发事件：仅对新建待审回复补发（编辑场景创建时已发布过事件）。
-		if params.Approve && !userActivities.HasRecord(userActivities.ActionComment, userActivities.SubjectPost, post.Id) {
-			userStatistics.WriteComment(post.UserId)
+		if params.Approve && hasPriorPublic {
+			eventbus.Publish(eventbus.DetachedContext(ctx), &eventhandlers.PostUpdatedEvent{TopicId: post.TopicId, PostId: post.Id, PostNo: post.PostNo, UserId: post.UserId, OldContent: priorPublic.Content, NewContent: post.Content, IsAnonymous: post.IsAnonymous})
+		}
+		if params.Approve && !hasPriorPublic && (usePublicationBaseline || !userActivities.HasRecord(userActivities.ActionComment, userActivities.SubjectPost, post.Id)) {
+			if !post.IsAnonymous {
+				userStatistics.WriteComment(post.UserId)
+			}
 			topicEntity := topics.GetSimple(post.TopicId)
 			replyToAuthorID := uint64(0)
 			if post.ReplyToPostId > 0 {
@@ -2477,7 +2816,7 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 				TopicAuthorId:       topicEntity.UserId,
 				ReplyToPostId:       post.ReplyToPostId,
 				ReplyToPostAuthorId: replyToAuthorID,
-				IsAnonymous:         post.IsAnonymous,
+				IsAnonymous:         post.IsAnonymous, PersonaUID: post.PersonaUID,
 			})
 		}
 		if !automatic {

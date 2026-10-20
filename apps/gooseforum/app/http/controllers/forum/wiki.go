@@ -117,7 +117,7 @@ func WikiDetail(c *gin.Context) {
 	props := WikiDetailProps{
 		Page:         detail,
 		Contributors: wikiservice.BuildContributors(page.Id),
-		HotTopics:    buildTopicHotTopics(topic.Id),
+		HotTopics:    buildTopicHotTopics(loginUserID, topic.Id),
 	}
 	// 互动状态（点赞/收藏/订阅）复用 topicUserAction。
 	if loginUserID > 0 {
@@ -283,10 +283,10 @@ type WikiSearchJSONReq struct {
 
 // WikiSearchJSONResp wiki 站内搜索响应。
 type WikiSearchJSONResp struct {
-	Query             string                        `json:"query"`
-	Total             int64                         `json:"total"`
+	Query             string                         `json:"query"`
+	Total             int64                          `json:"total"`
 	Items             []wikiservice.PageSearchResult `json:"items"`
-	SearchUnavailable bool                          `json:"searchUnavailable"`
+	SearchUnavailable bool                           `json:"searchUnavailable"`
 }
 
 // WikiSearchJSON 提供 wiki 站内局内搜索 JSON API（复用段落级 Meilisearch 索引，

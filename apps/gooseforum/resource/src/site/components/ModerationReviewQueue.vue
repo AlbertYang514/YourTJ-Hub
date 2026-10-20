@@ -6,6 +6,7 @@ import { userDisplayName } from '@/runtime/private-notes'
 import { fetchModerationReviewQueue, moderationReviewAction } from '@/runtime/api'
 import { formatDateTime } from '@/runtime/format'
 import { reasonText } from '@/admin/utils/aiModerationReasons'
+import MarkdownImageViewer from '@/components/MarkdownImageViewer.vue'
 import EmptyState from '@/site/components/EmptyState.vue'
 import type { ReviewQueueItem } from '@/admin/types'
 
@@ -13,6 +14,12 @@ import type { ReviewQueueItem } from '@/admin/types'
 // 管辖分类内的待审话题与回复；通过后内容与图片公开并通知作者，拒绝后保持不公开。
 const emit = defineEmits<{ changed: [] }>()
 const { t } = useI18n()
+const imageViewer = ref<InstanceType<typeof MarkdownImageViewer> | null>(null)
+
+function previewImages(item: ReviewQueueItem, index: number, event: MouseEvent) {
+  (event.currentTarget as HTMLButtonElement).focus()
+  imageViewer.value?.open((item.images ?? []).map(src => ({ src, alt: '' })), index)
+}
 
 type Kind = 'topic' | 'post'
 const kind = ref<Kind>('topic')
@@ -68,7 +75,7 @@ async function review(item: ReviewQueueItem, approve: boolean) {
   busyIds.value = [...busyIds.value, item.id]
   error.value = ''
   try {
-    await moderationReviewAction(kind.value, item.id, approve)
+    await moderationReviewAction(kind.value, item.id, approve, item.revisionId)
     items.value = items.value.filter(entry => entry.id !== item.id)
     total.value = Math.max(total.value - 1, 0)
     emit('changed')
@@ -117,14 +124,14 @@ onMounted(() => { void load(true) })
               <span v-else-if="item.aiReview" class="shrink-0 rounded bg-warning/15 px-1.5 py-0.5 text-xs font-medium text-warning">{{ t('aiModerationAdmin.queueBadge') }}</span>
             </div>
             <p v-if="item.aiChecking" class="text-xs leading-5 text-base-content/55">{{ t('aiModerationAdmin.queueCheckingHint') }}</p>
-            <p class="line-clamp-2 text-[13px] leading-5 text-base-content/60">{{ item.excerpt || t('moderation.review.noExcerpt') }}</p>
+            <p class="whitespace-pre-wrap text-[13px] leading-5 text-base-content/60">{{ item.content || item.excerpt || t('moderation.review.noExcerpt') }}</p>
             <ul v-if="item.aiReview?.reasons?.length" class="space-y-0.5 text-xs leading-5 text-base-content/55">
               <li v-for="(reason, index) in item.aiReview.reasons" :key="index">{{ reasonText(t, reason) }}</li>
             </ul>
             <div v-if="item.images?.length" class="flex flex-wrap gap-1.5 pt-0.5">
-              <a v-for="url in item.images" :key="url" :href="url" target="_blank" rel="noopener">
+              <button v-for="(url, index) in item.images" :key="index" type="button" :aria-label="`${t('common.preview')} ${index + 1}`" class="rounded-field focus-visible:outline-2 focus-visible:outline-primary" @click="previewImages(item, index, $event)">
                 <img :src="url" alt="" loading="lazy" class="h-14 w-14 rounded-field border border-line object-cover">
-              </a>
+              </button>
             </div>
             <div class="flex flex-wrap items-center gap-x-2.5 text-xs text-base-content/50">
               <a :href="`/u/${item.userId}`" class="font-medium text-base-content/65 hover:text-primary">{{ userDisplayName(item.userId, item.username || `#${item.userId}`, item.nickname) }}</a>
@@ -154,5 +161,6 @@ onMounted(() => { void load(true) })
       </div>
     </div>
     <p class="text-xs leading-5 text-base-content/55">{{ t('moderation.review.hint') }}</p>
+    <MarkdownImageViewer ref="imageViewer" />
   </section>
 </template>

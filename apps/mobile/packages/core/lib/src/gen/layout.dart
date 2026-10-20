@@ -1,3 +1,4 @@
+import 'decoration.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'layout.freezed.dart';
@@ -7,6 +8,7 @@ part 'layout.g.dart';
 abstract class LayoutPayload with _$LayoutPayload {
   const factory LayoutPayload({
     required SitePayload site,
+    @Default(false) bool dailyRanking,
     required ViewerPayload viewer,
     List<NavItemPayload>? header,
     required SidebarPayload sidebar,
@@ -50,12 +52,14 @@ abstract class SitePayload with _$SitePayload {
 @freezed
 abstract class ViewerPayload with _$ViewerPayload {
   const factory ViewerPayload({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     required int id,
     required String username,
     required String email,
     required String avatarUrl,
     required bool isAuthenticated,
     required bool canAccessAdmin,
+    @Default(false) bool canManageAgents,
     required bool isModerator,
     required bool requiresEmailVerification,
     List<int>? adminPermissions,

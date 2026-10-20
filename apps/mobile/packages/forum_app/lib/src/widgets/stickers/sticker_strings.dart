@@ -51,6 +51,8 @@ class StickerStrings {
     '送信済みのステッカーは引き続き表示されます。',
   );
   String get keyboard => _s('键盘', 'Keyboard', 'Tastatur', 'キーボード');
+  String get hidePanel =>
+      _s('收起表情', 'Hide stickers', 'Sticker ausblenden', 'ステッカーを閉じる');
   String get recent => _s('最近', 'Recent', 'Zuletzt', '最近');
   String get mine => _s('我的', 'Mine', 'Meine', 'マイ');
   String get official => _s('官方', 'Official', 'Offiziell', '公式');
@@ -120,6 +122,11 @@ class StickerStrings {
     'Sticker nicht verfügbar',
     'ステッカーを表示できません',
   );
+  String get animatedSticker =>
+      _s('动画表情', 'Animated sticker', 'Animierter Sticker', 'アニメーションスタンプ');
+  String get reviewPending => _s('审核中', 'Under review', 'Wird geprüft', '審査中');
+  String get reviewRejected =>
+      _s('审核未通过', 'Not approved', 'Nicht freigegeben', '承認されませんでした');
   String get uploadHint => _s(
     '支持图片和 GIF，每张最多 4 MB。分享后其他人可以收藏。',
     'Images and GIFs up to 4 MB. People you share with can save them.',

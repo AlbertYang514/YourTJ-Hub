@@ -1,3 +1,4 @@
+import '../../realtime/realtime_updates.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -68,7 +69,7 @@ typedef _InteractionOverride = ({
 class _HomeFeedState {
   _HomeFeedState(this.sort, {this.category});
 
-  final String sort;
+  String sort;
   final CategoryNavPayload? category;
   AsyncValue<HomeProps> page = const AsyncValue.loading();
   final List<TopicPayload> topics = [];
@@ -106,10 +107,12 @@ class _HomePageState extends ConsumerState<HomePage> {
   final _feeds = <String, _HomeFeedState>{'': _HomeFeedState('')};
   _HomeFeedState get _activeFeed => _feeds[_activeKey]!;
   HomeProps? _navigationProps;
+  bool _dailyRanking = false;
   bool _announcementCollapsed = true;
   String? _swipeLoadingFeedKey;
   int _interactionRevision = 0;
   bool _firstCardFrameRecorded = false;
+  bool _discoveryRequested = false;
   final _pendingInteractions = <(int, bool)>{};
   final _interactionOverrides = <(int, bool), _InteractionOverride>{};
   final _returnedTopicOverrides =
@@ -327,6 +330,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                         feed.page = AsyncValue.data(cachedProps);
                         _navigationProps ??= cachedProps;
                         _categories = cached.layout.sidebar.categories;
+                        _dailyRanking = cached.layout.dailyRanking;
                         feed.topics
                           ..clear()
                           ..addAll(
@@ -364,10 +368,24 @@ class _HomePageState extends ConsumerState<HomePage> {
       }
       setState(() {
         feed.cached = false;
+        // Resolve the root into its actual tab while retaining list and scroll.
+        if (feed.category == null &&
+            feed.sort.isEmpty &&
+            identical(feed, _activeFeed)) {
+          final actual = props.actualSort ?? props.sort;
+          if (actual.isNotEmpty && !_feeds.containsKey(actual)) {
+            _feeds.remove('');
+            feed.sort = actual;
+            _feeds[actual] = feed;
+            _sort = actual;
+            _allSort = actual;
+          }
+        }
         feed.page = AsyncValue.data(props);
         if (feed.category == null) {
           _navigationProps = props;
           _categories = payload.layout.sidebar.categories;
+          _dailyRanking = payload.layout.dailyRanking;
         }
         feed.topics.clear();
         feed.topics.addAll(_mergeInteractions(props.topics, revision));
@@ -586,7 +604,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   Future<void> _loadMore(_HomeFeedState feed) async {
     if (feed.cleared || feed.cached) return;
-    final HomeProps? props = feed.page.valueOrNull;
+    final HomeProps? props = feed.page.asData?.value;
     if (props == null || !props.pagination.hasNext || feed.loadingMore) return;
     final String nextUrl = props.pagination.nextUrl;
     if (nextUrl.isEmpty) return;
@@ -611,6 +629,11 @@ class _HomePageState extends ConsumerState<HomePage> {
       final HomeProps? next = _feedProps(payload, feed);
       if (next == null) throw const FormatException('home pagination');
       setState(() {
+        final previous = feed.page.asData?.value;
+        if ((next.actualSort ?? next.sort) !=
+            (previous?.actualSort ?? previous?.sort)) {
+          feed.topics.clear();
+        }
         final seen = feed.topics.map((topic) => topic.id).toSet();
         feed.topics.addAll(
           _mergeInteractions(
@@ -621,6 +644,11 @@ class _HomePageState extends ConsumerState<HomePage> {
         feed.page = AsyncValue.data(next);
       });
     } catch (error) {
+      if (error is ApiException && error.statusCode == 409) {
+        feed.loadingMore = false;
+        await _load(target: feed);
+        return;
+      }
       if (mounted &&
           sequence == feed.loadSequence &&
           epoch == ref.read(offlineCacheEpochProvider)) {
@@ -684,10 +712,12 @@ class _HomePageState extends ConsumerState<HomePage> {
           ? await repository.bookmarkTopic(
               topicId: topic.id,
               action: target ? 1 : 2,
+              feedTopic: topic,
             )
           : await repository.likeTopic(
               topicId: topic.id,
               action: target ? 1 : 2,
+              feedTopic: topic,
             );
       if (!mounted ||
           clearEpoch !=
@@ -793,7 +823,6 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   void _switchSort(String sort, {bool fromSwipe = false}) {
-    if (sort == 'latest') sort = '';
     if (sort == _sort) return;
     _sort = sort;
     _swipeLoadingFeedKey = fromSwipe ? _key(sort, _category) : null;
@@ -842,6 +871,12 @@ class _HomePageState extends ConsumerState<HomePage> {
   @override
   Widget build(BuildContext context) {
     ref.listen<int>(
+      realtimeInvalidationsProvider.select((state) => state.contentRevision),
+      (_, _) {
+        if (mounted) _load(silent: true);
+      },
+    );
+    ref.listen<int>(
       cacheClearEpochProvider.select(
         (epochs) => epochs[CacheCategory.forum] ?? 0,
       ),
@@ -860,6 +895,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         _interactionOverrides.clear();
         _returnedTopicOverrides.clear();
         _navigationProps = null;
+        _dailyRanking = false;
         _categories = [];
         setState(() {});
       },
@@ -878,7 +914,9 @@ class _HomePageState extends ConsumerState<HomePage> {
         ..clear()
         ..[_sort] = _HomeFeedState(_sort);
       _navigationProps = null;
+      _dailyRanking = false;
       _categories = [];
+      _discoveryRequested = false;
       _tabScrollRegistry.register(
         GfShellDestination.home,
         _scrollToTopController,
@@ -902,7 +940,9 @@ class _HomePageState extends ConsumerState<HomePage> {
     final sortKeys = [
       for (final tab in _homeSortTabs(toolbarProps, _category)) tab.key,
     ];
-    final selectedSort = _sort.isEmpty ? 'latest' : _sort;
+    final selectedSort =
+        toolbarProps?.actualSort ??
+        (_sort.isEmpty ? (toolbarProps?.sort ?? 'latest') : _sort);
     final selectedSortPosition = sortKeys.indexOf(selectedSort);
     final selectedSortIndex = selectedSortPosition < 0
         ? 0
@@ -911,12 +951,19 @@ class _HomePageState extends ConsumerState<HomePage> {
         _feeds[_swipeLoadingFeedKey]?.page.isLoading != true) {
       _swipeLoadingFeedKey = null;
     }
-    return RootSurface(
+    final surface = RootSurface(
       swipeTabIndex: selectedSortIndex,
       swipeTabCount: sortKeys.length,
       onSwipeTabChanged: (index) =>
           _switchSort(sortKeys[index], fromSwipe: true),
-      titleWidget: const GfLogo(size: 32),
+      titleWidget: IconButton(
+        key: const ValueKey<String>('home-logo-scroll-to-top'),
+        onPressed: () => unawaited(_scrollToTopController.scrollToTop()),
+        tooltip: l10n.commonBackToTop,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+        icon: const GfLogo(size: 32),
+      ),
       actions: [
         IconButton(
           tooltip: l10n.commonSearch,
@@ -928,6 +975,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           GfTabBar.heightFor(context) +
           (categories.isEmpty ? 0 : _categoryRailHeight(context)),
       toolbar: _HomeToolbar(
+        dailyRanking: _dailyRanking,
         props: toolbarProps,
         categories: categories,
         activeCategory: _category,
@@ -937,6 +985,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         onSelected: _switchSort,
         onFeedModeSelected: _setFeedMode,
       ),
+      statusBarScrollToTopController: _activeFeed.scrollToTop,
       body: (top, bottom) => GfScrollToTop(
         key: _activeFeed.scrollKey,
         semanticLabel: l10n.commonBackToTop,
@@ -950,8 +999,10 @@ class _HomePageState extends ConsumerState<HomePage> {
         if (index < 0 || index >= sortKeys.length) {
           return const LogoMotionLoader();
         }
-        final sort = sortKeys[index] == 'latest' ? '' : sortKeys[index];
-        final feed = _feeds[_key(sort, _category)];
+        final sort = sortKeys[index];
+        final feed = _sort.isEmpty && sort == selectedSort
+            ? _activeFeed
+            : _feeds[_key(sort, _category)];
         if (feed == null) return const LogoMotionLoader(showMessage: true);
         return GfScrollToTop(
           key: feed.scrollKey,
@@ -962,6 +1013,193 @@ class _HomePageState extends ConsumerState<HomePage> {
               _buildFeed(feed, controller, top, bottom, swipePreview: true),
         );
       },
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scale = math.max(
+          1.0,
+          MediaQuery.textScalerOf(context).scale(16) / 16,
+        );
+        final wide = constraints.maxWidth >= 900 * scale;
+        if (wide && !_discoveryRequested) {
+          _discoveryRequested = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            final hot = _feeds.putIfAbsent('hot', () => _HomeFeedState('hot'));
+            if (!hot.page.hasValue && hot.loadCancel == null) {
+              unawaited(_load(target: hot));
+            }
+          });
+        }
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Flexible(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: LayoutBuilder(
+                  builder: (context, constraints) => MediaQuery(
+                    data: MediaQuery.of(context).copyWith(
+                      size: Size(constraints.maxWidth, constraints.maxHeight),
+                    ),
+                    child: surface,
+                  ),
+                ),
+              ),
+            ),
+            Offstage(
+              offstage: !wide,
+              child: TickerMode(
+                enabled: wide && TickerMode.valuesOf(context).enabled,
+                child: SizedBox(width: 324, child: _buildDiscovery(context)),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDiscovery(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final colors = GfTheme.colorsOf(context);
+    final hot = _feeds['hot'];
+    return NotificationListener<ScrollNotification>(
+      onNotification: (_) => true,
+      child: SafeArea(
+        child: ListView(
+          key: const ValueKey('home-discovery-panel'),
+          padding: const EdgeInsets.fromLTRB(24, 12, 16, 24),
+          children: [
+            Material(
+              color: colors.base300,
+              borderRadius: BorderRadius.circular(28),
+              clipBehavior: Clip.antiAlias,
+              child: Semantics(
+                button: true,
+                child: InkWell(
+                  key: const ValueKey('home-discovery-search'),
+                  onTap: () => context.push('/search'),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        GfSymbol('search', color: colors.iconMuted),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: GfText(
+                            l10n.commonSearch,
+                            style: GfTheme.typographyOf(
+                              context,
+                            ).body.copyWith(color: colors.iconMuted),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            GfCard(
+              showDivider: false,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: GfText(
+                      l10n.sortHot,
+                      style: GfTheme.typographyOf(
+                        context,
+                      ).title2.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  if (hot?.cached == true)
+                    CacheSnapshotHint(
+                      savedAt: hot!.snapshotTime,
+                      refreshing: hot.refreshing,
+                      onRetry: () => _load(silent: true, target: hot),
+                    ),
+                  if (hot?.cleared == true)
+                    CacheSnapshotHint(
+                      cleared: true,
+                      onRetry: () => _load(target: hot),
+                    )
+                  else if (hot == null || hot.page.isLoading)
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: GfLoading(),
+                    )
+                  else if (hot.page.hasError && !hot.page.hasValue)
+                    GfErrorRetry(
+                      message: resolveErrorMessage(l10n, hot.page.error!),
+                      onRetry: () => _load(target: hot),
+                    )
+                  else if (hot.topics.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: GfText(l10n.topicEmpty),
+                    )
+                  else
+                    for (final topic in hot.topics.take(5))
+                      Semantics(
+                        button: true,
+                        child: InkWell(
+                          onTap: () async {
+                            await context.push('/p/${topic.id}');
+                            if (mounted) unawaited(_refreshAfterReturn(hot));
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (topic.categories.isNotEmpty)
+                                  GfText(
+                                    topic.categories.first.name,
+                                    style: GfTheme.typographyOf(
+                                      context,
+                                    ).caption.copyWith(color: colors.iconMuted),
+                                  ),
+                                const SizedBox(height: 4),
+                                GfText(
+                                  topicDisplayTitle(topic),
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GfTheme.typographyOf(
+                                    context,
+                                  ).body.copyWith(fontWeight: FontWeight.w600),
+                                ),
+                                const SizedBox(height: 4),
+                                GfText(
+                                  l10n.topicReplies(topic.replyCount),
+                                  style: GfTheme.typographyOf(
+                                    context,
+                                  ).caption.copyWith(color: colors.iconMuted),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                  TextButton(
+                    onPressed: () {
+                      _switchCategory(null);
+                      _switchSort('hot');
+                    },
+                    child: GfText(l10n.searchSeeAll),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1048,6 +1286,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
 class _HomeToolbar extends ConsumerWidget {
   const _HomeToolbar({
+    required this.dailyRanking,
     required this.props,
     required this.categories,
     required this.selected,
@@ -1059,6 +1298,7 @@ class _HomeToolbar extends ConsumerWidget {
   });
 
   final HomeProps? props;
+  final bool dailyRanking;
   final CategoryNavPayload? activeCategory;
   final ValueChanged<CategoryNavPayload?> onCategorySelected;
   final List<CategoryNavPayload> categories;
@@ -1138,20 +1378,31 @@ class _HomeToolbar extends ConsumerWidget {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
-              child: Text(
+              child: GfText(
                 l10n.homeFeedOptions,
                 style: GfTheme.typographyOf(context).title2,
               ),
             ),
             for (final mode in GfTopicFeedMode.values)
               ListTile(
-                leading: GfSymbol(
-                  mode == GfTopicFeedMode.card ? 'layout-grid' : 'list-square',
-                ),
-                title: Text(
-                  mode == GfTopicFeedMode.card
-                      ? l10n.topicFeedModeCard
-                      : l10n.topicFeedModeList,
+                // Same glyphs as the toolbar button, so the sheet previews it.
+                title: Row(
+                  children: [
+                    GfSymbol(
+                      mode == GfTopicFeedMode.card
+                          ? 'layout-grid'
+                          : 'list-square',
+                      size: 22,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GfText(
+                        mode == GfTopicFeedMode.card
+                            ? l10n.topicFeedModeCard
+                            : l10n.topicFeedModeList,
+                      ),
+                    ),
+                  ],
                 ),
                 trailing: feedMode == mode
                     ? const GfSymbol('check', size: 20)
@@ -1176,8 +1427,9 @@ class _HomeToolbar extends ConsumerWidget {
     return switch (key) {
       'latest' => l10n.sortLatest,
       'hot' => l10n.sortHot,
-      'popular' => l10n.sortPopular,
+      'popular' => dailyRanking ? l10n.sortDaily : l10n.sortPopular,
       'following' => l10n.sortFollowing,
+      'for_you' => l10n.sortForYou,
       'new' => l10n.sortNew,
       _ => label.isNotEmpty ? label : key,
     };
@@ -1253,33 +1505,36 @@ class _CategoryRailState extends State<_CategoryRail> {
     final ids = items.map((item) => item?.id).toSet();
     _itemKeys.removeWhere((id, _) => !ids.contains(id));
     final colors = GfTheme.colorsOf(context);
-    return SizedBox(
-      height: _categoryRailHeight(context),
-      child: SingleChildScrollView(
-        key: const ValueKey('home-category-rail'),
-        controller: _controller,
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Row(
-          children: [
-            for (var index = 0; index < items.length; index++) ...[
-              if (index > 0) const SizedBox(width: 8),
-              KeyedSubtree(
-                key: _itemKeys.putIfAbsent(items[index]?.id, GlobalKey.new),
-                child: _CategoryPill(
-                  key: ValueKey('home-category-${items[index]?.id ?? 'all'}'),
-                  label:
-                      items[index]?.label ??
-                      AppLocalizations.of(context).homeAllCategories,
-                  color: items[index] == null
-                      ? colors.primary
-                      : colorFromHex(items[index]!.color),
-                  selected: widget.selectedId == items[index]?.id,
-                  onTap: () => widget.onSelected(items[index]),
+    return NotificationListener<ScrollNotification>(
+      onNotification: (_) => true,
+      child: SizedBox(
+        height: _categoryRailHeight(context),
+        child: SingleChildScrollView(
+          key: const ValueKey('home-category-rail'),
+          controller: _controller,
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              for (var index = 0; index < items.length; index++) ...[
+                if (index > 0) const SizedBox(width: 8),
+                KeyedSubtree(
+                  key: _itemKeys.putIfAbsent(items[index]?.id, GlobalKey.new),
+                  child: _CategoryPill(
+                    key: ValueKey('home-category-${items[index]?.id ?? 'all'}'),
+                    label:
+                        items[index]?.label ??
+                        AppLocalizations.of(context).homeAllCategories,
+                    color: items[index] == null
+                        ? colors.primary
+                        : colorFromHex(items[index]!.color),
+                    selected: widget.selectedId == items[index]?.id,
+                    onTap: () => widget.onSelected(items[index]),
+                  ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -1351,7 +1606,7 @@ class _CategoryPill extends StatelessWidget {
                       ),
                     ),
                   const SizedBox(width: 8),
-                  Text(
+                  GfText(
                     label,
                     softWrap: false,
                     style: TextStyle(

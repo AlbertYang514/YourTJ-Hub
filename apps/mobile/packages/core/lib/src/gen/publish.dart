@@ -1,6 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'common.dart';
+import 'feed.dart';
 import 'topic.dart';
 
 part 'publish.freezed.dart';
@@ -21,8 +22,11 @@ abstract class PublishCategoryPayload with _$PublishCategoryPayload {
 @freezed
 abstract class PublishTopicPayload with _$PublishTopicPayload {
   const factory PublishTopicPayload({
+    @Default(false) bool agentRepliesDisabled,
+    @Default("member") String identity,
     required String title,
     required String content,
+    @Default(<String>[]) List<String> images,
     @Default(<int>[]) List<int> categoryIds,
     required int topicStatus,
     @Default(3) int contentType,
@@ -104,6 +108,11 @@ abstract class AnnouncementPayload with _$AnnouncementPayload {
 @freezed
 abstract class HomeProps with _$HomeProps {
   const factory HomeProps({
+    String? snapshotId,
+    @Default([]) List<FeedSeenProof> seenProofs,
+    String? actualSort,
+    String? degradeReason,
+    String? feedTrace,
     required String sort,
     required List<TabItemPayload> tabs,
     required List<TopicPayload> topics,

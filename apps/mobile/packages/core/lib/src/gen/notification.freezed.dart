@@ -407,7 +407,12 @@ NotificationActorPayload _$NotificationActorPayloadFromJson(
 
 /// @nodoc
 mixin _$NotificationActorPayload {
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration => throw _privateConstructorUsedError;
   int get id => throw _privateConstructorUsedError;
+  String? get kind => throw _privateConstructorUsedError;
+  String? get publicUid => throw _privateConstructorUsedError;
+  String? get profileUrl => throw _privateConstructorUsedError;
   String get username => throw _privateConstructorUsedError;
   String? get nickname => throw _privateConstructorUsedError;
   String? get avatarUrl => throw _privateConstructorUsedError;
@@ -429,7 +434,16 @@ abstract class $NotificationActorPayloadCopyWith<$Res> {
     $Res Function(NotificationActorPayload) then,
   ) = _$NotificationActorPayloadCopyWithImpl<$Res, NotificationActorPayload>;
   @useResult
-  $Res call({int id, String username, String? nickname, String? avatarUrl});
+  $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
+    int id,
+    String? kind,
+    String? publicUid,
+    String? profileUrl,
+    String username,
+    String? nickname,
+    String? avatarUrl,
+  });
 }
 
 /// @nodoc
@@ -450,17 +464,37 @@ class _$NotificationActorPayloadCopyWithImpl<
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? id = null,
+    Object? kind = freezed,
+    Object? publicUid = freezed,
+    Object? profileUrl = freezed,
     Object? username = null,
     Object? nickname = freezed,
     Object? avatarUrl = freezed,
   }) {
     return _then(
       _value.copyWith(
+            decoration: freezed == decoration
+                ? _value.decoration
+                : decoration // ignore: cast_nullable_to_non_nullable
+                      as UserDecoration?,
             id: null == id
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
                       as int,
+            kind: freezed == kind
+                ? _value.kind
+                : kind // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            publicUid: freezed == publicUid
+                ? _value.publicUid
+                : publicUid // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            profileUrl: freezed == profileUrl
+                ? _value.profileUrl
+                : profileUrl // ignore: cast_nullable_to_non_nullable
+                      as String?,
             username: null == username
                 ? _value.username
                 : username // ignore: cast_nullable_to_non_nullable
@@ -488,7 +522,16 @@ abstract class _$$NotificationActorPayloadImplCopyWith<$Res>
   ) = __$$NotificationActorPayloadImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({int id, String username, String? nickname, String? avatarUrl});
+  $Res call({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
+    int id,
+    String? kind,
+    String? publicUid,
+    String? profileUrl,
+    String username,
+    String? nickname,
+    String? avatarUrl,
+  });
 }
 
 /// @nodoc
@@ -509,17 +552,37 @@ class __$$NotificationActorPayloadImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? decoration = freezed,
     Object? id = null,
+    Object? kind = freezed,
+    Object? publicUid = freezed,
+    Object? profileUrl = freezed,
     Object? username = null,
     Object? nickname = freezed,
     Object? avatarUrl = freezed,
   }) {
     return _then(
       _$NotificationActorPayloadImpl(
+        decoration: freezed == decoration
+            ? _value.decoration
+            : decoration // ignore: cast_nullable_to_non_nullable
+                  as UserDecoration?,
         id: null == id
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
                   as int,
+        kind: freezed == kind
+            ? _value.kind
+            : kind // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        publicUid: freezed == publicUid
+            ? _value.publicUid
+            : publicUid // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        profileUrl: freezed == profileUrl
+            ? _value.profileUrl
+            : profileUrl // ignore: cast_nullable_to_non_nullable
+                  as String?,
         username: null == username
             ? _value.username
             : username // ignore: cast_nullable_to_non_nullable
@@ -541,7 +604,11 @@ class __$$NotificationActorPayloadImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$NotificationActorPayloadImpl implements _NotificationActorPayload {
   const _$NotificationActorPayloadImpl({
+    @JsonKey(fromJson: UserDecoration.parse) this.decoration,
     required this.id,
+    this.kind,
+    this.publicUid,
+    this.profileUrl,
     required this.username,
     this.nickname,
     this.avatarUrl,
@@ -551,7 +618,16 @@ class _$NotificationActorPayloadImpl implements _NotificationActorPayload {
       _$$NotificationActorPayloadImplFromJson(json);
 
   @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  final UserDecoration? decoration;
+  @override
   final int id;
+  @override
+  final String? kind;
+  @override
+  final String? publicUid;
+  @override
+  final String? profileUrl;
   @override
   final String username;
   @override
@@ -561,7 +637,7 @@ class _$NotificationActorPayloadImpl implements _NotificationActorPayload {
 
   @override
   String toString() {
-    return 'NotificationActorPayload(id: $id, username: $username, nickname: $nickname, avatarUrl: $avatarUrl)';
+    return 'NotificationActorPayload(decoration: $decoration, id: $id, kind: $kind, publicUid: $publicUid, profileUrl: $profileUrl, username: $username, nickname: $nickname, avatarUrl: $avatarUrl)';
   }
 
   @override
@@ -569,7 +645,14 @@ class _$NotificationActorPayloadImpl implements _NotificationActorPayload {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$NotificationActorPayloadImpl &&
+            (identical(other.decoration, decoration) ||
+                other.decoration == decoration) &&
             (identical(other.id, id) || other.id == id) &&
+            (identical(other.kind, kind) || other.kind == kind) &&
+            (identical(other.publicUid, publicUid) ||
+                other.publicUid == publicUid) &&
+            (identical(other.profileUrl, profileUrl) ||
+                other.profileUrl == profileUrl) &&
             (identical(other.username, username) ||
                 other.username == username) &&
             (identical(other.nickname, nickname) ||
@@ -580,8 +663,17 @@ class _$NotificationActorPayloadImpl implements _NotificationActorPayload {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, id, username, nickname, avatarUrl);
+  int get hashCode => Object.hash(
+    runtimeType,
+    decoration,
+    id,
+    kind,
+    publicUid,
+    profileUrl,
+    username,
+    nickname,
+    avatarUrl,
+  );
 
   /// Create a copy of NotificationActorPayload
   /// with the given fields replaced by the non-null parameter values.
@@ -602,7 +694,11 @@ class _$NotificationActorPayloadImpl implements _NotificationActorPayload {
 
 abstract class _NotificationActorPayload implements NotificationActorPayload {
   const factory _NotificationActorPayload({
+    @JsonKey(fromJson: UserDecoration.parse) final UserDecoration? decoration,
     required final int id,
+    final String? kind,
+    final String? publicUid,
+    final String? profileUrl,
     required final String username,
     final String? nickname,
     final String? avatarUrl,
@@ -612,7 +708,16 @@ abstract class _NotificationActorPayload implements NotificationActorPayload {
       _$NotificationActorPayloadImpl.fromJson;
 
   @override
+  @JsonKey(fromJson: UserDecoration.parse)
+  UserDecoration? get decoration;
+  @override
   int get id;
+  @override
+  String? get kind;
+  @override
+  String? get publicUid;
+  @override
+  String? get profileUrl;
   @override
   String get username;
   @override
@@ -842,6 +947,8 @@ mixin _$NotificationInnerPayload {
       throw _privateConstructorUsedError;
   int get actorId => throw _privateConstructorUsedError;
   String? get actorName => throw _privateConstructorUsedError;
+  String? get actorPersonaUid => throw _privateConstructorUsedError;
+  bool get hasDirectMention => throw _privateConstructorUsedError;
   int? get topicId => throw _privateConstructorUsedError;
   int? get postId => throw _privateConstructorUsedError;
   int? get postNo => throw _privateConstructorUsedError;
@@ -872,6 +979,8 @@ abstract class $NotificationInnerPayloadCopyWith<$Res> {
     NotificationTemplateParams? templateParams,
     int actorId,
     String? actorName,
+    String? actorPersonaUid,
+    bool hasDirectMention,
     int? topicId,
     int? postId,
     int? postNo,
@@ -907,6 +1016,8 @@ class _$NotificationInnerPayloadCopyWithImpl<
     Object? templateParams = freezed,
     Object? actorId = null,
     Object? actorName = freezed,
+    Object? actorPersonaUid = freezed,
+    Object? hasDirectMention = null,
     Object? topicId = freezed,
     Object? postId = freezed,
     Object? postNo = freezed,
@@ -939,6 +1050,14 @@ class _$NotificationInnerPayloadCopyWithImpl<
                 ? _value.actorName
                 : actorName // ignore: cast_nullable_to_non_nullable
                       as String?,
+            actorPersonaUid: freezed == actorPersonaUid
+                ? _value.actorPersonaUid
+                : actorPersonaUid // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            hasDirectMention: null == hasDirectMention
+                ? _value.hasDirectMention
+                : hasDirectMention // ignore: cast_nullable_to_non_nullable
+                      as bool,
             topicId: freezed == topicId
                 ? _value.topicId
                 : topicId // ignore: cast_nullable_to_non_nullable
@@ -1011,6 +1130,8 @@ abstract class _$$NotificationInnerPayloadImplCopyWith<$Res>
     NotificationTemplateParams? templateParams,
     int actorId,
     String? actorName,
+    String? actorPersonaUid,
+    bool hasDirectMention,
     int? topicId,
     int? postId,
     int? postNo,
@@ -1048,6 +1169,8 @@ class __$$NotificationInnerPayloadImplCopyWithImpl<$Res>
     Object? templateParams = freezed,
     Object? actorId = null,
     Object? actorName = freezed,
+    Object? actorPersonaUid = freezed,
+    Object? hasDirectMention = null,
     Object? topicId = freezed,
     Object? postId = freezed,
     Object? postNo = freezed,
@@ -1080,6 +1203,14 @@ class __$$NotificationInnerPayloadImplCopyWithImpl<$Res>
             ? _value.actorName
             : actorName // ignore: cast_nullable_to_non_nullable
                   as String?,
+        actorPersonaUid: freezed == actorPersonaUid
+            ? _value.actorPersonaUid
+            : actorPersonaUid // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        hasDirectMention: null == hasDirectMention
+            ? _value.hasDirectMention
+            : hasDirectMention // ignore: cast_nullable_to_non_nullable
+                  as bool,
         topicId: freezed == topicId
             ? _value.topicId
             : topicId // ignore: cast_nullable_to_non_nullable
@@ -1115,6 +1246,8 @@ class _$NotificationInnerPayloadImpl implements _NotificationInnerPayload {
     this.templateParams,
     required this.actorId,
     this.actorName,
+    this.actorPersonaUid,
+    this.hasDirectMention = false,
     this.topicId,
     this.postId,
     this.postNo,
@@ -1138,6 +1271,11 @@ class _$NotificationInnerPayloadImpl implements _NotificationInnerPayload {
   @override
   final String? actorName;
   @override
+  final String? actorPersonaUid;
+  @override
+  @JsonKey()
+  final bool hasDirectMention;
+  @override
   final int? topicId;
   @override
   final int? postId;
@@ -1150,7 +1288,7 @@ class _$NotificationInnerPayloadImpl implements _NotificationInnerPayload {
 
   @override
   String toString() {
-    return 'NotificationInnerPayload(title: $title, content: $content, templateKey: $templateKey, templateParams: $templateParams, actorId: $actorId, actorName: $actorName, topicId: $topicId, postId: $postId, postNo: $postNo, topicTitle: $topicTitle, metadata: $metadata)';
+    return 'NotificationInnerPayload(title: $title, content: $content, templateKey: $templateKey, templateParams: $templateParams, actorId: $actorId, actorName: $actorName, actorPersonaUid: $actorPersonaUid, hasDirectMention: $hasDirectMention, topicId: $topicId, postId: $postId, postNo: $postNo, topicTitle: $topicTitle, metadata: $metadata)';
   }
 
   @override
@@ -1167,6 +1305,10 @@ class _$NotificationInnerPayloadImpl implements _NotificationInnerPayload {
             (identical(other.actorId, actorId) || other.actorId == actorId) &&
             (identical(other.actorName, actorName) ||
                 other.actorName == actorName) &&
+            (identical(other.actorPersonaUid, actorPersonaUid) ||
+                other.actorPersonaUid == actorPersonaUid) &&
+            (identical(other.hasDirectMention, hasDirectMention) ||
+                other.hasDirectMention == hasDirectMention) &&
             (identical(other.topicId, topicId) || other.topicId == topicId) &&
             (identical(other.postId, postId) || other.postId == postId) &&
             (identical(other.postNo, postNo) || other.postNo == postNo) &&
@@ -1186,6 +1328,8 @@ class _$NotificationInnerPayloadImpl implements _NotificationInnerPayload {
     templateParams,
     actorId,
     actorName,
+    actorPersonaUid,
+    hasDirectMention,
     topicId,
     postId,
     postNo,
@@ -1218,6 +1362,8 @@ abstract class _NotificationInnerPayload implements NotificationInnerPayload {
     final NotificationTemplateParams? templateParams,
     required final int actorId,
     final String? actorName,
+    final String? actorPersonaUid,
+    final bool hasDirectMention,
     final int? topicId,
     final int? postId,
     final int? postNo,
@@ -1240,6 +1386,10 @@ abstract class _NotificationInnerPayload implements NotificationInnerPayload {
   int get actorId;
   @override
   String? get actorName;
+  @override
+  String? get actorPersonaUid;
+  @override
+  bool get hasDirectMention;
   @override
   int? get topicId;
   @override

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sort"
 
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -33,8 +34,9 @@ const (
 )
 
 type notificationRecipient struct {
-	userID    uint64
-	eventType string
+	userID           uint64
+	eventType        string
+	hasDirectMention bool
 }
 
 // TakeUpTo64Chars 按字符数截取字符串，最多取 64 个字符
@@ -44,6 +46,7 @@ func TakeUpTo64Chars(s string) string {
 
 // CommentCreatedEvent 评论/回复创建事件
 type CommentCreatedEvent struct {
+	PersonaUID          string
 	TopicId             uint64
 	PostId              uint64 // 新创建的 post ID
 	PostNo              uint64 // 新创建的 post 楼层号
@@ -61,7 +64,7 @@ func handleCommentCreated(ctx context.Context, event *CommentCreatedEvent) error
 	// ActorName 在读取时按 ActorId 回填真实用户名，会向他人泄露匿名身份。
 	// 匿名作者收到「他人回复其楼层」的通知不在此事件内——那是另一条以真实
 	// 回复者为 Actor 的 CommentCreatedEvent，走下方非匿名分支正常发送。
-	if event == nil || event.IsAnonymous {
+	if event == nil || (event.IsAnonymous && event.PersonaUID == "") {
 		return nil
 	}
 	visible, err := mentionPostIsPublic(ctx, event.TopicId, event.PostId)
@@ -77,7 +80,7 @@ func handleCommentCreated(ctx context.Context, event *CommentCreatedEvent) error
 	for _, recipient := range recipients {
 		switch recipient.eventType {
 		case eventNotification.EventTypePostReply:
-			_ = notificationservice.SendPostReplyNotification(recipient.userID, event.PostId, event.PostNo, event.TopicId, contentPreview, event.UserId)
+			_ = notificationservice.SendPostReplyNotification(recipient.userID, event.PostId, event.PostNo, event.TopicId, contentPreview, event.UserId, recipient.hasDirectMention)
 		case eventNotification.EventTypeComment:
 			_ = notificationservice.SendCommentNotification(recipient.userID, event.TopicId, contentPreview, event.UserId, event.PostId, event.PostNo)
 		}
@@ -92,28 +95,25 @@ func handleCommentCreated(ctx context.Context, event *CommentCreatedEvent) error
 // resolveMentionUserIDs 从正文提取 mention 并解析为用户 ID：
 // 去重、排除作者本人与无效目标；limit>0 时最多返回 limit 个（fan-out 上限）。
 func resolveMentionUserIDs(content string, excludeUserID uint64, limit int) []uint64 {
-	usernames := markdown2html.ExtractMentions(content)
-	if len(usernames) == 0 {
+	ids, err := users.ResolveMentionIDsTx(db.Connect(), content, excludeUserID, limit)
+	if err != nil || len(ids) == 0 {
 		return nil
 	}
-	userMap := users.GetMentionTargetIds(usernames)
-	userIDs := make([]uint64, 0, len(usernames))
-	seen := make(map[uint64]struct{}, len(usernames))
-	for _, username := range usernames {
-		userID, ok := userMap[username]
-		if !ok || userID == 0 || userID == excludeUserID {
-			continue
-		}
-		if _, dup := seen[userID]; dup {
-			continue
-		}
-		seen[userID] = struct{}{}
-		userIDs = append(userIDs, userID)
-		if limit > 0 && len(userIDs) >= limit {
-			break
+	humans, err := users.FilterHumanRecipientsTx(db.Connect(), ids)
+	if err != nil {
+		return nil
+	}
+	allowed := map[uint64]bool{}
+	for _, id := range humans {
+		allowed[id] = true
+	}
+	out := make([]uint64, 0, len(ids))
+	for _, id := range ids {
+		if allowed[id] {
+			out = append(out, id)
 		}
 	}
-	return userIDs
+	return out
 }
 
 // priorityRecipients 计算每个接收者应收到的最高优先级通知类型
@@ -141,9 +141,13 @@ func priorityRecipients(event *CommentCreatedEvent, mentionUserIDs []uint64) []n
 		set(userID, eventNotification.EventTypeMention, notificationPriorityMention)
 	}
 
+	mentioned := make(map[uint64]bool, len(mentionUserIDs))
+	for _, id := range mentionUserIDs {
+		mentioned[id] = true
+	}
 	recipients := make([]notificationRecipient, 0, len(winner))
 	for userID, eventType := range winner {
-		recipients = append(recipients, notificationRecipient{userID: userID, eventType: eventType})
+		recipients = append(recipients, notificationRecipient{userID: userID, eventType: eventType, hasDirectMention: mentioned[userID]})
 	}
 	sort.Slice(recipients, func(i, j int) bool { return recipients[i].userID < recipients[j].userID })
 	return recipients
@@ -207,6 +211,7 @@ func commentNotificationExcludeUserIds(event *CommentCreatedEvent) []uint64 {
 
 // PostUpdatedEvent 帖子编辑事件（issue #563）：编辑后仅新增 mention 产生通知。
 type PostUpdatedEvent struct {
+	PersonaUID  string
 	TopicId     uint64
 	PostId      uint64
 	PostNo      uint64
@@ -220,7 +225,7 @@ type PostUpdatedEvent struct {
 // 修改均不重复通知（旧/新内容集合差，issue #563）。
 func handlePostUpdated(ctx context.Context, event *PostUpdatedEvent) error {
 	// 匿名楼层编辑同样不产生通知（issue #524 边界）。
-	if event == nil || event.IsAnonymous {
+	if event == nil || (event.IsAnonymous && event.PersonaUID == "") {
 		return nil
 	}
 	if event.OldContent == event.NewContent {
@@ -268,7 +273,7 @@ func mentionPostIsPublic(ctx context.Context, topicID, postID uint64) (bool, err
 	if err != nil {
 		return false, err
 	}
-	return post.TopicId == topicID && !post.IsAnonymous && post.ProcessStatus == posts.ProcessStatusNormal && post.VisibilityStatus == posts.VisibilityActive, nil
+	return post.TopicId == topicID && (!post.IsAnonymous || post.PersonaUID != "") && post.ProcessStatus == posts.ProcessStatusNormal && post.VisibilityStatus == posts.VisibilityActive, nil
 }
 
 func handleTopicMentionPublished(ctx context.Context, event *TopicPublishedEvent) error {
@@ -276,7 +281,7 @@ func handleTopicMentionPublished(ctx context.Context, event *TopicPublishedEvent
 		return nil
 	}
 	visible, err := mentionPostIsPublic(ctx, event.Topic.Id, event.FirstPost.Id)
-	if err != nil || !visible || event.FirstPost.IsAnonymous {
+	if err != nil || !visible || (event.FirstPost.IsAnonymous && event.FirstPost.PersonaUID == "") {
 		return err
 	}
 	targets := resolveMentionUserIDs(event.FirstPost.Content, event.FirstPost.UserId, maxMentionFanOut)
@@ -298,7 +303,7 @@ func handleTopicMentionPublished(ctx context.Context, event *TopicPublishedEvent
 func newMentionUserIDs(oldContent, newContent string, editorID uint64) []uint64 {
 	return mentionDiff(
 		resolveMentionUserIDs(oldContent, editorID, 0),
-		resolveMentionUserIDs(newContent, editorID, 0),
+		resolveMentionUserIDs(newContent, editorID, maxMentionFanOut),
 	)
 }
 

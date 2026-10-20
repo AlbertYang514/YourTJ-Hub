@@ -84,6 +84,26 @@ LinkPreview:
         configuration without any outbound request. `title` and `description`
         may be absent in that case; clients supply their own localized fallback
         copy instead of relying on server-side text.
+    platform:
+      type: string
+      enum: [bilibili, apple_music]
+      description: >-
+        Set when the URL was strictly recognized as a supported external
+        platform resource. A platform identifier, not a display name: clients
+        render the localized platform label themselves, while `siteName`
+        stays the page's own label. Absent for generic cards.
+    resourceType:
+      type: string
+      enum: [video, song, album]
+      description: >-
+        Resource kind inside the recognized platform. Only present together
+        with `platform`.
+    author:
+      type: string
+      description: >-
+        Uploader or artist published by the platform source. Optional; absent
+        when the platform did not publish one, and never synthesized by the
+        server.
   additionalProperties: false
 
 LinkPreviewResolveSuccess:
@@ -376,6 +396,216 @@ TotpDisableResponse:
     - $ref: '#/TotpDisableSuccess'
     - $ref: '#/ApiFailure'
 
+PasskeyStatusResult:
+  type: object
+  required: [enabled]
+  properties:
+    enabled:
+      type: boolean
+  additionalProperties: false
+
+PasskeyStatusResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          properties:
+            result:
+              $ref: '#/PasskeyStatusResult'
+    - $ref: '#/ApiFailure'
+
+PasskeyWebAuthnOptions:
+  type: object
+  description: WebAuthn options serialized by the relying-party implementation.
+  additionalProperties: true
+
+PasskeyLoginBeginResult:
+  type: object
+  required: [ceremonyId, publicKey]
+  properties:
+    ceremonyId:
+      type: string
+      minLength: 32
+    publicKey:
+      $ref: '#/PasskeyWebAuthnOptions'
+  additionalProperties: false
+
+PasskeyLoginBeginResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          properties:
+            result:
+              $ref: '#/PasskeyLoginBeginResult'
+    - $ref: '#/ApiFailure'
+
+PasskeyCredentialResponseObject:
+  type: object
+  description: WebAuthn public-key credential response; base64url encoded binary members.
+  additionalProperties: true
+
+PasskeyLoginFinishRequest:
+  type: object
+  required: [ceremonyId, credential]
+  properties:
+    ceremonyId:
+      type: string
+      minLength: 32
+    credential:
+      $ref: '#/PasskeyCredentialResponseObject'
+  additionalProperties: false
+
+PasskeyReauthRequest:
+  type: object
+  required: [encryptedPassword]
+  properties:
+    encryptedPassword:
+      type: string
+      minLength: 1
+      description: RSA-OAEP-256 encrypted password payload, matching POST /api/login.
+    totpCode:
+      type: string
+      description: Required only when TOTP is enabled.
+  additionalProperties: false
+
+PasskeyReauthResult:
+  type: object
+  required: [proof, expiresInSeconds]
+  properties:
+    proof:
+      type: string
+      minLength: 32
+    expiresInSeconds:
+      type: integer
+      const: 120
+  additionalProperties: false
+
+PasskeyReauthResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          properties:
+            result:
+              $ref: '#/PasskeyReauthResult'
+    - $ref: '#/ApiFailure'
+
+PasskeyRegistrationBeginRequest:
+  type: object
+  required: [proof]
+  properties:
+    proof:
+      type: string
+      minLength: 32
+      description: One-use proof from POST /api/user/passkeys/reauth.
+  additionalProperties: false
+
+PasskeyRegistrationBeginResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          properties:
+            result:
+              $ref: '#/PasskeyLoginBeginResult'
+    - $ref: '#/ApiFailure'
+
+PasskeyRegistrationFinishRequest:
+  type: object
+  required: [ceremonyId, credential]
+  properties:
+    ceremonyId:
+      type: string
+      minLength: 32
+    name:
+      type: string
+      maxLength: 80
+      description: Optional user-facing label; defaults to Passkey.
+    credential:
+      $ref: '#/PasskeyCredentialResponseObject'
+  additionalProperties: false
+
+PasskeyCredentialSummary:
+  type: object
+  required: [id, name, createdAt, backupEligible, backupState, transports]
+  properties:
+    id:
+      type: string
+      description: Base64url credential identifier, never a private key.
+    name:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+    lastUsedAt:
+      type: string
+      format: date-time
+    backupEligible:
+      type: boolean
+    backupState:
+      type: boolean
+    transports:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+PasskeyCredentialResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          properties:
+            result:
+              $ref: '#/PasskeyCredentialSummary'
+    - $ref: '#/ApiFailure'
+
+PasskeyCredentialListResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          properties:
+            result:
+              type: array
+              items:
+                $ref: '#/PasskeyCredentialSummary'
+    - $ref: '#/ApiFailure'
+
+PasskeyCredentialRenameRequest:
+  type: object
+  required: [proof, credentialId, name]
+  properties:
+    proof:
+      type: string
+    credentialId:
+      type: string
+    name:
+      type: string
+      maxLength: 80
+  additionalProperties: false
+
+PasskeyCredentialRevokeRequest:
+  type: object
+  required: [proof, credentialId]
+  properties:
+    proof:
+      type: string
+    credentialId:
+      type: string
+  additionalProperties: false
+
+PasskeyEmptyResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          properties:
+            result:
+              type: object
+    - $ref: '#/ApiFailure'
+
 AppleCredentialRequest:
   type: object
   required: [authorizationCode, identityToken, nonce]
@@ -439,6 +669,18 @@ OidcExchangeSuccess:
         result:
           $ref: '#/OidcExchangeResult'
 
+UpdateTopicAgentRepliesRequest:
+  type: object
+  required: [topicId, agentRepliesDisabled]
+  properties:
+    topicId:
+      type: integer
+      format: uint64
+      minimum: 1
+    agentRepliesDisabled:
+      type: boolean
+  additionalProperties: false
+
 WriteTopicRequest:
   type: object
   required: [content, categoryId]
@@ -456,6 +698,14 @@ WriteTopicRequest:
       title:
         minLength: 1
   properties:
+    agentRepliesDisabled:
+      type: boolean
+      default: false
+      description: Initial robot reply policy for a new topic only. Ignored on content edits; use topics/agent-replies to change an existing topic.
+    identity:
+      type: string
+      enum: [member, persona]
+      description: Defaults to member on creation. Edits preserve the original author; attempting to switch fails. An unavailable persona never falls back to member.
     topicId:
       type: integer
       format: uint64
@@ -571,6 +821,11 @@ AgentTopicItem:
   type: object
   required: [id, title, excerpt, categoryIds, userId, status, processStatus, replyCount, viewCount, postCount, createdAt, updatedAt]
   properties:
+    agentRepliesDisabled:
+      type: boolean
+      description: Whether the topic author prohibits replies from bot identities. Missing on older servers means false.
+    author:
+      $ref: '#/TopicAuthorPayload'
     id:
       type: integer
       format: uint64
@@ -578,6 +833,12 @@ AgentTopicItem:
       type: string
     excerpt:
       type: string
+    images:
+      type: array
+      maxItems: 9
+      items:
+        type: string
+      description: Topic gallery image URLs (topics.image_urls, falling back to the legacy firstImageUrl when empty, like the web topic list; usually site-relative `/file/img/...`), at most nine. The list only contains topics whose first post is visible, so this never exposes the gallery of a hidden, author-deleted or moderator-removed first post. Empty when the topic has no image. Older servers omit this field.
     categoryIds:
       type: array
       items:
@@ -641,6 +902,10 @@ AgentWriteTopicRequest:
   type: object
   required: [title, content, categoryId]
   properties:
+    sourceEventId:
+      type: string
+      maxLength: 80
+      description: Source-linked topic creation is refused; use sourceEventId only for replies.
     title:
       type: string
       minLength: 1
@@ -709,6 +974,15 @@ AgentCreatePostRequest:
   type: object
   required: [content]
   properties:
+    sourceEventId:
+      type: string
+      maxLength: 80
+      description: Optional owned event linking this reply; source visibility and blocks
+        must remain authorized at commit.
+    identity:
+      type: string
+      enum: [member, persona]
+      description: Defaults to member on creation. Edits preserve the original author; attempting to switch fails. An unavailable persona never falls back to member.
     content:
       type: string
       minLength: 1
@@ -733,6 +1007,8 @@ AgentCreatePostResult:
       minimum: 1
     renderedContent:
       type: string
+    isAnswer:
+      type: boolean
   additionalProperties: false
 
 AgentCreatePostResponse:
@@ -894,6 +1170,12 @@ PostPayload:
     isAnswer:
       type: boolean
       description: True only when the topic is a Question (contentType=1), the post is not the first post, and it replies to the question itself.
+    images:
+      type: array
+      maxItems: 9
+      items:
+        type: string
+      description: Topic gallery image URLs (topics.image_urls, falling back to the legacy firstImageUrl when empty, like the web topic list; at most nine; usually site-relative `/file/img/...`, absolute when the storage public URL prefix is set). Present only on the first post (postNo 1) when it is visible; omitted for replies and when the first post is hidden, author-deleted or moderator-removed. Older servers omit this field.
   additionalProperties: false
 
 ReplyTargetPayload:
@@ -946,6 +1228,10 @@ TopicPayload:
   type: object
   required: [id, title, description, url, pinWeight, processStatus, author, participants, categories, replyCount, viewCount, likeCount, activityText, lastUpdateTime]
   properties:
+    feedTrace: { type: string, maxLength: 2048 }
+    feedPosition: { type: integer, minimum: 0, maximum: 19 }
+    feedReason: { type: string }
+    contentType: { type: integer }
     id:
       type: integer
       format: uint64
@@ -1045,6 +1331,8 @@ UserSearchPayload:
   type: object
   required: [id, username, nickname, avatarUrl, bio]
   properties:
+    decoration:
+      $ref: "#/DecorationDisplay"
     id:
       type: integer
       format: uint64
@@ -1590,6 +1878,8 @@ ReviewAuthorPayload:
   type: object
   required: [kind, label]
   properties:
+    decoration:
+      $ref: "#/DecorationDisplay"
     kind:
       type: string
       enum: [anonymous, member, legacy]
@@ -2484,10 +2774,19 @@ TopicAuthorPayload:
   type: object
   required: [id, username, avatarUrl]
   properties:
+    decoration:
+      $ref: "#/DecorationDisplay"
+    kind:
+      type: string
+      enum: [member, persona]
+    publicUid:
+      type: string
+    profileUrl:
+      type: string
     id:
       type: integer
       format: uint64
-      minimum: 1
+      minimum: 0
     username:
       type: string
     nickname:
@@ -4456,6 +4755,8 @@ UserCard:
   type: object
   required: [userId, username, nickname, avatarUrl, profileCoverUrl, bio, signature, websiteName, website, prestige, isAdmin, topicCount, replyCount, likeReceivedCount, likeGivenCount, followerCount, followingCount, collectionCount, isOnline, isFollowing, externalInformation, isSelf, badges, lastActiveTime, createdAt, isAccountClosed]
   properties:
+    decoration:
+      $ref: "#/DecorationDisplay"
     userId:
       type: integer
       format: uint64
@@ -4730,6 +5031,11 @@ UploadAvatarRequest:
   type: object
   required: [avatar]
   properties:
+    agentId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Optional managed Bot target; human creator or station admin remains uploader and pays quotas.
     avatar:
       type: string
       format: binary
@@ -4960,6 +5266,36 @@ NotificationTopicRef:
       type: string
   additionalProperties: false
 
+NotificationActorPayload:
+  type: object
+  required: [id, username, avatarUrl]
+  properties:
+    decoration:
+      $ref: "#/DecorationDisplay"
+    kind:
+      type: string
+      enum: [member, persona]
+    publicUid:
+      type: string
+    profileUrl:
+      type: string
+    id:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: 0 for system and moderation feedback without a triggering user.
+    username:
+      type: string
+    nickname:
+      type: string
+      description: Present only when the user has a nickname.
+    avatarUrl:
+      type: string
+    wornBadge:
+      type: [object, 'null']
+      description: Present only when the user wears a badge.
+  additionalProperties: false
+
 NotificationPayload:
   type: object
   required: [id, eventType, isRead, createdAt, title, content, actor, payload]
@@ -4970,7 +5306,7 @@ NotificationPayload:
       minimum: 1
     eventType:
       type: string
-      description: Notification event type (comment/post_reply/topic_post/mention/follow/badge/like/wiki_updated/system/review_approved/review_rejected); the payload shape varies with it. `review_approved` links to the approved topic/post; `review_rejected` carries only `payload.topicTitle` because rejected content is not visible to its author (issue #975).
+      description: Notification event type (comment/post_reply/topic_post/mention/follow/badge/like/wiki_updated/system/review_pending/review_approved/review_rejected); the payload shape varies with it. AI approval is quiet. `review_pending` notifies transfer to human review and links to the pending topic/post; human `review_approved` links to the approved version. `review_rejected` links to content management for editing/resubmission, with topic/post identifiers and a subject snapshot retaining only its first/last Unicode character around six asterisks; title/content/preview fields carry no rejected original text.
     isRead:
       type: boolean
     createdAt:
@@ -4982,13 +5318,17 @@ NotificationPayload:
       type: string
       description: Stored preview; for likes without one, a readable excerpt of the currently visible referenced reply.
     actor:
-      $ref: '#/TopicAuthorPayload'
-      description: Actor identity with the current public avatar hydrated in a batch when the actor exists.
+      $ref: '#/NotificationActorPayload'
+      description: Actor identity with the current public avatar hydrated in a batch when the actor exists; id 0 for system and moderation feedback.
     topic:
       $ref: '#/NotificationTopicRef'
     payload:
       type: object
       additionalProperties: true
+      properties:
+        hasDirectMention:
+          type: boolean
+          description: Structured direct mention reason; absent for historical rows without known reasons.
       description: Raw event payload (title/content/templateKey/templateParams/actorId/topicId/postId/metadata and friends); shape varies by eventType.
   additionalProperties: false
 
@@ -5079,7 +5419,7 @@ NotificationMarkAllReadResponse:
 
 PushConfigResult:
   type: object
-  required: [configured, native]
+  required: [configured, native, viewerId]
   properties:
     configured:
       type: boolean
@@ -5090,6 +5430,11 @@ PushConfigResult:
     native:
       $ref: '#/NativePushChannels'
       description: Native (mobile APNs/FCM) channel states; always present.
+    viewerId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: The caller's own numeric user id. The service worker compares it with the push payload recipient before showing a notification, so a recipient check never renders the /messages page.
   additionalProperties: false
 
 NativePushChannels:
@@ -5713,8 +6058,8 @@ ModerationReportStatusRequest:
       description: Report id; unknown ids fail with `report.notFound` (HTTP 200). Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
     action:
       type: string
-      enum: [ban, resolve, reject]
-      description: ban resolves with resolution `banned`, resolve resolves with empty resolution, reject rejects with resolution `ignored`. Any other value (including empty) fails validation with `common.request.invalidParams` (HTTP 200).
+      enum: [ban, resolve, reject, show]
+      description: ban resolves with resolution `banned` and atomically blocks topic/post targets or hides course reviews; resolve resolves with empty resolution; reject rejects with resolution `ignored`; show resolves with empty resolution and restores a course review. Chat-message reports only change report status. A report already closed by another moderator fails with `report.alreadyProcessed`. Any other value (including empty) fails validation with `common.request.invalidParams` (HTTP 200).
   additionalProperties: false
 
 ModerationLogListRequest:
@@ -5917,6 +6262,10 @@ AdminTopicsListRequest:
       format: uint64
       minimum: 0
       description: Optional author filter; 0 or omitted lists all authors.
+    agentCommentDisabled:
+      type: boolean
+      description: Optional Agent comment policy filter; omitted lists both,
+        true lists only topics where Agent comments are banned.
   additionalProperties: false
 
 AdminTopicBase:
@@ -5960,8 +6309,11 @@ AdminTopicListItem:
   allOf:
     - $ref: '#/AdminTopicBase'
     - type: object
-      required: [username, userAvatarUrl, viewCount, replyCount, likeCount, pinWeight]
+      required: [username, userAvatarUrl, viewCount, replyCount, likeCount, pinWeight, agentCommentDisabled]
       properties:
+        agentCommentDisabled:
+          type: boolean
+          description: Whether Agent comments are banned on this topic.
         username:
           type: string
           description: Author username; empty when the author account is gone.
@@ -6179,8 +6531,61 @@ AdminOperationResponse:
 
 AdminAgentItem:
   type: object
-  required: [agentId, username, nickname, avatarUrl, email, tokenPrefix, webhookEndpoint, enabled, createdBy, lastUsedAt, createdAt, updatedAt]
+  required: [agentId, username, nickname, avatarUrl, profileCoverUrl, bio, signature, website, websiteName, email, tokenPrefix, webhookEndpoint, enabled, createdBy, lastUsedAt, createdAt, updatedAt, configVersion, eventsEnabled, eventTypes, subscriptionGeneration, webhookEnabled, endpointGeneration, secretConfigured, secretVersion, webhookAuthorizationConfigured, latestAcceptedAt, pendingCount, pauseReason, summaryUnavailable]
   properties:
+    profileCoverUrl:
+      type: string
+    bio:
+      type: string
+    signature:
+      type: string
+    website:
+      type: string
+    websiteName:
+      type: string
+    configVersion:
+      type: integer
+      minimum: 0
+    eventsEnabled:
+      type: boolean
+    eventTypes:
+      type: array
+      items:
+        type: string
+        enum:
+        - agent.mentioned
+        - agent.post_replied
+        - agent.topic_commented
+        - forum.topic_created
+        - forum.post_created
+    subscriptionGeneration:
+      type: integer
+      minimum: 0
+    webhookEnabled:
+      type: boolean
+    endpointGeneration:
+      type: integer
+      minimum: 0
+    secretConfigured:
+      type: boolean
+    secretVersion:
+      type: integer
+      minimum: 0
+    webhookAuthorizationConfigured:
+      type: boolean
+      description: Whether a static Authorization header is stored for webhook deliveries. The value is never returned.
+    latestAcceptedAt:
+      type:
+      - string
+      - 'null'
+      format: date-time
+    pendingCount:
+      type: integer
+      minimum: 0
+    pauseReason:
+      type: string
+    summaryUnavailable:
+      type: boolean
     agentId:
       type: integer
       format: uint64
@@ -6281,6 +6686,29 @@ AdminAgentUpdateRequest:
   type: object
   required: [agentId]
   properties:
+    avatarUrl:
+      type: string
+      description: Applied only when present; must be a built-in preset or ready image file owned by the human actor or target Bot.
+    profileCoverUrl:
+      type: string
+      maxLength: 512
+      description: Applied only when present; empty text clears the field.
+    bio:
+      type: string
+      maxLength: 500
+      description: Applied only when present; empty text clears the field.
+    signature:
+      type: string
+      maxLength: 255
+      description: Applied only when present; empty text clears the field.
+    website:
+      type: string
+      maxLength: 255
+      description: Applied only when present; empty text clears the field.
+    websiteName:
+      type: string
+      maxLength: 64
+      description: Applied only when present; empty text clears the field.
     agentId:
       type: integer
       format: uint64
@@ -6457,7 +6885,7 @@ AdminTrafficOverviewRequest:
     startDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'
-      description: Inclusive range start (YYYY-MM-DD); empty defaults to 7 days ago.
+      description: Inclusive range start (YYYY-MM-DD); empty defaults to 7 days ago (8-day inclusive window ending today).
     endDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'
@@ -6840,8 +7268,8 @@ AdminPermissionOption:
     value:
       type: integer
       minimum: 0
-      maximum: 6
-      description: Permission enum id (0 Admin, 1 UserManager, 2 TopicsManager, 3 PageManager, 4 RoleManager, 5 SiteManager, 6 CourseManager).
+      maximum: 7
+      description: Permission enum id (0 Admin, 1 UserManager, 2 TopicsManager, 3 PageManager, 4 RoleManager, 5 SiteManager, 6 CourseManager, 7 anonymous.identity.reveal requiring an explicit grant).
   additionalProperties: false
 
 AdminPermissionListResponse:
@@ -6854,7 +7282,7 @@ AdminPermissionListResponse:
           type: array
           items:
             $ref: '#/AdminPermissionOption'
-          description: All 7 assignable permissions, enum id ascending.
+          description: All 8 assignable permissions, enum id ascending.
 
 AdminRolePermissionItem:
   type: object
@@ -7460,7 +7888,41 @@ AdminSiteSettingsConfig:
       type: string
     externalLinks:
       type: string
+      description: |
+        Custom head markup: only elements that may live inside `<head>` are
+        accepted. The same normalization runs when the value is stored and when
+        it is rendered: document structure tags (`<!DOCTYPE>`/`<html>`/`<head>`/
+        `<body>`), body content and loose text are dropped, together with the
+        document metadata the shell emits for the page — the `<title>`, the
+        charset (including `http-equiv="content-type"`) / viewport / description /
+        robots / color-scheme / theme-color metas, metas whose `name` or
+        `property` starts with `og:`, `twitter:` or `article:`, and links whose
+        `rel` token set includes `canonical`, `prev`, `next`, `manifest`, `icon`
+        or `apple-touch-icon` — so dirty values are cleaned on the next save
+        (issue #1244). Other custom meta/link/script/style/noscript elements are
+        kept; `description` and `robots` are rendered by a page only when that
+        page has its own value.
+        No URL or script whitelist is applied — trusted administrator content,
+        bounded by the page CSP.
+    trustedExternalDomains:
+      type: array
+      items:
+        type: string
+      description: |
+        Trusted external-domain whitelist (issue #1200): lower-cased
+        hostnames whose normal_external links skip the external-link
+        confirmation; an entry also matches its subdomains. Optional in
+        requests — omitting the key (or sending null) keeps the stored list,
+        while an explicit empty array clears it — and always present in
+        responses (the stored list, or the built-in default when nothing has
+        been saved).
   additionalProperties: false
+
+AdminSiteSettingsResult:
+  allOf:
+    - $ref: '#/AdminSiteSettingsConfig'
+    - type: object
+      required: [trustedExternalDomains]
 
 AdminSiteSettingsResponse:
   allOf:
@@ -7469,7 +7931,7 @@ AdminSiteSettingsResponse:
       required: [result]
       properties:
         result:
-          $ref: '#/AdminSiteSettingsConfig'
+          $ref: '#/AdminSiteSettingsResult'
           description: Stored site settings, or the built-in default when nothing has been saved.
 
 AdminSaveSiteSettingsRequest:
@@ -7488,7 +7950,21 @@ AdminSaveSiteSettingsRequest:
     request fails with HTTP 200 `code: 1`, messageCode `admin.url.invalid`
     and params `field` naming the first offending field; nothing is
     persisted. A missing/malformed body binds to zero values (empty URL
-    fields, hence valid) and is saved as-is.
+    fields, hence valid) and is saved as-is, except `externalLinks`, which is
+    normalized before persistence (see the field description in
+    `AdminSiteSettingsConfig`).
+    `trustedExternalDomains` entries are normalized before persistence
+    (trimmed, lower-cased, IDN converted to punycode, de-duplicated, blank
+    entries dropped) under the trusted-domain policy (issue #1200): entries
+    carry no scheme, path, port, wildcard or IP literal, are not a bare
+    public suffix (`com`, `co.uk`, `github.io`), are limited to 200 entries,
+    and each must be a valid hostname. On rejection the request fails with
+    HTTP 200 `code: 1`, messageCode `admin.externalDomain.invalid` and params
+    `domain` naming the first offending entry; nothing is persisted. An
+    explicit empty array is valid and disables the whitelist, while omitting
+    the key (or sending null) keeps the stored list — or the built-in default
+    when nothing has been saved — so an admin tab running the previous bundle
+    cannot clear the whitelist by saving unrelated settings.
 
 AdminSiteChromeItem:
   type: object
@@ -7787,6 +8263,33 @@ PublicSiteThemeTokensResponse:
     - $ref: '#/PublicSiteThemeTokensSuccess'
     - $ref: '#/ApiFailure'
 
+ExternalLinkPolicyResult:
+  type: object
+  required: [trustedDomains]
+  properties:
+    trustedDomains:
+      type: array
+      items:
+        type: string
+      description: |
+        Lower-cased hostnames (IDN in punycode) in submission order; an entry
+        also matches its subdomains. Empty means no domain is exempted.
+  additionalProperties: false
+
+ExternalLinkPolicySuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/ExternalLinkPolicyResult'
+
+ExternalLinkPolicyResponse:
+  oneOf:
+    - $ref: '#/ExternalLinkPolicySuccess'
+    - $ref: '#/ApiFailure'
+
 AdminSiteThemeResponse:
   allOf:
     - $ref: '#/ApiSuccess'
@@ -8046,21 +8549,43 @@ AdminSaveRateLimitSettingsRequest:
   additionalProperties: false
   description: Replacement rate-limit settings. Saving also resets all in-memory rate-limit counters so new windows/quotas apply immediately. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration.
 
+AdminHttpNotifyChannelType:
+  type: string
+  enum: [generic, feishu, astrbot]
+  description: |
+    Notification channel adapter (issue #1049). `generic` posts the structured JSON envelope
+    with `X-Goose-*` headers and the optional HMAC signature; `feishu` posts a schema 2.0
+    interactive card to a Feishu group custom-bot webhook (approval events only), signs it with
+    the bot's signature secret, and counts HTTP 200 responses whose body `code` is non-zero as
+    failures. `astrbot` posts `{content, umo, message_type: "text"}` to the `/send` endpoint of
+    the AstrBot push_lite plugin (`/send` is appended when the URL has no path) with
+    `Authorization: Bearer <secret>`, renders every event as plain text, and only counts 2xx
+    responses with `status: "queued"` as success. Stored endpoints without a channel type are
+    treated as `generic`.
+
 AdminHttpNotifyEndpoint:
   type: object
   required: [id, name, enabled, url, secret, events, timeoutSeconds, failureCount, lastError, abnormalTerminated]
   properties:
     id:
       type: string
+      description: Endpoint id. Endpoints saved without an id receive a server-generated one.
     name:
       type: string
+    channelType:
+      $ref: '#/AdminHttpNotifyChannelType'
+      description: Optional on save; omitted means `generic`. Unknown values fail with `common.request.invalidParams`.
     enabled:
       type: boolean
     url:
       type: string
+      description: Webhook URL. For `feishu` endpoints the URL embeds the bot hook token, so it is encrypted at rest (AES-256-GCM) and never returned; an empty value keeps the stored URL of the matching `feishu` endpoint.
+    target:
+      type: string
+      description: Recipient inside the channel, stored and returned in plaintext (surrounding whitespace is trimmed). For `astrbot` endpoints this is the target session `umo` (the SID shown by the `/sid` command) and is required for delivery; other channels ignore it.
     secret:
       type: string
-      description: Plaintext webhook signing secret accepted on save requests (issue #324 S1). Never stored or returned in plaintext — an empty value keeps the stored (encrypted) secret for the matching endpoint (matched by id, falling back to url).
+      description: Plaintext webhook signing secret accepted on save requests (issue #324 S1). Never stored or returned in plaintext — an empty value keeps the stored (encrypted) secret for the matching endpoint (matched by id, falling back to url). For `feishu` endpoints this is the bot's signature-verification secret; for `astrbot` endpoints it is the plugin's API token.
     events:
       type: array
       items:
@@ -8078,16 +8603,25 @@ AdminHttpNotifyEndpoint:
 
 AdminHttpNotifyEndpointView:
   type: object
-  required: [id, name, enabled, url, secretConfigured, events, timeoutSeconds, failureCount, lastError, abnormalTerminated]
+  required: [id, name, channelType, enabled, url, urlConfigured, target, secretConfigured, events, timeoutSeconds, failureCount, lastError, abnormalTerminated]
   properties:
     id:
       type: string
     name:
       type: string
+    channelType:
+      $ref: '#/AdminHttpNotifyChannelType'
     enabled:
       type: boolean
     url:
       type: string
+      description: Stored webhook URL for `generic` endpoints; always empty for `feishu` endpoints, whose URL is a credential (see `urlConfigured`).
+    urlConfigured:
+      type: boolean
+      description: Whether a webhook URL is stored (plaintext for `generic` and `astrbot`, encrypted for `feishu`).
+    target:
+      type: string
+      description: Stored channel recipient (the `astrbot` session `umo`); empty for channels that do not use one.
     secretConfigured:
       type: boolean
       description: Whether a webhook signing secret is stored for this endpoint (encrypted with AES-256-GCM). The secret itself is never returned (issue #324 S1).
@@ -8118,6 +8652,26 @@ AdminHttpNotifySettingsConfig:
         $ref: '#/AdminHttpNotifyEndpoint'
   additionalProperties: false
 
+AdminTestHttpNotifyEndpointRequest:
+  type: object
+  required: [endpoint]
+  properties:
+    endpoint:
+      $ref: '#/AdminHttpNotifyEndpoint'
+  additionalProperties: false
+  description: The endpoint to test, as currently edited. Empty `url`/`secret`/`target` reuse the stored values of the endpoint with the same `id` while its channel type is unchanged.
+
+AdminTestHttpNotifyEndpointResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminConnectionTestResult'
+    - $ref: '#/ApiFailure'
+
 AdminHttpNotifySettingsView:
   type: object
   required: [enabled, endpoints]
@@ -8139,6 +8693,89 @@ AdminHttpNotifySettingsResponse:
         result:
           $ref: '#/AdminHttpNotifySettingsView'
           description: Stored notify settings without endpoint secrets (configured state only), or the built-in default (disabled, empty endpoint list) when nothing has been saved.
+
+ModerationApprovalActionRequest:
+  type: object
+  required: [token]
+  properties:
+    token:
+      type: string
+      maxLength: 2048
+      description: Signed quick-action token from the `token` query parameter of a notification button link (`/moderation/action?token=…`).
+    reason:
+      type: string
+      maxLength: 2048
+      description: |
+        Appeal decisions only (`subject=appeal`): the reviewer's explanation shown to the author,
+        at most 512 characters. Required to reject an appeal; optional when approving; ignored for
+        other subjects and by the preview.
+  additionalProperties: false
+
+ModerationApprovalActionView:
+  type: object
+  required: [state, workbenchUrl]
+  description: |
+    Quick-action confirmation view (issue #1049). Target content (`title`, `excerpt`, `targetUrl`)
+    is only present when the signed-in caller may moderate the target; anonymous targets only
+    expose the `anonymous` marker, never the author. Appeals (`subject=appeal`) describe the
+    rejected revision plus `originalReason` and `appealReason`, never the author's identity.
+  properties:
+    state:
+      type: string
+      enum: [ready, done, processed, changed, expired, invalid, forbidden, notFound, failed]
+      description: |
+        `ready` — can be executed; `done` — executed by this request; `processed` — already
+        handled (by anyone) and nothing changed; `changed` — the pending content was edited after
+        the notification, handle the latest version in the workbench; `expired`/`invalid` — the
+        link is stale or not issued by this site; `forbidden` — the caller cannot moderate the
+        target; `notFound` — the target no longer exists; `failed` — the action could not be
+        applied.
+    subject:
+      type: string
+      enum: [review.topic, review.post, report, appeal]
+    action:
+      type: string
+      enum: [approve, reject, ban, hide, dismiss]
+    targetType:
+      type: string
+      enum: [topic, post, chat_message, course_review]
+    targetId:
+      type: integer
+      format: int64
+    reportId:
+      type: integer
+      format: int64
+    title:
+      type: string
+    excerpt:
+      type: string
+    anonymous:
+      type: boolean
+    targetUrl:
+      type: string
+    workbenchUrl:
+      type: string
+      description: Site-relative workbench entry for handling the item manually.
+    expiresAt:
+      type: string
+      format: date-time
+      description: Link expiry (UTC, RFC 3339).
+    originalReason:
+      type: string
+      description: Appeals only — the rejection being appealed. Shown on the confirmation page, never in external notifications.
+    appealReason:
+      type: string
+      description: Appeals only — the author's explanation. Shown on the confirmation page, never in external notifications.
+  additionalProperties: false
+
+ModerationApprovalActionResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/ModerationApprovalActionView'
 
 AdminSaveHttpNotifySettingsRequest:
   type: object
@@ -8449,7 +9086,7 @@ AdminConnectionTestResult:
       description: Whether the probe succeeded. Note the envelope `code` stays 0 either way — the outcome is reported inside `result`.
     messageCode:
       type: string
-      description: "`admin.mail.testSuccess` / `admin.mail.testFailed` for mail, `admin.storage.testSuccess` / `admin.storage.testFailed` for storage."
+      description: "`admin.mail.testSuccess` / `admin.mail.testFailed` for mail, `admin.storage.testSuccess` / `admin.storage.testFailed` for storage, `admin.httpNotify.testSuccess` / `admin.httpNotify.testFailed` for webhook endpoints."
     params:
       type: object
       additionalProperties: true
@@ -8499,11 +9136,14 @@ AdminStorageSettingsConfig:
     publicUrlPrefix:
       type: string
       description: Optional public (CDN) prefix; empty means files are served through the `/file/img` proxy.
+    forceProxyUpload:
+      type: boolean
+      description: "Operator switch (default false). When true, `/file/img-upload/init` answers `mode: proxy` even with the `s3` provider, so clients upload through `POST /file/img-upload` and the server writes to the bucket. Omitting the field on save keeps the stored value; it is always saved as false when provider is not `s3`."
   additionalProperties: false
 
 AdminStorageSettingsView:
   type: object
-  required: [provider, endpoint, bucket, region, bucketLookup, secure, accessKeyConfigured, secretKeyConfigured, publicUrlPrefix]
+  required: [provider, endpoint, bucket, region, bucketLookup, secure, accessKeyConfigured, secretKeyConfigured, publicUrlPrefix, forceProxyUpload]
   properties:
     provider:
       type: string
@@ -8528,6 +9168,8 @@ AdminStorageSettingsView:
       description: Whether a secret key is stored (encrypted with AES-256-GCM). The key itself is never returned (issue #324 S3).
     publicUrlPrefix:
       type: string
+    forceProxyUpload:
+      type: boolean
   additionalProperties: false
 
 AdminStorageSettingsResponse:
@@ -8817,7 +9459,7 @@ AdminReviewQueueRequest:
   properties:
     kind:
       type: string
-      enum: [topic, post]
+      enum: [topic, post, sticker]
       description: Any other value (including empty) fails validation with HTTP 200 `common.request.invalidParams`.
     page:
       type: integer
@@ -8832,16 +9474,25 @@ AdminReviewQueueItem:
   type: object
   required: [id, title, excerpt, userId, username, processStatus, createdAt]
   properties:
+    revisionId:
+      type: integer
+      format: uint64
+      description: Exact submitted version. Send back unchanged when deciding; omitted for legacy entries.
+    content:
+      type: string
+      description: Full candidate Markdown, visible to authorized reviewers only.
+    reviewReason:
+      type: string
     id:
       type: integer
       format: uint64
-      description: Topic id when kind=topic, post id when kind=post.
+      description: Topic id when kind=topic, post id when kind=post, sticker asset id when kind=sticker.
     title:
       type: string
-      description: Topic title; for posts, the title of the containing topic (empty when the topic is missing).
+      description: Topic title; for posts, the title of the containing topic (empty when the topic is missing); for stickers, the asset token name (the generated `u_` name; this queue is site-manager only, and the uploader also sees their own name in library responses).
     excerpt:
       type: string
-      description: Topic excerpt (falling back to the title) or the post content truncated to 120 bytes.
+      description: Topic excerpt (falling back to the title) or the post content truncated to 120 bytes; empty for stickers (the client localizes the queue row title by kind).
     userId:
       type: integer
       format: uint64
@@ -8871,7 +9522,12 @@ AdminReviewQueueItem:
       maxItems: 9
       items:
         type: string
-      description: Image URLs referenced by the pending content (topic gallery/inline images or post Markdown images). Pending images are readable by reviewers through the authorized `/file/img` preview; anonymous readers receive 404.
+      description: >-
+        Image URLs referenced by pending content or the uploaded image when kind=sticker.
+        Pending topic/post images are readable by authorized reviewers through /file/img and
+        return 404 for anonymous readers (issue #975). Sticker images are additionally visible
+        to the uploader in their own library while pending; after approval the file becomes
+        publicly readable.
     aiReview:
       $ref: '#/AiModerationDecisionItem'
       description: Present only when AI moderation sent this item to review (issue #975); carries triggered policies, raw probabilities and the truncated evidence summary.
@@ -8912,9 +9568,17 @@ AdminReviewActionRequest:
   type: object
   required: [kind, id]
   properties:
+    revisionId:
+      type: integer
+      format: uint64
+      description: Required for versioned submissions. Missing or stale IDs return admin.review.processed without applying a decision.
+    reason:
+      type: string
+      maxLength: 512
+      description: Optional author-visible rejection reason.
     kind:
       type: string
-      enum: [topic, post]
+      enum: [topic, post, sticker]
     id:
       type: integer
       format: uint64
@@ -8944,6 +9608,7 @@ AdminFileResourceItem:
     userId:
       type: integer
       format: uint64
+      description: Always zero; private uploader attribution is not part of this projection.
     createdAt:
       type: string
       format: date-time
@@ -8952,7 +9617,7 @@ AdminFileResourceItem:
       description: Public access path (`/file/img/...` under the local provider, or the configured public prefix).
     uploaderUsername:
       type: string
-      description: Empty when the uploader row is missing.
+      description: Always empty; uploader attribution is private and omitted from ordinary administrative listings.
   additionalProperties: false
 
 AdminFileResourcePageResult:
@@ -9024,6 +9689,46 @@ AdminImgUploadResponse:
           properties:
             result:
               $ref: '#/AdminImgUploadResult'
+            messageCode:
+              type: string
+              const: upload.success
+    - $ref: '#/ApiFailure'
+
+DecorationAssetUploadResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result, messageCode]
+          properties:
+            result:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  pattern: '^/static/decorations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[.](png|webp|gif)$'
+              additionalProperties: false
+            messageCode:
+              type: string
+              const: upload.success
+    - $ref: '#/ApiFailure'
+
+BadgeAssetUploadResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result, messageCode]
+          properties:
+            result:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  pattern: '^/static/badges/(normalized/)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[.](png|webp|gif)$'
+              additionalProperties: false
             messageCode:
               type: string
               const: upload.success
@@ -9335,8 +10040,35 @@ AdminImportTaskReplayResponse:
 
 MyContentItem:
   type: object
-  required: [id, contentType, title, createdAt]
+  required: [id, contentType, title, createdAt, processStatus, revisionId, hasPublishedVersion, content, images]
   properties:
+    processStatus:
+      type: integer
+      enum: [0, 1, 2]
+      description: Latest submission state; 1 can be edited and resubmitted, 2 is private pending review.
+    revisionId:
+      type: integer
+      format: uint64
+    reviewReason:
+      type: string
+    hasPublishedVersion:
+      type: boolean
+      description: An approved version remains publicly readable while the submitted edit is pending or rejected.
+    canAppeal:
+      type: boolean
+      description: True when the latest rejected revision can still be appealed by this author (same rules as submitContentAppeal).
+    appeal:
+      description: Appeal filed for the latest revision, or null. Pending appeals whose target changed are reported as stale.
+      oneOf:
+        - $ref: '#/ModerationAppealOwnerSummary'
+        - type: 'null'
+    content:
+      type: string
+      description: Complete latest submitted Markdown for the authenticated author, including rejected content.
+    images:
+      type: array
+      items:
+        type: string
     id:
       type: integer
       format: uint64
@@ -9841,7 +10573,8 @@ DirectImageUploadInitResult:
       type: string
       enum: [proxy, direct]
       description: |
-        `proxy` — continue with the multipart `POST /file/img-upload` (local provider).
+        `proxy` — continue with the multipart `POST /file/img-upload` (local provider, or the
+        `s3` provider with the operator switch `forceProxyUpload` enabled).
         `direct` — upload to `upload.url` with `upload.fields` + the file, then call
         `/file/img-upload/complete` with `name`.
     name:
@@ -10105,6 +10838,10 @@ StickerItem:
       type: boolean
       default: true
       description: False for temporarily unavailable assets retained in a private library. Clients must prevent insertion while permitting removal or reordering. Older servers omit this field and clients assume true.
+    reviewStatus:
+      type: string
+      enum: [pending, approved, rejected]
+      description: Personal upload review state. Omitted by older servers and treated as approved for compatibility. Clients must prevent insertion unless approved and enabled.
   additionalProperties: false
 
 ForumStickerListSuccess:
@@ -10707,6 +11444,56 @@ UserBlockRequest:
       type: boolean
   additionalProperties: false
 
+# ================= Profile privacy (issue #1124) =================
+
+ProfileAudience:
+  type: string
+  description: Who can see a profile aggregate, from the widest to the narrowest audience.
+  enum: [everyone, members, followers, mutual, self]
+ProfileLikesAudience:
+  type: string
+  enum: [everyone, followers, self]
+ProfileConnectionsAudience:
+  type: string
+  enum: [everyone, followers, mutual, self]
+UserPrivacySettings:
+  type: object
+  required: [profileTopics, profileActivity, profileLikes, followingList, followersList]
+  properties:
+    profileTopics:
+      $ref: '#/ProfileAudience'
+    profileActivity:
+      $ref: '#/ProfileAudience'
+    profileLikes:
+      $ref: '#/ProfileLikesAudience'
+    followingList:
+      $ref: '#/ProfileConnectionsAudience'
+    followersList:
+      $ref: '#/ProfileConnectionsAudience'
+  additionalProperties: false
+UserPrivacySettingsSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      properties:
+        result:
+          $ref: '#/UserPrivacySettings'
+UserPrivacySettingsUpdateRequest:
+  type: object
+  minProperties: 1
+  properties:
+    profileTopics:
+      $ref: '#/ProfileAudience'
+    profileActivity:
+      $ref: '#/ProfileAudience'
+    profileLikes:
+      $ref: '#/ProfileLikesAudience'
+    followingList:
+      $ref: '#/ProfileConnectionsAudience'
+    followersList:
+      $ref: '#/ProfileConnectionsAudience'
+  additionalProperties: false
+
 
 # ================= AI image/text moderation（issue #975）=================
 
@@ -11102,3 +11889,993 @@ AiModerationReason:
       type: string
       description: Evidence status for `evidence_incomplete`.
   additionalProperties: false
+
+FeedEventPatch:
+  type: object
+  required: [trace, visibleMask]
+  properties:
+    trace: { type: string, minLength: 1, maxLength: 2048 }
+    visibleMask: { type: integer, minimum: 0, maximum: 1048575 }
+    dwell:
+      type: object
+      maxProperties: 20
+      additionalProperties: { type: integer, minimum: 0, maximum: 600, multipleOf: 5 }
+FeedEventsRequest:
+  type: object
+  properties:
+    patches:
+      type: array
+      maxItems: 50
+      items: { $ref: '#/FeedEventPatch' }
+    seenPatches:
+      type: array
+      maxItems: 50
+      items: { $ref: '#/FeedSeenPatch' }
+FeedEventsResponse:
+  type: object
+  required: [code, result]
+  properties:
+    code: { type: integer, const: 0 }
+    result:
+      oneOf:
+        - { type: boolean, const: true }
+        - { $ref: '#/FeedSeenAck' }
+    message: { type: string }
+    messageCode: { type: string }
+FeedMetricRow:
+  type: object
+  required: [day, feed, hash, rankHash, experiment, variant, weightVariant, capability, metric, count]
+  properties:
+    day: { type: string }
+    feed: { type: string }
+    hash: { type: string }
+    weightVariant: { type: string }
+    rankHash: { type: string }
+    experiment: { type: string }
+    variant: { type: string }
+    capability: { type: string }
+    metric: { type: string }
+    count: { type: integer }
+FeedPeriodSummary:
+  type: object
+  required: [id, hash, enrollUntil, analyzeAt, aborted, assignedControl, assignedTreatment, result]
+  properties:
+    id: { type: string }
+    hash: { type: string }
+    enrollUntil: { type: string, format: date-time }
+    analyzeAt: { type: string, format: date-time }
+    aborted: { type: string }
+    assignedControl: { type: integer, minimum: 0 }
+    assignedTreatment: { type: integer, minimum: 0 }
+    result: { type: string, description: Anonymous sufficient statistics and user-unit effect estimates encoded as JSON; empty until finalized. }
+FeedSummary:
+  type: object
+  required: [enabled, rankingReady, metricsEnabled, rolloutPercent, rawRetentionDays, paramsHash, rows, truncated, health, periods]
+  properties:
+    enabled: { type: boolean }
+    rankingReady: { type: boolean }
+    metricsEnabled: { type: boolean }
+    rolloutPercent: { type: integer, minimum: 0, maximum: 100 }
+    rawRetentionDays: { type: integer, minimum: 1, maximum: 30 }
+    paramsHash: { type: string }
+    rows:
+      type: array
+      maxItems: 1000
+      items: { $ref: '#/FeedMetricRow' }
+    periods:
+      type: array
+      maxItems: 20
+      items: { $ref: '#/FeedPeriodSummary' }
+    truncated: { type: boolean }
+    health: { type: object, additionalProperties: true }
+FeedSummaryResponse:
+  type: object
+  required: [code, result]
+  properties:
+    code: { type: integer, const: 0 }
+    result: { $ref: '#/FeedSummary' }
+    message: { type: string }
+    messageCode: { type: string }
+
+FeedSeenProof:
+  type: object
+  required: [token, topicIds, issuedAt, expiresAt]
+  properties:
+    token: { type: string, minLength: 1, maxLength: 2048 }
+    topicIds:
+      type: array
+      minItems: 1
+      maxItems: 20
+      uniqueItems: true
+      items: { type: integer, format: uint64, minimum: 1 }
+    issuedAt: { type: integer, format: int64 }
+    expiresAt: { type: integer, format: int64 }
+  additionalProperties: false
+FeedSeenPatch:
+  type: object
+  required: [proof, seen]
+  properties:
+    proof: { type: string, minLength: 1, maxLength: 2048 }
+    seen:
+      type: object
+      maxProperties: 20
+      propertyNames: { pattern: '^(0|[1-9]|1[0-9])$' }
+      additionalProperties: { type: integer, minimum: 1000, maximum: 1799999 }
+  additionalProperties: false
+FeedSeenAck:
+  type: object
+  required: [seenConfirmed]
+  properties:
+    seenConfirmed: { type: boolean, const: true }
+  additionalProperties: false
+FeedRefreshRequest:
+  type: object
+  properties:
+    replaceSnapshotId:
+      type: string
+      maxLength: 128
+      description: Current owner-bound browsing snapshot to replace after successful hydration. Optional for a new or expired session; never replaces another live session when this ID was already consumed.
+    seenPatches:
+      type: array
+      maxItems: 50
+      items: { $ref: '#/FeedSeenPatch' }
+FeedReconcileRequest:
+  type: object
+  required: [topicIds]
+  properties:
+    topicIds:
+      type: array
+      minItems: 1
+      maxItems: 120
+      uniqueItems: true
+      items: { type: integer, format: uint64, minimum: 1 }
+FeedSessionResult:
+  type: object
+  required: [viewerId, topics, removedIds, seenProofs, snapshotId, available, seenConfirmed]
+  properties:
+    viewerId: { type: integer, format: uint64, minimum: 1 }
+    topics:
+      type: array
+      maxItems: 120
+      items: { $ref: '#/TopicPayload' }
+    removedIds:
+      type: array
+      maxItems: 120
+      uniqueItems: true
+      items: { type: integer, format: uint64, minimum: 1 }
+    seenProofs:
+      type: array
+      maxItems: 6
+      items: { $ref: '#/FeedSeenProof' }
+    snapshotId: { type: string }
+    pagination: { $ref: '#/PaginationPayload' }
+    available: { type: boolean }
+    seenConfirmed: { type: boolean }
+  additionalProperties: false
+FeedSessionResponse:
+  type: object
+  required: [code, result]
+  properties:
+    code: { type: integer, const: 0 }
+    result: { $ref: '#/FeedSessionResult' }
+    message: { type: string }
+    messageCode: { type: string }
+
+DecorationStyle:
+  type: object
+  required:
+  - code
+  - name
+  - kind
+  - lightColors
+  - darkColors
+  - isEnabled
+  - sortOrder
+  properties:
+    assetScale:
+      type: number
+      minimum: 0.5
+      maximum: 2
+      default: 1.25
+      description: Frame artwork diameter relative to the avatar, centered without changing layout; omitted values use 1.25.
+    assetUrl:
+      type: string
+      pattern: ^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp|gif|svg)$
+      description: Optional same-origin PNG or WebP frame artwork installed under resource/static/decorations. External URLs are rejected.
+    code:
+      type: string
+      pattern: ^[a-z][a-z0-9_-]{0,63}$
+    name:
+      type: string
+      minLength: 1
+      maxLength: 80
+    kind:
+      type: string
+      enum:
+      - avatarFrame
+      - nicknameStyle
+    lightColors:
+      type: array
+      minItems: 1
+      maxItems: 2
+      items:
+        type: string
+        pattern: ^#[0-9A-Fa-f]{6}$
+    darkColors:
+      type: array
+      minItems: 1
+      maxItems: 2
+      items:
+        type: string
+        pattern: ^#[0-9A-Fa-f]{6}$
+    isEnabled:
+      type: boolean
+    sortOrder:
+      type: integer
+      minimum: 0
+      maximum: 100000
+  additionalProperties: false
+DecorationDisplay:
+  type: object
+  properties:
+    avatarFrame:
+      $ref: '#/DecorationStyle'
+    nicknameStyle:
+      $ref: '#/DecorationStyle'
+  additionalProperties: false
+DecorationEquipped:
+  type: object
+  required:
+  - avatarFrame
+  - nicknameStyle
+  properties:
+    avatarFrame:
+      type: string
+      maxLength: 64
+    nicknameStyle:
+      type: string
+      maxLength: 64
+  additionalProperties: false
+DecorationState:
+  type: object
+  required:
+  - catalog
+  - ownedCodes
+  - equipped
+  properties:
+    catalog: &id001
+      type: array
+      items:
+        $ref: '#/DecorationStyle'
+    ownedCodes: &id002
+      type: array
+      uniqueItems: true
+      items:
+        type: string
+    equipped: &id003
+      $ref: '#/DecorationEquipped'
+  additionalProperties: false
+DecorationAdjustmentRequest:
+  type: object
+  required:
+  - userId
+  - code
+  - reason
+  - requestKey
+  properties:
+    userId:
+      type: integer
+      minimum: 1
+    code:
+      type: string
+      pattern: ^[a-z][a-z0-9_-]{0,63}$
+    reason:
+      type: string
+      minLength: 1
+      maxLength: 512
+    requestKey:
+      type: string
+      minLength: 8
+      maxLength: 128
+  additionalProperties: false
+DecorationAudit:
+  type: object
+  required:
+  - id
+  - requestKey
+  - userId
+  - code
+  - action
+  - source
+  - actorId
+  - reason
+  - createdAt
+  properties:
+    id:
+      type: integer
+    requestKey:
+      type: string
+    userId:
+      type: integer
+    code:
+      type: string
+    action:
+      type: string
+      enum:
+      - grant
+      - revoke
+      - equip
+      - definition
+    source:
+      type: string
+      enum:
+      - manual
+      - xp
+      - trust
+      - credit
+      - migration
+      - self
+    actorId:
+      type: integer
+    reason:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+AdminDecorationState:
+  type: object
+  required:
+  - catalog
+  - ownedCodes
+  - equipped
+  - audits
+  properties:
+    catalog: *id001
+    ownedCodes: *id002
+    equipped: *id003
+    audits:
+      type: array
+      maxItems: 100
+      items:
+        $ref: '#/DecorationAudit'
+  additionalProperties: false
+DecorationStateResponse:
+  oneOf:
+  - type: object
+    required:
+    - code
+    - result
+    properties:
+      code:
+        type: integer
+        const: 0
+      result:
+        $ref: '#/DecorationState'
+    additionalProperties: false
+  - $ref: '#/ApiFailure'
+AdminDecorationStateResponse:
+  oneOf:
+  - type: object
+    required:
+    - code
+    - result
+    properties:
+      code:
+        type: integer
+        const: 0
+      result:
+        $ref: '#/AdminDecorationState'
+    additionalProperties: false
+  - $ref: '#/ApiFailure'
+DecorationListResponse:
+  oneOf:
+  - type: object
+    required:
+    - code
+    - result
+    properties:
+      code:
+        type: integer
+        const: 0
+      result:
+        type: array
+        items:
+          $ref: '#/DecorationStyle'
+    additionalProperties: false
+  - $ref: '#/ApiFailure'
+DecorationStyleResponse:
+  oneOf:
+  - type: object
+    required:
+    - code
+    - result
+    properties:
+      code:
+        type: integer
+        const: 0
+      result:
+        $ref: '#/DecorationStyle'
+    additionalProperties: false
+  - $ref: '#/ApiFailure'
+
+# ================= Admin content contribution stats（issue #1145）=================
+# Scope, attribution and 0-vs-estimated rules: see paths/admin-stats.yaml.
+
+AdminStatsCategorySummaryRequest:
+  type: object
+  properties:
+    startDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 6 days ago (7-day inclusive window ending today).
+    endDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today.
+  additionalProperties: false
+
+AdminStatsCategoryTrendRequest:
+  type: object
+  required: [categoryId]
+  properties:
+    startDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 6 days ago (7-day inclusive window ending today).
+    endDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today.
+    categoryId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Required category id; an unknown id fails with `common.request.invalidParams`.
+  additionalProperties: false
+
+AdminStatsUserRankingRequest:
+  type: object
+  properties:
+    startDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 6 days ago (7-day inclusive window ending today).
+    endDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today.
+    categoryId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Category filter; 0 or omitted means whole-site.
+    sortBy:
+      type: string
+      enum: [topics, replies, likes]
+      description: Ordering metric, descending; empty or omitted defaults to `topics`, and ties break on `userId` ascending.
+    page:
+      type: integer
+      minimum: 1
+      maximum: 10000
+      description: >-
+        1-based page number, echoed unchanged; omitted defaults to page 1. Values above the 10000
+        cap are rejected as `common.request.invalidParams` with `params.field = page` rather than
+        clamped or silently truncated, because deeper windows are meaningless and would overflow
+        the offset arithmetic.
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 100
+      description: Page size; omitted defaults to 20, and values outside 1-100 are rejected rather than clamped.
+    actorType:
+      type: integer
+      enum: [0, 1]
+      description: Contributor population to rank; 0 = human accounts (default when omitted), 1 = agent (bot) accounts.
+  additionalProperties: false
+
+AdminStatsUserDetailRequest:
+  type: object
+  properties:
+    startDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 6 days ago (7-day inclusive window ending today).
+    endDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today.
+    categoryId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Category filter; 0 or omitted means whole-site.
+    userId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Account id; exactly one of `userId` / `username` must be given.
+    username:
+      type: string
+      minLength: 1
+      description: Account username; exactly one of `userId` / `username` must be given.
+  additionalProperties: false
+  description: >-
+    Exactly one of `userId` and `username` identifies the account; passing both or neither fails with
+    `common.request.invalidParams`. `userId` is the authoritative form (the numeric forum user id),
+    `username` the by-name convenience form.
+
+AdminStatsCoverage:
+  type: object
+  required: [timezone, maxRangeDays, estimated]
+  properties:
+    timezone:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: >-
+        Runtime-derived server-local timezone whose calendar days the range was sliced by (there is no
+        site-level timezone setting). Formatted as `"<abbreviation> (UTC±HH:MM)"`, e.g. `CST (UTC+08:00)`
+        or `UTC (UTC+00:00)`; the abbreviation is the `time.Local` zone name, or `Local` when that name is
+        empty or literally `Local`.
+    maxRangeDays:
+      type: integer
+      minimum: 1
+      description: Inclusive date-range span cap in days currently enforced (366), echoed so the UI can show the limit without hard-coding it.
+    estimated:
+      type: boolean
+      description: True when any counted row's first-public time was backfilled from `created_at` (`first_public_estimated`), i.e. not an exact audit-time record.
+  additionalProperties: false
+
+AdminStatsCategoryItem:
+  type: object
+  required: [categoryId, name, topicCount, replyCount, contributorCount, agentContributorCount]
+  properties:
+    categoryId:
+      type: integer
+      format: uint64
+      minimum: 1
+    name:
+      type: string
+      description: Current category name.
+    topicCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: In-range topics currently attributed to this category (a topic in several categories counts once per category).
+    replyCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: In-range replies of those topics (`post_no > 1`; the first floor is not a reply).
+    contributorCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Distinct human accounts (`actor_type = 0`) that authored one of them; anonymous rows and soft-deleted users excluded.
+    agentContributorCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Distinct agent accounts (`actor_type = 1`) that authored one of them, kept separate from `contributorCount`.
+  additionalProperties: false
+
+AdminStatsTotals:
+  type: object
+  required: [topicCount, replyCount, contributorCount, agentContributorCount]
+  properties:
+    topicCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Whole-site in-range topics, deduplicated by topic id (unaffected by multi-category attribution).
+    replyCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Whole-site in-range replies, deduplicated by post id.
+    contributorCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Distinct human accounts contributing site-wide; per-day counts are never summed.
+    agentContributorCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Distinct agent accounts contributing site-wide.
+  additionalProperties: false
+
+AdminStatsCategorySummaryResult:
+  type: object
+  required: [categories, totals, coverage]
+  properties:
+    categories:
+      type: array
+      items:
+        $ref: '#/AdminStatsCategoryItem'
+      description: Every category, zero-filled when it has no in-range contribution, ordered by `topicCount` descending then `categoryId` ascending.
+    totals:
+      $ref: '#/AdminStatsTotals'
+    coverage:
+      $ref: '#/AdminStatsCoverage'
+  additionalProperties: false
+
+AdminStatsCategorySummaryResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminStatsCategorySummaryResult'
+    - $ref: '#/ApiFailure'
+
+AdminStatsDayCount:
+  type: object
+  required: [date, topicCount, replyCount, estimated]
+  properties:
+    date:
+      type: string
+      description: YYYY-MM-DD, server-local day.
+    topicCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Topics attributed to this day; 0 when the day has no contribution.
+    replyCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Replies attributed to this day; 0 when the day has no contribution.
+    estimated:
+      type: boolean
+      description: True when this day's counts include a row whose first-public time was backfilled from `created_at`.
+  additionalProperties: false
+
+AdminStatsCategoryTrendResult:
+  type: object
+  required: [categoryId, days, coverage]
+  properties:
+    categoryId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Echo of the requested category id.
+    days:
+      type: array
+      items:
+        $ref: '#/AdminStatsDayCount'
+      description: One entry per in-range day, ascending; days without contribution are present with zero counts.
+    coverage:
+      $ref: '#/AdminStatsCoverage'
+  additionalProperties: false
+
+AdminStatsCategoryTrendResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminStatsCategoryTrendResult'
+    - $ref: '#/ApiFailure'
+
+AdminStatsUserRankingItem:
+  type: object
+  required: [userId, username, nickname, actorType, topicCount, replyCount, likeCount]
+  properties:
+    userId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Numeric forum user id (also the OIDC `sub`).
+    username:
+      type: string
+    nickname:
+      type: string
+    actorType:
+      type: integer
+      enum: [0, 1]
+      description: 0 = human account, 1 = agent (bot) account; matches the request `actorType` filter.
+    topicCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: In-range topics authored under the requested scope.
+    replyCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: In-range replies authored under the requested scope.
+    likeCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Likes still effective on those topics and replies; cancelled likes are not counted.
+  additionalProperties: false
+
+AdminStatsUserRankingResult:
+  type: object
+  required: [items, page, pageSize, total, coverage]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/AdminStatsUserRankingItem'
+      description: Ranked page; an empty array when nothing matches. Anonymous content and soft-deleted users never appear.
+    page:
+      type: integer
+      minimum: 1
+      description: 1-based page number, echoed unchanged.
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 100
+      description: Effective page size.
+    total:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Number of accounts matching the filters (the paging denominator), independent of `page`.
+    coverage:
+      $ref: '#/AdminStatsCoverage'
+  additionalProperties: false
+
+AdminStatsUserRankingResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminStatsUserRankingResult'
+    - $ref: '#/ApiFailure'
+
+AdminStatsUserDetailUser:
+  type: object
+  required: [userId, username, nickname, actorType]
+  properties:
+    userId:
+      type: integer
+      format: uint64
+      minimum: 1
+    username:
+      type: string
+    nickname:
+      type: string
+    actorType:
+      type: integer
+      enum: [0, 1]
+      description: 0 = human account, 1 = agent (bot) account.
+  additionalProperties: false
+
+AdminStatsUserDetailSummary:
+  type: object
+  required: [topicCount, replyCount, likeCount]
+  properties:
+    topicCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: In-range topics authored under the requested scope; 0 when the account had no contribution.
+    replyCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: In-range replies authored under the requested scope; 0 when the account had no contribution.
+    likeCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Likes still effective on those topics and replies; cancelled likes are not counted.
+  additionalProperties: false
+
+AdminStatsUserDetailResult:
+  type: object
+  required: [user, summary, days, coverage]
+  properties:
+    user:
+      $ref: '#/AdminStatsUserDetailUser'
+    summary:
+      $ref: '#/AdminStatsUserDetailSummary'
+    days:
+      type: array
+      items:
+        $ref: '#/AdminStatsDayCount'
+      description: One entry per in-range day, ascending, zero-filled for days without contribution.
+    coverage:
+      $ref: '#/AdminStatsCoverage'
+  additionalProperties: false
+
+AdminStatsUserDetailResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminStatsUserDetailResult'
+    - $ref: '#/ApiFailure'
+
+
+ModerationAppealItem:
+  type: object
+  required: [id, kind, targetId, revisionId, topicId, postNo, title, content, images, reason, originalReviewReason, status, reviewReason, createdAt, reviewedAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    kind:
+      type: string
+      enum: [topic, post]
+    targetId:
+      type: integer
+      format: uint64
+    revisionId:
+      type: integer
+      format: uint64
+    topicId:
+      type: integer
+      format: uint64
+    postNo:
+      type: integer
+    title:
+      type: string
+    content:
+      type: string
+    images:
+      type: array
+      items:
+        type: string
+    reason:
+      type: string
+    originalReviewReason:
+      type: string
+      description: The rejection reason being appealed.
+    status:
+      type: string
+      enum: [pending, approved, rejected, stale]
+    reviewReason:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+    reviewedAt:
+      type: [string, 'null']
+      format: date-time
+  additionalProperties: false
+
+ModerationAppealOwnerSummary:
+  type: object
+  required: [status, reason, reviewReason, createdAt, reviewedAt]
+  properties:
+    status:
+      type: string
+      enum: [pending, approved, rejected, stale]
+    reason:
+      type: string
+    reviewReason:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+    reviewedAt:
+      type: [string, 'null']
+      format: date-time
+  additionalProperties: false
+
+ModerationAppealSubmitRequest:
+  type: object
+  required: [kind, id, revisionId, reason]
+  properties:
+    kind:
+      type: string
+      enum: [topic, post]
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    revisionId:
+      type: integer
+      format: uint64
+      minimum: 1
+    reason:
+      type: string
+      minLength: 1
+      maxLength: 512
+      description: Required explanation; whitespace-only text is rejected.
+  additionalProperties: false
+
+ModerationAppealActionRequest:
+  type: object
+  required: [id, approve]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    approve:
+      type: boolean
+    reason:
+      type: string
+      maxLength: 512
+      description: A nonblank reason is required when rejecting an appeal.
+  additionalProperties: false
+
+ModerationAppealQueueRequest:
+  type: object
+  properties:
+    page:
+      type: integer
+    pageSize:
+      type: integer
+    status:
+      type: string
+      enum: [pending, approved, rejected, stale]
+      default: pending
+  additionalProperties: false
+
+ModerationAppealHistoryResult:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ModerationAppealItem'
+  additionalProperties: false
+
+ModerationAppealQueueResult:
+  type: object
+  required: [items, total, page, pageSize]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ModerationAppealItem'
+    total:
+      type: integer
+      format: int64
+    page:
+      type: integer
+    pageSize:
+      type: integer
+  additionalProperties: false
+
+ModerationAppealSubmitResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/ModerationAppealItem'
+    - $ref: '#/ApiFailure'
+
+ModerationAppealHistoryResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/ModerationAppealHistoryResult'
+    - $ref: '#/ApiFailure'
+
+ModerationAppealQueueResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/ModerationAppealQueueResult'
+    - $ref: '#/ApiFailure'

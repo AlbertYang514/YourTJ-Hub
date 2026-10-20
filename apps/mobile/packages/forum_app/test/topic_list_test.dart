@@ -594,4 +594,101 @@ void main() {
       expect(find.text('(｀・ω・´)'), findsOneWidget);
     },
   );
+
+  testWidgets('every For You reason, recent included, stamps its seal', (
+    tester,
+  ) async {
+    final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+    final glyphs = {
+      'following': 'user-round-check',
+      'category': 'folder',
+      'newreply': 'message-circle',
+      'recent': 'clock',
+    };
+    Finder seal(String glyph) => find.byWidgetPredicate(
+      (widget) =>
+          widget is GfSymbol && widget.name == glyph && widget.size == 16,
+    );
+    Future<void> pump(String? reason) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: GfTopicList(
+              loading: false,
+              topics: [home.topics.first.copyWith(feedReason: reason)],
+              feedMode: GfTopicFeedMode.card,
+              hasMore: false,
+              onLoadMore: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    for (final entry in glyphs.entries) {
+      await pump(entry.key);
+      expect(seal(entry.value), findsOneWidget, reason: entry.key);
+    }
+    // Feeds without a server reason (latest, categories) stay unstamped.
+    await pump(null);
+    for (final glyph in glyphs.values) {
+      expect(seal(glyph), findsNothing, reason: glyph);
+    }
+  });
+
+  testWidgets('list rows wire image avatar frames like the web stack', (
+    tester,
+  ) async {
+    final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+    final topic = home.topics.first.copyWith(
+      participants: [
+        UserBriefPayload(
+          id: 7,
+          username: 'bob',
+          avatarUrl: '/static/pic/7.webp',
+          decoration: const UserDecoration(
+            avatarFrame: DecorationStyle(
+              code: 'art',
+              name: 'Art',
+              kind: 'avatarFrame',
+              assetUrl: '/static/decorations/art.webp',
+              assetScale: 1.4,
+              lightColors: ['#123456', '#654321'],
+              darkColors: ['#abcdef', '#fedcba'],
+            ),
+          ),
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: GfTopicList(
+            loading: false,
+            topics: [topic],
+            feedMode: GfTopicFeedMode.list,
+            hasMore: false,
+            onLoadMore: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Web list rows render AvatarStack size="sm" (TopicRow.vue:222, h-6/w-6)
+    // and pass the participant's whole avatarFrame through, so the app row
+    // must hand over the artwork and scale without the colour ring.
+    final avatar = tester.widget<GfAvatar>(find.byType(GfAvatar));
+    expect(avatar.size, 24);
+    expect(avatar.frameScale, 1.4);
+    expect(avatar.frameAssetUrl, isNotEmpty);
+    expect(avatar.frameColors, isEmpty);
+  });
 }

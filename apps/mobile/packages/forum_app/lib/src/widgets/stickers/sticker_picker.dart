@@ -1,3 +1,4 @@
+import '../../navigation/reading_window.dart';
 import 'package:flutter/material.dart';
 import 'package:core/core.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -62,33 +63,33 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
     final collection = ref.read(stickerCollectionProvider);
     final strings = StickerStrings(context);
     final saved = collection.mine.any((value) => value.name == item.name);
-    final action = await showGfBottomSheet<String>(
+    final action = await showGfActionSheet<String>(
       context,
-      builder: (context) => StickerSessionSurface(
-        collection: collection,
-        child: SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            padding: EdgeInsets.zero,
+      surfaceBuilder: (_, child) =>
+          StickerSessionSurface(collection: collection, child: child),
+      items: [
+        GfPopupMenuItem(
+          value: 'preview',
+          child: Row(
             children: [
-              ListTile(
-                leading: const GfSymbol('maximize', size: 22),
-                title: Text(strings.viewLarger),
-                onTap: () => Navigator.pop(context, 'preview'),
-              ),
-              ListTile(
-                leading: GfSymbol(
-                  saved ? 'bookmark-filled' : 'bookmark',
-                  size: 22,
-                ),
-                title: Text(saved ? strings.saved : strings.collect),
-                enabled: !saved && !collection.busy,
-                onTap: () => Navigator.pop(context, 'save'),
-              ),
+              GfSymbol('maximize', size: 22),
+              const SizedBox(width: 12),
+              Expanded(child: GfText(strings.viewLarger)),
             ],
           ),
         ),
-      ),
+        GfPopupMenuItem(
+          value: 'save',
+          enabled: !saved && !collection.busy,
+          child: Row(
+            children: [
+              GfSymbol(saved ? 'bookmark-filled' : 'bookmark', size: 22),
+              const SizedBox(width: 12),
+              Expanded(child: GfText(saved ? strings.saved : strings.collect)),
+            ],
+          ),
+        ),
+      ],
     );
     if (!mounted || !collection.active) return;
     if (action == 'preview') {
@@ -137,7 +138,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
     final items = source
         .where(
           (item) =>
-              item.isEnabled &&
+              item.isAvailable &&
               (_tab != 2 || _pack == null || item.pack == _pack) &&
               (strings
                       .displayLabel(item)
@@ -181,7 +182,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                           ? colors.primary
                           : colors.iconMuted,
                     ),
-                    child: Text(
+                    child: GfText(
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -194,7 +195,8 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
               icon: const GfSymbol('sliders-horizontal', size: 22),
               onPressed: () => Navigator.of(context, rootNavigator: true).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => const StickerLibraryPage(),
+                  builder: (_) =>
+                      ReadingPageWindow(child: const StickerLibraryPage()),
                 ),
               ),
             ),
@@ -229,7 +231,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 3),
                             child: ChoiceChip(
-                              label: Text(pack ?? strings.all),
+                              label: GfText(pack ?? strings.all),
                               selected: _pack == pack,
                               onSelected: (_) => setState(() => _pack = pack),
                             ),
@@ -274,7 +276,9 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                         ? () => setState(() => _tab = 2)
                         : () => Navigator.of(context, rootNavigator: true).push(
                             MaterialPageRoute<void>(
-                              builder: (_) => const StickerLibraryPage(),
+                              builder: (_) => ReadingPageWindow(
+                                child: const StickerLibraryPage(),
+                              ),
                             ),
                           ),
                   ),
@@ -315,7 +319,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                                   excludeSemantics: true,
                                 ),
                               ),
-                              Text(
+                              GfText(
                                 strings.displayLabel(item),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -334,7 +338,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                   vertical: 4,
                 ),
                 sliver: SliverToBoxAdapter(
-                  child: Text(
+                  child: GfText(
                     strings.pickerHint,
                     style: TextStyle(fontSize: 12, color: colors.iconMuted),
                   ),
@@ -346,7 +350,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                     child: TextButton.icon(
                       onPressed: _openLicenses,
                       icon: const GfSymbol('external-link', size: 14),
-                      label: Text(strings.licenses),
+                      label: GfText(strings.licenses),
                       style: TextButton.styleFrom(
                         textStyle: const TextStyle(fontSize: 12),
                         foregroundColor: colors.iconMuted,
@@ -366,9 +370,9 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            Text(message, textAlign: TextAlign.center),
+            GfText(message, textAlign: TextAlign.center),
             if (action != null)
-              TextButton(onPressed: onAction, child: Text(action)),
+              TextButton(onPressed: onAction, child: GfText(action)),
           ],
         ),
       );

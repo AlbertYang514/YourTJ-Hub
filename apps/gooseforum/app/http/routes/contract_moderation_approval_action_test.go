@@ -1,0 +1,544 @@
+package routes
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/url"
+	"strconv"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/ThreeDotsLabs/watermill/components/cqrs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationAppeals"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/reports"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/tokenservice"
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+)
+
+// contractApprovalIssuedAt 固定签发时刻（远未来），使 fixture 中的 expiresAt 确定且链接有效。
+var contractApprovalIssuedAt = time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
+
+const (
+	approvalPreviewPath = "/api/forum/moderation/approval-action/preview"
+	approvalExecutePath = "/api/forum/moderation/approval-action/execute"
+)
+
+// setupModerationApprovalActionContractTest 注册快捷审批确认页的两条路由，中间件链与
+// route4api.go 生产注册一致（权限判定在控制器内按当前会话复核）。
+func setupModerationApprovalActionContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
+	t.Helper()
+	conn, router := setupForumModerationContractTest(t)
+	registerModerationApprovalActionRoutes(t, router)
+	return conn, router
+}
+
+func registerModerationApprovalActionRoutes(t *testing.T, router *gin.Engine) {
+	t.Helper()
+	old := preferences.GetString("app.signingKey", "")
+	preferences.Set("app.signingKey", "approval-action-contract-key-0123456789")
+	t.Cleanup(func() { preferences.Set("app.signingKey", old) })
+	loginAPI := router.Group("/api/forum").Use(middleware.JWTAuthCheck)
+	loginAPI.POST("/moderation/approval-action/preview", middleware.NoUpdateUserActivity, UpButterReq(api.ModerationApprovalActionPreview))
+	loginAPI.POST("/moderation/approval-action/execute", middleware.CheckWritableAccount, UpButterReq(api.ModerationApprovalActionExecute))
+}
+
+func contractApprovalToken(t *testing.T, subject string, id uint64, action string, version string, issuedAt time.Time) string {
+	t.Helper()
+	token, err := tokenservice.IssueModerationAction(tokenservice.ModerationActionClaims{
+		Subject: subject, ID: id, Action: action, Version: version,
+	}, issuedAt)
+	if err != nil {
+		t.Fatalf("issue approval token: %v", err)
+	}
+	return token
+}
+
+func approvalBody(token string) string {
+	return `{"token":"` + token + `"}`
+}
+
+func serveApprovalFixture(t *testing.T, router *gin.Engine, path string, body string, user *users.EntityComplete, fixture string) {
+	t.Helper()
+	recorder := serveJSON(router, path, body, contractSessionToken(t, user))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("%s status = %d, want 200: %s", path, recorder.Code, recorder.Body.String())
+	}
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixture))
+}
+
+func approvalState(t *testing.T, router *gin.Engine, path string, body string, user *users.EntityComplete) map[string]any {
+	t.Helper()
+	recorder := serveJSON(router, path, body, contractSessionToken(t, user))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("%s status = %d: %s", path, recorder.Code, recorder.Body.String())
+	}
+	envelope := decodeContractEnvelope(t, recorder)
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Result, &result); err != nil {
+		t.Fatalf("result = %s: %v", envelope.Result, err)
+	}
+	return result
+}
+
+func TestModerationApprovalActionReportHTTPContract(t *testing.T) {
+	t.Run("preview is read-only and execute dismisses once with the real handler", func(t *testing.T) {
+		conn, router := setupModerationApprovalActionContractTest(t)
+		prepareContractModerationTopic(t, conn)
+		createContractModerationReport(t, conn)
+		moderator := createContractCategoryModerator(t, conn)
+		body := approvalBody(contractApprovalToken(t, tokenservice.ModerationActionSubjectReport, contractModerationReportID, "dismiss", "", contractApprovalIssuedAt))
+
+		serveApprovalFixture(t, router, approvalPreviewPath, body, moderator, "moderation-approval-action-preview-ready.json")
+		if got := reports.Get(contractModerationReportID); got.Status != reports.StatusOpen {
+			t.Fatalf("preview mutated the report: %+v", got)
+		}
+
+		serveApprovalFixture(t, router, approvalExecutePath, body, moderator, "moderation-approval-action-execute-done.json")
+		got := reports.Get(contractModerationReportID)
+		if got.Status != reports.StatusRejected || got.Resolution != reports.ResolutionIgnored || got.HandlerId != moderator.Id {
+			t.Fatalf("report after dismiss = %+v, want rejected by %d", got, moderator.Id)
+		}
+		var logs int64
+		conn.Model(&moderationLog.Entity{}).Where("subject_type = ? AND subject_id = ? AND actor_user_id = ?",
+			moderationLog.SubjectReport, contractModerationReportID, moderator.Id).Count(&logs)
+		if logs != 1 {
+			t.Fatalf("moderation logs for real actor = %d, want 1", logs)
+		}
+
+		// 重复点击：返回已处理，不覆盖首个处理人。
+		serveApprovalFixture(t, router, approvalExecutePath, body, moderator, "moderation-approval-action-execute-processed.json")
+	})
+
+	t.Run("ban blocks the target and resolves the report", func(t *testing.T) {
+		conn, router := setupModerationApprovalActionContractTest(t)
+		prepareContractModerationTopic(t, conn)
+		createContractModerationReport(t, conn)
+		moderator := createContractCategoryModerator(t, conn)
+		body := approvalBody(contractApprovalToken(t, tokenservice.ModerationActionSubjectReport, contractModerationReportID, "ban", "", contractApprovalIssuedAt))
+		if state := approvalState(t, router, approvalExecutePath, body, moderator)["state"]; state != "done" {
+			t.Fatalf("ban state = %v", state)
+		}
+		if topic := topics.Get(contractModerationTopicID); topic.ProcessStatus != topics.ProcessStatusBlocked {
+			t.Fatalf("topic process status = %d, want blocked", topic.ProcessStatus)
+		}
+		got := reports.Get(contractModerationReportID)
+		if got.Status != reports.StatusResolved || got.Resolution != reports.ResolutionBanned || got.HandlerId != moderator.Id {
+			t.Fatalf("report after ban = %+v", got)
+		}
+	})
+
+	t.Run("a valid link does not grant authority", func(t *testing.T) {
+		conn, router := setupModerationApprovalActionContractTest(t)
+		prepareContractModerationTopic(t, conn)
+		createContractModerationReport(t, conn)
+		outsider := createHTTPContractUser(t, conn, contractTestID())
+		body := approvalBody(contractApprovalToken(t, tokenservice.ModerationActionSubjectReport, contractModerationReportID, "dismiss", "", contractApprovalIssuedAt))
+		serveApprovalFixture(t, router, approvalPreviewPath, body, outsider, "moderation-approval-action-forbidden.json")
+		serveApprovalFixture(t, router, approvalExecutePath, body, outsider, "moderation-approval-action-forbidden.json")
+		if got := reports.Get(contractModerationReportID); got.Status != reports.StatusOpen {
+			t.Fatalf("forbidden execute mutated the report: %+v", got)
+		}
+	})
+
+	t.Run("tampered, foreign and expired links are rejected", func(t *testing.T) {
+		conn, router := setupModerationApprovalActionContractTest(t)
+		prepareContractModerationTopic(t, conn)
+		createContractModerationReport(t, conn)
+		moderator := createContractCategoryModerator(t, conn)
+		serveApprovalFixture(t, router, approvalExecutePath, approvalBody("v1.forged.token"), moderator, "moderation-approval-action-invalid.json")
+		// 私信举报不提供快捷动作；即便签名有效，动作与目标组合不合法也拒绝。
+		chatToken := contractApprovalToken(t, tokenservice.ModerationActionSubjectReport, contractModerationReportID, "hide", "", contractApprovalIssuedAt)
+		if state := approvalState(t, router, approvalExecutePath, approvalBody(chatToken), moderator)["state"]; state != "invalid" {
+			t.Fatalf("hide on a topic report state = %v, want invalid", state)
+		}
+		expired := contractApprovalToken(t, tokenservice.ModerationActionSubjectReport, contractModerationReportID, "dismiss", "", time.Now().Add(-48*time.Hour))
+		result := approvalState(t, router, approvalExecutePath, approvalBody(expired), moderator)
+		if result["state"] != "expired" || result["title"] != nil {
+			t.Fatalf("expired result = %v", result)
+		}
+		if got := reports.Get(contractModerationReportID); got.Status != reports.StatusOpen {
+			t.Fatalf("rejected links mutated the report: %+v", got)
+		}
+	})
+
+	t.Run("course review hide resolves the report and invalidates course detail cache", func(t *testing.T) {
+		conn, router := setupModerationApprovalActionContractTest(t)
+		if err := conn.AutoMigrate(
+			&course.Entity{},
+			&course.TermEntity{},
+			&course.OfferingEntity{},
+			&course.ReviewEntity{},
+			&course.CourseStatsEntity{},
+			&course.OfferingStatsEntity{},
+			&course.AliasEntity{},
+			&course.InstructorEntity{},
+			&course.OfferingInstructorEntity{},
+			&course.CourseAiSummaryEntity{},
+			&rolePermissionRs.Entity{},
+		); err != nil {
+			t.Fatal(err)
+		}
+		manager := createHTTPContractUser(t, conn, contractTestID())
+		grantContractPermission(t, conn, manager.Id, permission.CourseManager)
+		c := course.Entity{PrimaryCode: "CS999", Name: "软件架构", Status: course.StatusVisible}
+		if err := conn.Create(&c).Error; err != nil {
+			t.Fatal(err)
+		}
+		term := course.TermEntity{Code: "2026-AUTUMN", Name: "2026秋"}
+		if err := conn.Create(&term).Error; err != nil {
+			t.Fatal(err)
+		}
+		offering := course.OfferingEntity{CourseId: c.Id, TermId: term.Id, Status: course.StatusVisible}
+		if err := conn.Create(&offering).Error; err != nil {
+			t.Fatal(err)
+		}
+		rating := 5
+		review := course.ReviewEntity{OfferingId: offering.Id, Rating: &rating, Content: "好课", Status: course.ReviewStatusVisible}
+		if err := conn.Create(&review).Error; err != nil {
+			t.Fatal(err)
+		}
+		reportID := contractTestID()
+		if err := conn.Create(&reports.Entity{
+			Id:         reportID,
+			TargetType: reports.TargetCourseReview,
+			TargetId:   review.Id,
+			Status:     reports.StatusOpen,
+			ReporterId: manager.Id,
+		}).Error; err != nil {
+			t.Fatal(err)
+		}
+
+		// Warm course detail cache
+		courseservice.InvalidateAllCourseDetailCache()
+		detail1, err := courseservice.GetCourseDetail(c.Id)
+		if err != nil || detail1.RatingDistribution == nil {
+			t.Fatalf("GetCourseDetail failed: %v, detail: %+v", err, detail1)
+		}
+
+		body := approvalBody(contractApprovalToken(t, tokenservice.ModerationActionSubjectReport, reportID, "hide", "", contractApprovalIssuedAt))
+		if state := approvalState(t, router, approvalExecutePath, body, manager)["state"]; state != "done" {
+			t.Fatalf("hide state = %v", state)
+		}
+
+		rev, err := course.GetReview(review.Id)
+		if err != nil || rev.Status != course.ReviewStatusHidden {
+			t.Fatalf("review after hide = %+v", rev)
+		}
+
+		detail2, err := courseservice.GetCourseDetail(c.Id)
+		if err != nil {
+			t.Fatalf("GetCourseDetail after hide: %v", err)
+		}
+		if detail2.RatingDistribution != nil {
+			t.Fatalf("expected nil RatingDistribution after review hide, got %+v", detail2.RatingDistribution)
+		}
+	})
+
+	t.Run("missing session returns 401", func(t *testing.T) {
+		_, router := setupModerationApprovalActionContractTest(t)
+		assertInteractionUnauthenticated(t, router, approvalExecutePath, `{}`, "auth-required.json")
+	})
+
+	t.Run("frozen account cannot execute", func(t *testing.T) {
+		conn, router := setupModerationApprovalActionContractTest(t)
+		assertInteractionForbidden(t, conn, router, approvalExecutePath, `{}`, "account-frozen.json")
+	})
+
+	t.Run("missing token is a validation failure", func(t *testing.T) {
+		conn, router := setupModerationApprovalActionContractTest(t)
+		moderator := createContractCategoryModerator(t, conn)
+		serveApprovalFixture(t, router, approvalPreviewPath, `{}`, moderator, "invalid-params.json")
+	})
+}
+
+var (
+	reviewRequestedCaptureOnce sync.Once
+	reviewRequestedCaptured    = make(chan uint64, 16)
+)
+
+// captureReviewRequested 启动事件总线并订阅转人工事件；用哨兵事件回环确认已订阅
+// （发布早于订阅的事件会被丢弃）。
+func captureReviewRequested(t *testing.T) <-chan uint64 {
+	t.Helper()
+	reviewRequestedCaptureOnce.Do(func() {
+		eventbus.Start(cqrs.NewEventHandler("ReviewRequestedContractCapture", func(_ context.Context, event *eventhandlers.ModerationReviewRequestedEvent) error {
+			reviewRequestedCaptured <- event.RevisionID
+			return nil
+		}))
+	})
+	const sentinel = uint64(0xDEADBEEF)
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		eventbus.Publish(context.Background(), &eventhandlers.ModerationReviewRequestedEvent{RevisionID: sentinel})
+		select {
+		case id := <-reviewRequestedCaptured:
+			if id != sentinel {
+				t.Fatalf("unexpected event during readiness probe: %d", id)
+			}
+			return reviewRequestedCaptured
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+	t.Fatal("event bus never delivered the readiness probe")
+	return nil
+}
+
+// runNewEffectTasks 执行尚未执行过的内容效果任务。
+func runNewEffectTasks(t *testing.T, conn *gorm.DB, done map[uint64]bool) {
+	t.Helper()
+	var tasks []taskQueue.Entity
+	if err := conn.Where("type = ?", publicationservice.EffectTaskType).Find(&tasks).Error; err != nil {
+		t.Fatal(err)
+	}
+	for _, task := range tasks {
+		if done[task.Id] {
+			continue
+		}
+		done[task.Id] = true
+		if err := publicationservice.RunEffectsTask(context.Background(), &task); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// 转人工后经内容效果任务发布一次审批事件；确认页按送审版本 ID 执行，改稿后旧链接失效。
+func TestModerationApprovalActionReviewHTTPContract(t *testing.T) {
+	received := captureReviewRequested(t)
+	conn, router, _ := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) { o.TextModeration = true })
+	registerModerationApprovalActionRoutes(t, router)
+	author := createHTTPContractUser(t, conn, contractTestID())
+	body := `{"title":"快捷审批确认页测试","content":"等待版主确认的完整内容","categoryId":[1],"topicStatus":1,"contentType":2}`
+	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", body, contractSessionToken(t, author)))
+	var topicID uint64
+	if err := json.Unmarshal(envelope.Result, &topicID); err != nil || topicID == 0 {
+		t.Fatalf("submission: %+v", envelope)
+	}
+	post := posts.Get(topics.Get(topicID).FirstPostId)
+	moderator := createHTTPContractUser(t, conn, contractTestID())
+	if err := conn.Create(&moderators.Entity{UserId: moderator.Id, ScopeType: moderators.ScopeCategory, ScopeId: 1, Status: moderators.StatusEnabled}).Error; err != nil {
+		t.Fatal(err)
+	}
+	moderationservice.Invalidate()
+	t.Cleanup(func() {
+		conn.Where("user_id = ?", moderator.Id).Delete(&moderators.Entity{})
+		moderationservice.Invalidate()
+	})
+
+	ran := map[uint64]bool{}
+	for range 2 {
+		if err := publicationservice.Review(context.Background(), post.LatestRevisionId, moderationDecision.ActionReview, "等待人工审核", 0); err != nil {
+			t.Fatal(err)
+		}
+	}
+	runNewEffectTasks(t, conn, ran)
+	select {
+	case id := <-received:
+		if id != post.LatestRevisionId {
+			t.Fatalf("review requested revision = %d, want %d", id, post.LatestRevisionId)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("handoff did not publish ModerationReviewRequestedEvent")
+	}
+	select {
+	case id := <-received:
+		t.Fatalf("repeated handoff published again: %d", id)
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	token := func(revisionID uint64) string {
+		return approvalBody(contractApprovalToken(t, tokenservice.ModerationActionSubjectReviewTopic, topicID, "approve", strconv.FormatUint(revisionID, 10), contractApprovalIssuedAt))
+	}
+	stale := token(post.LatestRevisionId)
+	if state := approvalState(t, router, approvalPreviewPath, stale, moderator)["state"]; state != "ready" {
+		t.Fatalf("pending topic preview state = %v", state)
+	}
+	if state := approvalState(t, router, approvalPreviewPath, stale, author)["state"]; state != "forbidden" {
+		t.Fatalf("author preview state = %v, want forbidden", state)
+	}
+
+	// 作者改稿形成新版本后，旧卡片返回 changed，且不执行。
+	next := postRevisions.Entity{PostId: post.Id, Title: "快捷审批确认页测试（修改）", Content: "改过的完整内容", CategoryIds: []uint64{1}, ProcessStatus: posts.ProcessStatusPending, EditorId: author.Id}
+	if err := conn.Create(&next).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Model(&posts.Entity{}).Where("id = ?", post.Id).Update("latest_revision_id", next.Id).Error; err != nil {
+		t.Fatal(err)
+	}
+	if state := approvalState(t, router, approvalExecutePath, stale, moderator)["state"]; state != "changed" {
+		t.Fatalf("stale approval state = %v, want changed", state)
+	}
+	if postRevisions.Get(next.Id).ProcessStatus != posts.ProcessStatusPending || topics.Get(topicID).ProcessStatus != topics.ProcessStatusPending {
+		t.Fatal("stale approval changed the pending content")
+	}
+
+	fresh := token(next.Id)
+	if state := approvalState(t, router, approvalExecutePath, fresh, moderator)["state"]; state != "done" {
+		t.Fatalf("fresh approval state = %v, want done", state)
+	}
+	if got := posts.Get(post.Id); got.ProcessStatus != posts.ProcessStatusNormal || got.PublishedRevisionId != next.Id {
+		t.Fatalf("approved post = %+v", got)
+	}
+	if state := approvalState(t, router, approvalExecutePath, fresh, moderator)["state"]; state != "processed" {
+		t.Fatalf("repeated approval state = %v, want processed", state)
+	}
+	// 审结后的效果任务（含旧的转人工任务）不再发布审批事件。
+	runNewEffectTasks(t, conn, ran)
+	select {
+	case id := <-received:
+		t.Fatalf("approved content published a review request: %d", id)
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	// 目标不存在：分区版主与“不在范围内”得到同一结果（与工作台一致），全站版主看到 notFound。
+	missing := approvalBody(contractApprovalToken(t, tokenservice.ModerationActionSubjectReviewTopic, topicID+1_000_000, "approve", strconv.FormatUint(next.Id, 10), contractApprovalIssuedAt))
+	if state := approvalState(t, router, approvalPreviewPath, missing, moderator)["state"]; state != "forbidden" {
+		t.Fatalf("scoped moderator missing-target state = %v, want forbidden", state)
+	}
+	global := createHTTPContractUser(t, conn, contractTestID())
+	if err := conn.Create(&moderators.Entity{UserId: global.Id, ScopeType: moderators.ScopeGlobal, Status: moderators.StatusEnabled}).Error; err != nil {
+		t.Fatal(err)
+	}
+	moderationservice.Invalidate()
+	t.Cleanup(func() {
+		conn.Where("user_id = ?", global.Id).Delete(&moderators.Entity{})
+		moderationservice.Invalidate()
+	})
+	if state := approvalState(t, router, approvalPreviewPath, missing, global)["state"]; state != "notFound" {
+		t.Fatalf("global moderator missing-target state = %v, want notFound", state)
+	}
+}
+
+// 快捷审批确认页的查询串携带签名 token，不得进入请求日志（含未登录续跳地址）。
+func TestModerationActionQueryIsRedactedFromLogs(t *testing.T) {
+	page, _ := url.Parse("/moderation/action?token=v1.secret")
+	if !middleware.ShouldRedactQuery(page) {
+		t.Fatal("moderation action token query must be redacted")
+	}
+	login, _ := url.Parse("/login?redirect=" + url.QueryEscape("/moderation/action?token=v1.secret"))
+	if !middleware.ShouldRedactQuery(login) {
+		t.Fatal("login continuation to the moderation action page must be redacted")
+	}
+}
+
+// contractAppealTopic 写一篇首发被拒的话题（确定性 ID）并由作者提交申诉。
+func contractAppealTopic(t *testing.T, conn *gorm.DB, topicID uint64, author *users.EntityComplete, content, reviewReason, appealReason string) (posts.Entity, uint64) {
+	t.Helper()
+	categories := []uint64{contractModerationCategoryID}
+	topic := topics.Entity{Id: topicID, UserId: author.Id, Title: "选课经验分享", Status: 1, ProcessStatus: topics.ProcessStatusBlocked, CategoryIds: categories}
+	if err := conn.Create(&topic).Error; err != nil {
+		t.Fatal(err)
+	}
+	post := posts.Entity{TopicId: topicID, PostNo: 1, UserId: author.Id, Content: content, ProcessStatus: posts.ProcessStatusBlocked}
+	if err := conn.Create(&post).Error; err != nil {
+		t.Fatal(err)
+	}
+	revision := postRevisions.Entity{PostId: post.Id, Version: 1, EditorId: author.Id, Title: topic.Title, Content: content, CategoryIds: categories, ProcessStatus: posts.ProcessStatusBlocked, ReviewReason: reviewReason}
+	if err := conn.Create(&revision).Error; err != nil {
+		t.Fatal(err)
+	}
+	conn.Model(&post).Update("latest_revision_id", revision.Id)
+	conn.Model(&topic).Update("first_post_id", post.Id)
+	t.Cleanup(func() {
+		conn.Where("post_id = ?", post.Id).Delete(&moderationAppeals.Entity{})
+		conn.Where("post_id = ?", post.Id).Delete(&postRevisions.Entity{})
+		conn.Unscoped().Where("topic_id = ?", topicID).Delete(&posts.Entity{})
+		conn.Unscoped().Delete(&topics.Entity{}, topicID)
+	})
+	appeal, err := publicationservice.SubmitAppeal(context.Background(), author.Id, "topic", topicID, revision.Id, appealReason)
+	if err != nil {
+		t.Fatalf("submit appeal: %v", err)
+	}
+	post.LatestRevisionId = revision.Id
+	return post, appeal.Id
+}
+
+func TestModerationApprovalActionAppealHTTPContract(t *testing.T) {
+	conn, router := setupModerationApprovalActionContractTest(t)
+	if err := conn.AutoMigrate(&moderationAppeals.Entity{}, &taskQueue.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	author := createHTTPContractUser(t, conn, contractTestID())
+	moderator := createContractCategoryModerator(t, conn)
+	_, appealID := contractAppealTopic(t, conn, 1301, author, "退补选的时间线和注意事项整理。", "疑似重复发布，请说明与已有话题的区别。", "角度不同，主要讲退补选时间线，已补充来源。")
+	body := func(id uint64, action, reason string) string {
+		token := contractApprovalToken(t, tokenservice.ModerationActionSubjectAppeal, id, action, "", contractApprovalIssuedAt)
+		encoded, err := json.Marshal(map[string]string{"token": token, "reason": reason})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(encoded)
+	}
+	appealStatus := func(id uint64) string {
+		var appeal moderationAppeals.Entity
+		conn.First(&appeal, id)
+		return appeal.Status
+	}
+
+	// 预览只读：展示被拒版本、原审核理由与申诉说明，不含作者身份。
+	serveApprovalFixture(t, router, approvalPreviewPath, body(appealID, "reject", ""), moderator, "moderation-approval-action-preview-appeal-ready.json")
+	if state := approvalState(t, router, approvalPreviewPath, body(appealID, "approve", ""), author)["state"]; state != "forbidden" {
+		t.Fatalf("author preview state = %v, want forbidden", state)
+	}
+
+	// 驳回必须写理由；失败不改变申诉状态。
+	envelope := decodeContractEnvelope(t, serveJSON(router, approvalExecutePath, body(appealID, "reject", " "), contractSessionToken(t, moderator)))
+	if envelope.Code == 0 || envelope.MessageCode != "moderation.appeal.reasonRequired" || appealStatus(appealID) != moderationAppeals.Pending {
+		t.Fatalf("reject without reason = %+v, status %s", envelope, appealStatus(appealID))
+	}
+	if state := approvalState(t, router, approvalExecutePath, body(appealID, "reject", "与已有话题重复，请在原帖补充。"), moderator)["state"]; state != "done" {
+		t.Fatalf("reject state = %v, want done", state)
+	}
+	var decided moderationAppeals.Entity
+	conn.First(&decided, appealID)
+	if decided.Status != moderationAppeals.Rejected || decided.ReviewActorId != moderator.Id || decided.ReviewReason != "与已有话题重复，请在原帖补充。" || topics.Get(1301).ProcessStatus != topics.ProcessStatusBlocked {
+		t.Fatalf("rejected appeal = %+v", decided)
+	}
+	if state := approvalState(t, router, approvalExecutePath, body(appealID, "approve", ""), moderator)["state"]; state != "processed" {
+		t.Fatalf("repeated decision state = %v, want processed", state)
+	}
+
+	// 作者在申诉后改稿：旧卡片返回 changed 且不执行；新的申诉按版本单独通过。
+	post, staleID := contractAppealTopic(t, conn, 1302, author, "第一版内容", "说明不足。", "补充了背景。")
+	next := postRevisions.Entity{PostId: post.Id, Version: 2, EditorId: author.Id, Title: "选课经验分享", Content: "第二版内容", CategoryIds: []uint64{contractModerationCategoryID}, ProcessStatus: posts.ProcessStatusPending}
+	if err := conn.Create(&next).Error; err != nil {
+		t.Fatal(err)
+	}
+	conn.Model(&posts.Entity{}).Where("id = ?", post.Id).Update("latest_revision_id", next.Id)
+	if state := approvalState(t, router, approvalExecutePath, body(staleID, "approve", ""), moderator)["state"]; state != "changed" {
+		t.Fatalf("stale appeal state = %v, want changed", state)
+	}
+	if appealStatus(staleID) != moderationAppeals.Pending || postRevisions.Get(next.Id).ProcessStatus != posts.ProcessStatusPending {
+		t.Fatal("stale appeal link changed state")
+	}
+
+	post, approveID := contractAppealTopic(t, conn, 1303, author, "可以公开的内容", "误判。", "请复核。")
+	if state := approvalState(t, router, approvalExecutePath, body(approveID, "approve", ""), moderator)["state"]; state != "done" {
+		t.Fatalf("approve state = %v, want done", state)
+	}
+	if got := posts.Get(post.Id); appealStatus(approveID) != moderationAppeals.Approved || got.PublishedRevisionId != post.LatestRevisionId || topics.Get(1303).ProcessStatus != topics.ProcessStatusNormal {
+		t.Fatalf("approved appeal post = %+v", got)
+	}
+}

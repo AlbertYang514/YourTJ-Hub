@@ -12,6 +12,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
@@ -57,7 +58,7 @@ func assertRouter(ginApp *gin.Engine) {
 	}
 	staticMount := staticRoute.Group("/")
 	staticMount.Use(middleware.BrowserCache)
-	staticMount.StaticFS("static", http.FS(staticFS))
+	staticMount.StaticFS("static", http.FS(decorationStaticFS{embedded: staticFS}))
 }
 
 func viteDevServerURL() string {
@@ -93,6 +94,8 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/p/post/:id/:postNo", forum.TopicDetail)
 	viewRouteApp.GET("/topics/:id", forum.TopicDetail)
 	viewRouteApp.GET("/topics/:id/:postNo", forum.TopicDetail)
+	viewRouteApp.GET("/a/:publicUid", middleware.NoUpdateUserActivity, forum.AnonymousProfile)
+	viewRouteApp.GET("/a/:publicUid/avatar.svg", middleware.NoUpdateUserActivity, forum.AnonymousAvatar)
 	viewRouteApp.GET("/u/:userId", forum.UserProfile)
 	viewRouteApp.GET("/u/:userId/:section", forum.UserProfile)
 	viewRouteApp.GET("/u/:userId/:section/:subsection", forum.UserProfile)
@@ -115,10 +118,11 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/courses", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.CourseCatalog)
 	viewRouteApp.GET("/courses/:courseId", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.CourseDetail)
 	viewRouteApp.GET("/moderation/course-reviews", middleware.CheckLogin, forum.CourseReviewModeration)
+	viewRouteApp.GET("/moderation/action", middleware.CheckLogin, forum.ModerationAction)
 	viewRouteApp.GET("/moderation/courses", middleware.CheckLogin, forum.CourseManagement)
 	viewRouteApp.GET("/schedule", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.Schedule)
-	viewRouteApp.GET("/admin", middleware.CheckLogin, middleware.CheckAnyPermissionOrNotFound, forum.Manage)
-	viewRouteApp.GET("/admin/*path", middleware.CheckLogin, middleware.CheckAnyPermissionOrNotFound, forum.Manage)
+	viewRouteApp.GET("/admin", middleware.CheckLogin, middleware.CheckManagementEntryOrNotFound, forum.Manage)
+	viewRouteApp.GET("/admin/*path", middleware.CheckLogin, middleware.CheckManagementEntryOrNotFound, forum.Manage)
 	viewRouteApp.GET("/login", forum.Login)
 	viewRouteApp.GET("/register/tongji", forum.TongjiRegistration)
 	viewRouteApp.GET("/reset-password", forum.ResetPassword)
@@ -174,10 +178,15 @@ func servePWAStatic(name, contentType string) func(*gin.Context) {
 
 func apiRoute(ginApp *gin.Engine) {
 	campusRoutes(ginApp)
+	ginApp.GET("/.well-known/apple-app-site-association", api.AppleWebCredentialsAssociation)
+	ginApp.GET("/.well-known/assetlinks.json", api.AndroidDigitalAssetLinks)
 	baseApi := ginApp.Group("api")
 
 	baseApi.POST("login", middleware.RateLimit(middleware.RateLimitLogin), api.Login)
 	baseApi.GET("login-public-key", api.LoginPublicKey)
+	baseApi.GET("auth/passkey/status", api.PasskeyStatus)
+	baseApi.POST("auth/passkey/login/begin", middleware.RateLimit(middleware.RateLimitLogin), passkeyBodyLimit(8<<10), api.PasskeyAuthenticationBegin)
+	baseApi.POST("auth/passkey/login/finish", middleware.RateLimit(middleware.RateLimitLogin), passkeyBodyLimit(64<<10), api.PasskeyAuthenticationFinish)
 	baseApi.GET("auth/tongji/registration", api.TongjiRegistrationStatus)
 	baseApi.POST("auth/tongji/registration", middleware.RateLimit(middleware.RateLimitRegister), api.TongjiRegister)
 	baseApi.POST("register", middleware.RateLimit(middleware.RateLimitRegister), api.Register)
@@ -195,6 +204,9 @@ func apiRoute(ginApp *gin.Engine) {
 	// 站点主题公开下发（mobile Route A）：公开只读，无鉴权；数据源与
 	// /site-theme.css 一致（page_config SiteTheme 发布态），未启用返回空。
 	baseApi.GET("site-theme/tokens", ginUpNP(api.GetPublicSiteThemeTokens))
+	// 外链免确认白名单公开下发（issue #1200）：公开只读，无鉴权；数据源与
+	// SSR payload layout.site.trustedExternalDomains 一致（page_config SiteSettings）。
+	baseApi.GET("external-link-policy", ginUpNP(api.GetExternalLinkPolicy))
 	baseApi.POST("forgot-password", middleware.RateLimit(middleware.RateLimitForgotPassword), UpButterReq(api.ForgotPassword))
 	baseApi.POST("reset-password", middleware.RateLimit(middleware.RateLimitResetPassword), UpButterReq(api.ResetPassword))
 	baseApi.GET("auth/:provider", func(c *gin.Context) {
@@ -238,6 +250,12 @@ func apiRoute(ginApp *gin.Engine) {
 	// GET/HEAD/OPTIONS 与匿名请求原样放行（匿名 POST 仍由 JWTAuthCheck 回 401）。
 	loginApi := ginApp.Group("api").Use(middleware.CSRFProtection, middleware.JWTAuthCheck)
 	loginApi.POST("set-user-info", middleware.CheckWritableAccount, UpButterReq(api.EditUserInfo))
+	loginApi.POST("user/passkeys/reauth", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), passkeyBodyLimit(8<<10), api.PasskeyReauthenticate)
+	loginApi.POST("user/passkeys/registration/begin", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), passkeyBodyLimit(8<<10), api.PasskeyRegistrationBegin)
+	loginApi.POST("user/passkeys/registration/finish", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), passkeyBodyLimit(64<<10), api.PasskeyRegistrationFinish)
+	loginApi.GET("user/passkeys", api.PasskeyCredentialList)
+	loginApi.POST("user/passkeys/rename", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), passkeyBodyLimit(8<<10), api.PasskeyCredentialRename)
+	loginApi.POST("user/passkeys/revoke", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), passkeyBodyLimit(8<<10), api.PasskeyCredentialRevoke)
 	loginApi.POST("set-user-profile-cover", middleware.CheckWritableAccount, UpButterReq(api.EditUserProfileCover))
 	loginApi.POST("set-user-email", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitEmailChange), UpButterReq(api.EditUserEmail))
 	loginApi.POST("resend-activation-email", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.ResendActivationEmail))
@@ -248,6 +266,8 @@ func apiRoute(ginApp *gin.Engine) {
 	loginApi.POST("user-block", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(4096, api.SetUserBlock))
 	loginApi.POST("user-note", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUserNote), UpLimitedJsonReq(4096, api.SetPrivateNote))
 	loginApi.POST("display-badges", middleware.CheckWritableAccount, UpLimitedJsonReq(4096, api.SetDisplayBadges))
+	loginApi.GET("user/decorations", UpButterReq(api.MyDecorations))
+	loginApi.POST("user/decorations/equip", middleware.CheckWritableAccount, UpLimitedJsonReq(4096, api.EquipDecorations))
 	loginApi.POST("wear-badge", middleware.CheckWritableAccount, UpButterReq(api.WearBadge))
 	loginApi.POST("upload-avatar", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.UploadAvatar)
 	loginApi.POST("change-password", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), UpButterReq(api.ChangePassword))
@@ -260,6 +280,10 @@ func apiRoute(ginApp *gin.Engine) {
 	loginApi.GET("user/sessions", UpButterReq(api.ListSessions))
 	loginApi.POST("user/sessions/revoke", UpButterReq(api.RevokeSession))
 	loginApi.POST("user/sessions/revoke-all", UpButterReq(api.RevokeAllSessions))
+	// Profile privacy reduces disclosure, so restricted accounts may still
+	// manage it; the owner always comes from the session (issue #1124).
+	loginApi.GET("user/privacy-settings", UpQueryReq(api.GetPrivacySettings))
+	loginApi.PATCH("user/privacy-settings", middleware.RateLimit(middleware.RateLimitInteract), api.UpdatePrivacySettings)
 	// TOTP 写操作校验账户密码或 6 位验证码（setup/enable/disable），挂 RateLimit 防止暴力破解；
 	// 同时挂 CheckWritableAccount：pending/冻结账号不得变更 2FA 状态（issue #427，与
 	// change-password 等账户写操作口径一致）；status 只读 enabled 标志、不验证任何凭据，
@@ -302,6 +326,9 @@ func apiRoute(ginApp *gin.Engine) {
 	pkLoginApi.DELETE("plans", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPkPlans), pkAuthNoReq(pkcontroller.DeletePlans))
 
 	forumApi := baseApi.Group("forum")
+	forumApi.POST("feed/events", middleware.CSRFProtection, middleware.JWTAuthCheck, api.FeedEvents)
+	forumApi.POST("feed/refresh", middleware.CSRFProtection, middleware.JWTAuthCheck, forum.FeedRefresh)
+	forumApi.POST("feed/reconcile", middleware.CSRFProtection, middleware.JWTAuthCheck, forum.FeedReconcile)
 	forumApi.GET("get-site-statistics", ginUpNP(api.GetSiteStatistics))
 	forumApi.GET("search", middleware.JWTAuth, UpQueryReq(forum.SearchJSON))
 	forumApi.GET("courses", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpQueryReq(forum.CourseListJSON))
@@ -340,6 +367,7 @@ func apiRoute(ginApp *gin.Engine) {
 	// refresh its JWT or extend its session while opening a long-lived stream.
 	forumApi.GET("events", middleware.StreamOriginProtection, middleware.JWTAuthCheck, middleware.NoUpdateUserActivity, api.StreamEvents)
 	forumLoginApi := forumApi.Use(middleware.CSRFProtection, middleware.JWTAuthCheck)
+	forumLoginApi.GET("mention-targets", middleware.RateLimit(middleware.RateLimitInteract), UpQueryReq(api.MentionTargets))
 	forumLoginApi.GET("my-stickers", middleware.NoUpdateUserActivity, UpButterReq(api.MyStickers))
 	forumLoginApi.POST("my-sticker-save", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.SaveMySticker))
 	forumLoginApi.POST("my-sticker-delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.DeleteMySticker))
@@ -351,11 +379,20 @@ func apiRoute(ginApp *gin.Engine) {
 	// 拦截保留。
 	forumLoginApi.POST("notification/mark-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkAsRead))
 	forumLoginApi.POST("notification/mark-all-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkAllAsRead))
+	forumLoginApi.GET("push/preferences", middleware.NoUpdateUserActivity, UpButterReq(api.GetPushPreferences))
+	forumLoginApi.PUT("push/preferences", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedStrictJsonReq(4<<10, api.UpdatePushPreferences))
 	forumLoginApi.GET("push/config", middleware.NoUpdateUserActivity, UpButterReq(api.GetPushConfig))
 	forumLoginApi.POST("push/subscribe", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.SubscribePush))
 	forumLoginApi.POST("push/unsubscribe", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.UnsubscribePush))
 	forumLoginApi.POST("push/device/register", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.RegisterPushDevice))
 	forumLoginApi.POST("push/device/unregister", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.UnregisterPushDevice))
+	forumLoginApi.GET("anonymous/state", middleware.NoUpdateUserActivity, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousState))
+	forumLoginApi.POST("anonymous/privacy", middleware.AnonymousPrivateResponse, middleware.NoUpdateUserActivity, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousPrivacy))
+	forumLoginApi.POST("anonymous/batches", middleware.NoUpdateUserActivity, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousGenerate))
+	forumLoginApi.POST("anonymous/confirm", middleware.NoUpdateUserActivity, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousConfirm))
+	forumLoginApi.POST("anonymous/disable", middleware.NoUpdateUserActivity, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousDisable))
+	forumLoginApi.POST("anonymous/govern", middleware.NoUpdateUserActivity, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousGovern))
+	forumLoginApi.POST("anonymous/reveal", middleware.NoUpdateUserActivity, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousReveal))
 	forumLoginApi.POST("topics/write", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTopicWrite), UpLimitedButterReq(maxContentWriteBodyBytes, api.WriteTopic))
 	forumLoginApi.POST("topics/status", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTopicStatus), UpButterReq(api.UpdateTopicStatus))
 	forumLoginApi.POST("topics/delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.DeleteTopicByUser))
@@ -376,6 +413,7 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("posts/like", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.LikePost))
 	forumLoginApi.POST("posts/bookmark", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.BookmarkPost))
 	forumLoginApi.POST("topics/like", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.LikeTopic))
+	forumLoginApi.POST("topics/agent-replies", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.UpdateTopicAgentReplies))
 	forumLoginApi.POST("topics/bookmark", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.BookmarkTopic))
 	forumLoginApi.POST("topics/watch", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.WatchTopic))
 	forumLoginApi.POST("follow-user", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.FollowUser))
@@ -424,8 +462,15 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("moderation/report-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationReportStatus))
 	forumLoginApi.POST("moderation/logs", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationLogList))
 	forumLoginApi.POST("moderation/view-deleted-content", middleware.CheckWritableAccount, UpButterReq(forum.ViewDeletedContent))
+	forumLoginApi.POST("content/appeals", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(8192, api.SubmitContentAppeal))
+	forumLoginApi.GET("content/appeals", middleware.NoUpdateUserActivity, UpQueryReq(api.ContentAppeals))
+	forumLoginApi.POST("moderation/appeals", middleware.NoUpdateUserActivity, UpLimitedJsonReq(8192, api.ModerationAppeals))
+	forumLoginApi.POST("moderation/appeal-action", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(8192, api.ModerationAppealAction))
 	forumLoginApi.POST("moderation/review-queue", middleware.NoUpdateUserActivity, UpButterReq(api.ModerationReviewQueue))
 	forumLoginApi.POST("moderation/review-action", middleware.CheckWritableAccount, UpButterReq(api.ModerationReviewAction))
+	// 通知卡片快捷审批确认页（issue #1049）：token 只防篡改，权限按当前会话复核。
+	forumLoginApi.POST("moderation/approval-action/preview", middleware.NoUpdateUserActivity, UpButterReq(api.ModerationApprovalActionPreview))
+	forumLoginApi.POST("moderation/approval-action/execute", middleware.CheckWritableAccount, UpButterReq(api.ModerationApprovalActionExecute))
 
 	chatApi := forumApi.Group("chat", middleware.CSRFProtection, middleware.JWTAuthCheck)
 
@@ -433,6 +478,9 @@ func apiRoute(ginApp *gin.Engine) {
 	// the human topic/post rate limits keyed by IP and bot userId.
 	agentApi := baseApi.Group("v1/agent", middleware.AgentAuth)
 	agentApi.GET("me", UpButterReq(api.AgentMe))
+	agentApi.GET("events", middleware.RateLimit(middleware.RateLimitInteract), UpQueryReq(api.AgentEvents))
+	agentApi.GET("events/:eventId", middleware.RateLimit(middleware.RateLimitInteract), UpUriQueryReq(api.AgentEvent))
+	agentApi.POST("events/ack", middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(16384, api.AgentAckEvents))
 	agentApi.GET("topics", UpQueryReq(api.AgentTopicList))
 	agentApi.POST("topics", middleware.RateLimit(middleware.RateLimitTopicWrite), UpLimitedJsonReq(maxContentWriteBodyBytes, api.AgentWriteTopic))
 	agentApi.GET("topics/:topicId/posts", UpUriQueryReq(api.AgentPostList))
@@ -447,7 +495,24 @@ func apiRoute(ginApp *gin.Engine) {
 
 	adminApi := baseApi.Group("admin", middleware.CSRFProtection, middleware.JWTAuthCheck, middleware.CheckWritableAccount)
 
+	adminApi.GET("decorations", middleware.CheckPermission(permission.SiteManager), UpButterReq(api.DecorationList))
+	adminApi.POST("decoration-save", middleware.CheckPermission(permission.SiteManager), UpLimitedJsonReq(4096, api.SaveDecoration))
+	adminApi.POST("badge-asset", middleware.CheckPermission(permission.SiteManager), api.UploadBadgeAsset)
+	adminApi.POST("decoration-asset", middleware.CheckPermission(permission.SiteManager), api.UploadDecorationAsset)
+	adminApi.GET("user-decorations", middleware.CheckPermission(permission.UserManager), UpQueryReq(api.UserDecorations))
+	adminApi.POST("decoration-grant", middleware.CheckPermission(permission.UserManager), UpLimitedJsonReq(4096, api.GrantDecoration))
+	adminApi.POST("decoration-revoke", middleware.CheckPermission(permission.UserManager), UpLimitedJsonReq(4096, api.RevokeDecoration))
+
+	adminApi.GET("feed/summary", middleware.CheckPermission(permission.Admin), UpButterReq(api.FeedSummary))
+	anonymousAdmin := adminApi.Group("anonymous-identities", middleware.AnonymousPrivateResponse, middleware.NoUpdateUserActivity, middleware.CheckPermission(permission.UserManager), middleware.CheckPermission(permission.RevealAnonymousIdentity))
+	anonymousAdmin.POST("list", UpButterReq(api.AdminAnonymousList))
+	anonymousAdmin.POST("govern", UpButterReq(api.AdminAnonymousGovern))
 	adminApi.POST("traffic-overview", middleware.CheckPermission(permission.Admin), UpButterReq(api.GetTrafficOverview))
+	// 内容贡献统计（issue #1145）：只读内容表的板块/用户维度统计，与推荐遥测无关。
+	adminApi.POST("stats/category-summary", middleware.CheckPermission(permission.Admin), UpButterReq(api.AdminStatsCategorySummary))
+	adminApi.POST("stats/category-trend", middleware.CheckPermission(permission.Admin), UpButterReq(api.AdminStatsCategoryTrend))
+	adminApi.POST("stats/user-ranking", middleware.CheckPermission(permission.Admin), UpButterReq(api.AdminStatsUserRanking))
+	adminApi.POST("stats/user-detail", middleware.CheckPermission(permission.Admin), UpButterReq(api.AdminStatsUserDetail))
 
 	adminApi.
 		Group("", middleware.CheckPermission(permission.UserManager)).
@@ -483,11 +548,27 @@ func apiRoute(ginApp *gin.Engine) {
 
 	adminApi.Group("", middleware.CheckPermission(permission.Admin)).
 		POST("opt-record-page", UpButterReq(api.OptRecordPage)).
-		POST("agent-list", UpButterReq(api.AgentList)).
 		POST("agent-create", UpButterReq(api.AgentCreate)).
+		GET("agent-comment-policy", UpButterReq(api.GetAgentCommentPolicy)).
+		POST("save-agent-comment-policy", UpButterReq(api.SaveAgentCommentPolicy)).
+		POST("set-agent-comment-topic-policy", UpButterReq(api.SetAgentCommentTopicPolicy))
+
+	// Agent handlers validate creator ownership or station administrator status.
+	adminApi.Group("").
+		POST("agent-list", UpButterReq(api.AgentList)).
 		POST("agent-update", UpButterReq(api.AgentUpdate)).
 		POST("agent-rotate-token", UpButterReq(api.AgentRotateToken)).
-		POST("agent-disable", UpButterReq(api.AgentDisable))
+		POST("agent-disable", UpButterReq(api.AgentDisable)).
+		POST("agent-webhook-config", UpLimitedJsonReq(4096, api.AgentWebhookConfigure)).
+		POST("agent-webhook-rotate-secret", middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AgentWebhookRotateSecret)).
+		POST("agent-webhook-test", middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AgentWebhookTest)).
+		POST("agent-webhook-deliveries", UpButterReq(api.AgentWebhookDeliveries)).
+		POST("agent-webhook-redeliver", middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AgentWebhookRedeliver)).
+		POST("agent-interaction-intents", UpButterReq(api.AgentInteractionIntents)).
+		POST("agent-interaction-replay", middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AgentInteractionReplay)).
+		POST("agents/content-source", UpButterReq(api.AgentContentSource)).
+		POST("agents/edit-topic", middleware.RateLimit(middleware.RateLimitTopicWrite), UpLimitedButterReq(maxContentWriteBodyBytes, api.AgentEditTopic)).
+		POST("agents/edit-post", middleware.RateLimit(middleware.RateLimitPostUpdate), UpLimitedButterReq(maxContentWriteBodyBytes, api.AgentEditPost))
 
 	adminApi.Group("", middleware.CheckPermission(permission.PageManager)).
 		GET("friend-links", UpButterReq(api.GetFriendLinks)).
@@ -532,6 +613,7 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("storage-migrate-tasks", UpButterReq(api.GetStorageMigrateTasks)).
 		GET("http-notify-settings", UpButterReq(api.GetHttpNotifySettings)).
 		POST("save-http-notify-settings", UpButterReq(api.SaveHttpNotifySettings)).
+		POST("test-http-notify-endpoint", UpButterReq(api.TestHttpNotifyEndpoint)).
 		GET("badges", UpButterReq(api.BadgeList)).
 		GET("mcp-settings", UpButterReq(api.GetMCPSettings)).
 		POST("save-mcp-settings", UpButterReq(api.SaveMCPSettings)).
@@ -580,6 +662,18 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("review-queue", UpButterReq(api.ReviewQueue)).
 		POST("review-action", UpButterReq(api.ReviewAction))
 
+}
+
+func passkeyBodyLimit(maxBytes int64) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.ContentLength > maxBytes {
+			c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageRequestParseFailed, nil))
+			c.Abort()
+			return
+		}
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+		c.Next()
+	}
 }
 
 func fileServer(ginApp *gin.Engine) {

@@ -59,6 +59,9 @@ iOS 继续使用 Cupertino 原生转场与返回手势。
 具体尺寸见[移动端展示规范](../../../../docs/product/mobile-experience.md#language-and-presentation)。
 `GfChip.tapTargetHeightFor(context)` 与 `GfTabBar.heightFor(context)` 供横向分类栏、页面和悬浮栏
 同步计算大字体高度。
+`GfTab.symbol` 为标签添加跟随选中色的 ReIcon；`GfTabBar(distribute: true)` 在所有标签放得下时均分宽度，
+放不下（窄屏、大字体）时回退为横向滚动。`GfTabBar(selectedSymbolOnly: true)` 只为选中标签显示图标
+（传 Filled 字重），切换时新旧图标相向收放；横向滚动且溢出时，仍有内容的一侧边缘渐隐。
 `GfEmpty` 支持说明和下一步操作，并适应短屏；资料统计按可用宽度和字号排布，设置行支持多行标题。
 这些组件尺寸适配保留共享语义色与 token 镜像。
 
@@ -66,7 +69,10 @@ iOS 继续使用 Cupertino 原生转场与返回手势。
 未指定高度时按内容收缩；`height` 是受可用视口约束的内容高度，长内容由调用方提供滚动容器。
 安全区由入口消费一次，底部背景覆盖手势区；`keyboardAware: true` 负责键盘避让，
 调用方不再叠加 `viewInsets`。`enableDrag: false` 可保护未保存的编辑。
-`showGfAlertDialog` / `showGfModal` 用原生 `Dialog` 约束键盘上方的可用区域，使用24px圆角、原生焦点和单层滚动内容。
+`showGfMenu` / `GfPopupMenuButton` / `showGfActionSheet`、`GfDropdownButton(FormField)`、`GfRadioListTile`
+在所有平台都使用 Material 呈现（见 MADR 0100）；`useRootNavigator` 选择根导航器或最近的导航器。
+`showGfAlertDialog` / `showGfModal` 用原生 `Dialog` 约束键盘上方的可用区域，使用24px圆角、原生焦点和单层滚动内容；
+`GfDialogAction` 显式标记破坏性动作。
 回归测试包含刘海、底部手势区、长列表和键盘；应用层补充小屏双倍字号表单测试。
 
 ```bash

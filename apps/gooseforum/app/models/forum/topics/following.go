@@ -6,6 +6,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/pageutil"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 )
 
 // CreatedCursor is an exclusive position in chronological topic order. The
@@ -16,7 +17,9 @@ type CreatedCursor struct {
 }
 
 // FollowingPage applies the same public-list visibility as Page(FilterStatus),
-// plus a live, viewer-scoped follow subquery. It never uses the public feed cache.
+// plus a live, viewer-scoped follow subquery. Authors with a block relation in
+// either direction are excluded like the other public lists. It never uses the
+// public feed cache.
 func FollowingPage(ctx context.Context, viewerID uint64, before *CreatedCursor, limit int) ([]Entity, bool, error) {
 	if viewerID == 0 {
 		return []Entity{}, false, nil
@@ -24,9 +27,10 @@ func FollowingPage(ctx context.Context, viewerID uint64, before *CreatedCursor, 
 	limit = pageutil.BoundPageSize(limit)
 	b := builder().WithContext(ctx).
 		Where("user_id IN (?)", userFollow.ActiveFollowedIDsQuery(ctx, viewerID)).
-		Where("status = ? AND process_status = ? AND visibility_status = ?", 1, ProcessStatusNormal, VisibilityActive).
-		Where("topic_type = ?", TopicTypeForum).
-		Where(firstPostVisibleSQL, ProcessStatusNormal)
+		Where("user_id NOT IN (?)", users.BlockedPeerIDsQuery(viewerID)).
+		Where("persona_uid = ?", "").
+		Where(PublicScopePredicate(tableName)).
+		Where(FirstPostVisiblePredicate(tableName))
 	if before != nil {
 		b = b.Where("created_at < ? OR (created_at = ? AND id < ?)", before.CreatedAt, before.CreatedAt, before.ID)
 	}

@@ -4,6 +4,7 @@ import type { PageComponent } from '@gooseforum/client'
 export const pageLoaders = {
   'home.index': () => import('@/site/pages/HomePage.vue'),
   'topic.detail': () => import('@/site/pages/TopicPage.vue'),
+  'anonymous.profile': () => import('@/site/pages/AnonymousProfilePage.vue'),
   'user.profile': () => import('@/site/pages/UserPage.vue'),
   'category.index': () => import('@/site/pages/CategoryPage.vue'),
   'links.index': () => import('@/site/pages/LinksPage.vue'),
@@ -14,6 +15,7 @@ export const pageLoaders = {
   'messages.index': () => import('@/site/pages/MessagesPage.vue'),
   'drafts.index': () => import('@/site/pages/DraftsPage.vue'),
   'moderation.index': () => import('@/site/pages/ModerationPage.vue'),
+  'moderation.action': () => import('@/site/pages/ModerationActionPage.vue'),
   'settings.index': () => import('@/site/pages/SettingsPage.vue'),
   'theme.preview': () => import('@/site/pages/ThemePreviewPage.vue'),
   'publish.index': () => import('@/site/pages/PublishPage.vue'),

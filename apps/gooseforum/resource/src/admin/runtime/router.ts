@@ -26,6 +26,8 @@ export const adminRouter = createRouter({
       path: '/admin',
       component: () => import('@/admin/pages/StatsPage.vue'),
     },
+    { path: '/admin/anonymous-identities', component: () => import('@/admin/pages/management/AnonymousManagementPage.vue') },
+    { path: '/admin/feed-statistics', component: () => import('@/admin/pages/FeedStatisticsPage.vue') },
     {
       path: '/admin/users',
       component: () => import('@/admin/pages/management/UsersManagementPage.vue'),
@@ -33,6 +35,10 @@ export const adminRouter = createRouter({
     {
       path: '/admin/agents',
       component: () => import('@/admin/pages/management/AgentsManagementPage.vue'),
+    },
+    {
+      path: '/admin/agent-comment-policy',
+      component: () => import('@/admin/pages/management/AgentCommentPolicyPage.vue'),
     },
     {
       path: '/admin/roles',
@@ -58,6 +64,8 @@ export const adminRouter = createRouter({
       path: '/admin/sponsors',
       component: () => import('@/admin/pages/management/SponsorsManagementPage.vue'),
     },
+    { path: '/admin/decorations', component: () => import('@/admin/pages/management/DecorationsManagementPage.vue') },
+    { path: '/admin/user-decorations', component: () => import('@/admin/pages/management/UserDecorationsManagementPage.vue') },
     {
       path: '/admin/badges',
       component: () => import('@/admin/pages/management/BadgesManagementPage.vue'),

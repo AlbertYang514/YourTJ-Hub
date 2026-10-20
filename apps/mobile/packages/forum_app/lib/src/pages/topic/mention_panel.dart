@@ -7,6 +7,8 @@
 /// [onSelect] 由宿主写入编辑器，面板不自持业务状态。
 library;
 
+import '../../widgets/user_decoration.dart';
+
 import '../../private_notes.dart';
 
 import 'dart:ui';
@@ -32,6 +34,7 @@ class MentionPanelMessages {
     required this.tagReplyTarget,
     required this.tagTopicAuthor,
     required this.tagParticipant,
+    required this.agentLabel,
   });
 
   final String listboxLabel;
@@ -42,6 +45,7 @@ class MentionPanelMessages {
   final String tagReplyTarget;
   final String tagTopicAuthor;
   final String tagParticipant;
+  final String agentLabel;
 
   String tagFor(MentionTag? tag) => switch (tag) {
     MentionTag.replyTarget => tagReplyTarget,
@@ -187,6 +191,7 @@ class _MentionCandidateListState extends State<_MentionCandidateList> {
           user: user,
           active: index == session.activeIndex,
           tagLabel: widget.messages.tagFor(user.tag),
+          agentLabel: user.actorType == 'bot' ? widget.messages.agentLabel : '',
           onTap: () {
             final token = session.token;
             if (token != null) widget.onSelect(token, user);
@@ -202,21 +207,24 @@ class _MentionCandidateRow extends StatelessWidget {
     required this.user,
     required this.active,
     required this.tagLabel,
+    required this.agentLabel,
     required this.onTap,
   });
 
   final MentionUser user;
   final bool active;
   final String tagLabel;
+  final String agentLabel;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
     // Semantics 至少包含昵称、@username 与上下文身份。
-    final semanticsLabel = tagLabel.isEmpty
+    final roleLabel = user.actorType == 'bot' ? agentLabel : tagLabel;
+    final semanticsLabel = roleLabel.isEmpty
         ? '${privateDisplayName(context, user.id, user.username, user.nickname)}，@${user.username}'
-        : '${privateDisplayName(context, user.id, user.username, user.nickname)}，@${user.username}，$tagLabel';
+        : '${privateDisplayName(context, user.id, user.username, user.nickname)}，@${user.username}，$roleLabel';
     return Semantics(
       selected: active,
       label: semanticsLabel,
@@ -233,15 +241,30 @@ class _MentionCandidateRow extends StatelessWidget {
                 : Colors.transparent,
             child: Row(
               children: [
-                GfAvatar(src: user.avatarUrl, size: 30),
+                GfAvatar(
+                  frameColors: decorationColors(
+                    context,
+                    user.decoration?.avatarFrame,
+                  ),
+                  frameAssetUrl: decorationFrameAssetUrl(
+                    user.decoration?.avatarFrame,
+                  ),
+                  frameScale: user.decoration?.avatarFrame?.assetScale ?? 1.25,
+                  src: user.avatarUrl,
+                  size: 30,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
+                  child: GfDecoratedName(
                     privateDisplayName(
                       context,
                       user.id,
                       user.username,
                       user.nickname,
+                    ),
+                    colors: decorationColors(
+                      context,
+                      user.decoration?.nicknameStyle,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -251,7 +274,7 @@ class _MentionCandidateRow extends StatelessWidget {
                   ),
                 ),
                 Flexible(
-                  child: Text(
+                  child: GfText(
                     '@${user.username}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -261,7 +284,7 @@ class _MentionCandidateRow extends StatelessWidget {
                     ).caption.copyWith(color: colors.iconMuted),
                   ),
                 ),
-                if (tagLabel.isNotEmpty) ...[
+                if (roleLabel.isNotEmpty) ...[
                   const SizedBox(width: 8),
                   Flexible(
                     child: Container(
@@ -273,8 +296,8 @@ class _MentionCandidateRow extends StatelessWidget {
                         color: colors.base200.withValues(alpha: 0.7),
                         borderRadius: BorderRadius.circular(999),
                       ),
-                      child: Text(
-                        tagLabel,
+                      child: GfText(
+                        roleLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: GfTheme.typographyOf(
@@ -305,7 +328,7 @@ class _MentionHintRow extends StatelessWidget {
       label: message,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Text(
+        child: GfText(
           message,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,

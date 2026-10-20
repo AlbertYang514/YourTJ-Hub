@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../app_config.dart';
 
 /// Public destination; no native credential is passed to the browser.
-final fullSchedulerUri = Uri.https('f.yourtj.de', '/schedule');
+final fullSchedulerUri = Uri.parse(
+  AppConfig.apiBaseUrl.isEmpty ? 'https://f.yourtj.de' : AppConfig.apiBaseUrl,
+).resolve('/schedule');
 
 class SchedulerWebTip extends StatelessWidget {
   const SchedulerWebTip({super.key, this.onOpen});
@@ -19,7 +22,7 @@ class SchedulerWebTip extends StatelessWidget {
         message: l10n.schedulerWebTitle,
         child: TextButton.icon(
           icon: GfSymbol('external-link', size: 18, color: colors.primary),
-          label: Text(l10n.scheduleOpenWebShort),
+          label: GfText(l10n.scheduleOpenWebShort),
           onPressed:
               onOpen ??
               () async {
@@ -36,7 +39,7 @@ class SchedulerWebTip extends StatelessWidget {
                 if (context.mounted) {
                   ScaffoldMessenger.of(
                     context,
-                  ).showSnackBar(SnackBar(content: Text(l10n.commonRetry)));
+                  ).showSnackBar(SnackBar(content: GfText(l10n.commonRetry)));
                 }
               },
         ),

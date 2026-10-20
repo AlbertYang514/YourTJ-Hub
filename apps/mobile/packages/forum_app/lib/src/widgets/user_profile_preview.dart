@@ -1,3 +1,4 @@
+import 'user_decoration.dart';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
@@ -484,7 +485,9 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                                                   'external-link',
                                                   size: 16,
                                                 ),
-                                                label: Text(l10n.profileTitle),
+                                                label: GfText(
+                                                  l10n.profileTitle,
+                                                ),
                                                 style: OutlinedButton.styleFrom(
                                                   minimumSize: const Size(
                                                     44,
@@ -531,7 +534,7 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                                               if (viewer != null &&
                                                   viewer.id != user.userId) ...[
                                                 const SizedBox(width: 6),
-                                                PopupMenuButton<String>(
+                                                GfPopupMenuButton<String>(
                                                   tooltip: l10n.profileMore,
                                                   useRootNavigator: true,
                                                   icon: const GfSymbol(
@@ -577,7 +580,7 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                                                     if (userBlocks?.hasError ==
                                                         true) {
                                                       return [
-                                                        PopupMenuItem(
+                                                        GfPopupMenuItem(
                                                           value: 'retry',
                                                           child: Row(
                                                             mainAxisSize:
@@ -591,8 +594,10 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                                                               const SizedBox(
                                                                 width: 10,
                                                               ),
-                                                              Text(
-                                                                l10n.commonRetry,
+                                                              Flexible(
+                                                                child: GfText(
+                                                                  l10n.commonRetry,
+                                                                ),
                                                               ),
                                                             ],
                                                           ),
@@ -603,9 +608,9 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                                                         userBlocks?.valueOrNull;
                                                     if (blockPayload == null) {
                                                       return [
-                                                        PopupMenuItem(
+                                                        GfPopupMenuItem(
                                                           enabled: false,
-                                                          child: Text(
+                                                          child: GfText(
                                                             l10n.commonLoading,
                                                           ),
                                                         ),
@@ -618,11 +623,11 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                                                               user.userId,
                                                         );
                                                     return [
-                                                      PopupMenuItem(
+                                                      GfPopupMenuItem(
                                                         value: isBlocked
                                                             ? 'unblock'
                                                             : 'block',
-                                                        child: Text(
+                                                        child: GfText(
                                                           isBlocked
                                                               ? l10n.userUnblock
                                                               : l10n.userBlock,
@@ -715,6 +720,15 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                 child: Padding(
                   padding: const EdgeInsets.all(4),
                   child: GfAvatar(
+                    frameColors: decorationColors(
+                      context,
+                      user?.decoration?.avatarFrame,
+                    ),
+                    frameAssetUrl: decorationFrameAssetUrl(
+                      user?.decoration?.avatarFrame,
+                    ),
+                    frameScale:
+                        user?.decoration?.avatarFrame?.assetScale ?? 1.25,
                     src: avatarUrl,
                     size: 76,
                     badge: wornBadge == null
@@ -768,7 +782,7 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
             children: [
               GfSymbol('user-round', size: 34, color: colors.iconMuted),
               const SizedBox(height: 8),
-              Text(
+              GfText(
                 l10n.profileAccountClosedTitle,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   color: colors.baseContent,
@@ -777,7 +791,7 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 6),
-              Text(
+              GfText(
                 l10n.profileAccountClosedDescription,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: colors.iconMuted,
@@ -836,6 +850,7 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
       showHeader: false,
       compact: true,
       avatarUrl: '',
+      nicknameColors: decorationColors(context, user.decoration?.nicknameStyle),
       name: privateDisplayName(
         context,
         user.userId,
@@ -947,7 +962,7 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
       children: [
         GfSymbol(icon, size: 14, color: GfTheme.colorsOf(context).iconMuted),
         const SizedBox(width: 5),
-        Text(
+        GfText(
           label,
           style: GfTheme.typographyOf(
             context,

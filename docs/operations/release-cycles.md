@@ -21,7 +21,7 @@ The implementation is [cycle.py](../../scripts/release/cycle.py),
 [Release / Prerelease](../../.github/workflows/release-prerelease.yml) and
 [Release / Control](../../.github/workflows/release-control.yml).
 [Issue #1240](https://github.com/YourTongji/YourTJ-Hub/issues/1240) owns the acceptance criteria;
-[0099](https://github.com/YourTongji/YourTJ-Hub/blob/3984f04e0a60383dd4a9c520b1b3c2dd90e50b73/docs/decisions/0099-shared-dev-release-cycles.md) records the tradeoffs.
+[0099](../decisions/0099-shared-dev-release-cycles.md) records the tradeoffs.
 
 ## Ownership and environments
 
@@ -84,7 +84,7 @@ not deleted. To leave testing, use the normal App Store/Android entry; an Androi
 require uninstalling the preview, so preserve local-only data first. No automatic production install
 is attempted. Builds predating the notice require testers to follow the release page manually.
 
-Control saves and seals the transition before a separate `project` job refreshes merge checks and
+Control saves and seals the transition before a separate `project` job re-runs freeze checks and
 the public notice. If that job fails, use **Re-run failed jobs** to retry these projections without
 reapplying the transition. Both jobs remain under the dev instance lock. Do not rerun all jobs for
 an already sealed `start`, handoff or cancellation; **Control → refresh** also repairs projections
@@ -101,15 +101,12 @@ Normal branch review/CI remain mandatory.
 
 For an explicitly authorized emergency **dev preview**, a repository admin may supply
 `source_review_bypass_reason` (CLI: `--source-review-bypass-reason`). The sealed cycle records
-the explicitly dispatched source SHA (required even for an existing cycle), cycle/run ID, initiating
-and rerunning actors, time and reason. A queued request cannot adopt an advanced cycle source. Identity allocation and
+source SHA, cycle/run ID, initiating and rerunning actors, time and reason. Identity allocation and
 signing recheck that exact binding and both actors' live admin permission. A different SHA, cycle
 or run cannot reuse it; a new run requires a new explicit reason. Rerunning the same authorized
-run is permitted only for its recorded triggering actor, while preserving the original audit. Another
-admin needs a new dispatch and the existing ownership rules still apply. Ordinary previews still require the exact human source review. This exception
+run remains possible. Ordinary previews still require the exact human source review. This exception
 does not authorize production-configuration rehearsal, formal Release, QA, hotfix backflow or
-branch merges; their existing gates remain in force. The rationale is recorded in
-[MADR 0100](../decisions/0100-admin-dev-preview-source-exception.md).
+branch merges; their existing gates remain in force.
 
 Start **Release / Prerelease** with the full current dev SHA, an open tracking issue, production
 channels and purpose `dev`. Omit `cycle` to create a cycle; its ID is the initiating Actions run ID.
@@ -127,12 +124,6 @@ group. An initial dev preview must include `web` to establish the shared site's 
 run may reuse a successful Web deployment for the same candidate, avoiding another database reset.
 For example, use `web,android` for a Web/Android release, `web` for an API-only release with existing-client
 regression, or build `web` first and add `ios` separately.
-
-iOS archive/export logs are retained for 30 days in `preview-ios-build-logs-<attempt>`,
-even when signing or archive fails. Inspect those diagnostics before retrying; a log artifact
-does not mean an IPA was built or uploaded to Apple. Signed IPA recovery artifacts remain separate.
-Publisher unit tests isolate their result files in temporary directories; only the actual publisher
-may write the workflow’s Apple status artifact. A failed build before publication has no Apple receipt.
 
 Each artifact retains its latest distribution run for this source. Successful Web/Android work can
 be reused when another platform fails; QA verifies each required artifact's validation/distribution
@@ -171,40 +162,28 @@ so invalidation occurs before the database snapshot is reset again.
 Android preview assets are attached only to `preview-*` GitHub prereleases with `latest=false`.
 They never update `mobile-latest`, the formal mobile catalog or stable update notifications.
 TestFlight previews use a dedicated **internal** group distinct from the existing production group.
-Before signing and again before upload/distribution, the publisher rejects another group with
-explicit automatic all-build access, or an internal/unclassified group whose access flag is unknown.
-A known external group may omit this internal flag: external distribution requires explicit build
-assignment and review, as described in [Apple’s external testing guide](https://developer.apple.com/help/app-store-connect/test-a-beta-version/invite-external-testers/).
-Previews never assign builds to an external group or submit beta/App Store review. The publisher
-does not change groups or production reviewer credentials.
-Automatic internal groups and existing manual assignments are reconciled without repeating a manual
-add operation. The publisher verifies the complete effective audience belongs only to the selected
-internal group before reporting availability.
+Before uploading, the publisher rejects any other group with automatic or unknown all-build access.
+It does not change groups, production reviewer credentials or App Store submissions.
 
 The iOS result artifact records upload/processing/assignment/Apple availability separately.
 `available_for_testing` and a successful workflow mean the channels are ready to test, not that a
 device has passed QA. Any failed/skipped required channel blocks `qa`. External testers are not
 supported by this preview entry: internal testing requires invited App Store Connect users.
 
-For a failure **after Apple processed the upload**, use **Release / Prerelease** with the same
-`cycle`, full `source`, `purpose=dev`, `artifacts=ios`, and `ios_existing_run` set to the original
-upload run. The current owner/source authorization and source checks run again. The controller
-verifies the original trusted-main run, successful signed build, immutable tag and Apple receipt;
-it resumes only that exact Apple build, without signing, uploading or allocating another identity.
-Expired/missing receipts, a changed candidate, or a missing/different Apple build fail closed.
-Use a new ordinary preview if a rebuild is needed; fixed SHA does not imply frozen binaries.
-An admin can inspect a processed build with **Release / iOS publisher → inspect-preview-groups**
-and optional `build_id`; this reads effective group membership and Apple availability only.
-
 ## Freeze, fixes and QA
 
 The owner admits a blocker with **Release / Control → admit**, supplying the dev PR number and
 reason. Admission binds the current PR head; another push revokes it. Admission does not replace
-review or `ci-required`. Labels alone confer no permission. The controller rewrites the freeze check
-on every open dev PR when state changes and on PR head/label changes. Starting a cycle requires an
-empty dev merge queue. State-wide refreshes also rewrite checks on outstanding merge-group SHAs,
-including previously green groups. Groups created during a freeze receive failing checks;
-admitted fixes use reviewed PR merges.
+review or `ci-required`. Labels alone confer no permission. The `release-freeze` check is the
+GitHub Actions job of that name in **Release / Freeze gate**: it runs trusted-main
+`cycle_control.py check-pr` on PR head/label changes and merge-group requests, and its exit code is
+the verdict. Branch rulesets accept only job check runs from GitHub Actions, so the controller never
+writes the check through the Checks API. When state changes, Control and dev pushes re-run the latest
+completed `release-freeze` run of every open dev PR head and outstanding merge-group SHA, including
+previously green groups; a queued run reads the new state itself, and a head without any run is
+logged and needs a new PR event (push or reopen). A re-run reuses the workflow file of its original
+run. Starting a cycle requires an empty dev merge queue. Groups created during a freeze fail the
+check; admitted fixes use reviewed PR merges.
 
 After a blocker merges, select **advance** with the new full current dev SHA and a reason, then run
 the dev prerelease again. Old QA cannot authorize the changed source. Before recording `qa`, the

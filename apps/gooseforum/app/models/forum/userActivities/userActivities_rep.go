@@ -2,6 +2,8 @@ package userActivities
 
 import (
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // ActionType 行为类型枚举
@@ -47,6 +49,22 @@ func GetUserTimeline(userId uint64, lastId uint64, limit int) (entities []*Entit
 	return
 }
 
+// GetUserTimelineActions pages only the given activity types, so hidden rows
+// never consume a page slot or move the cursor. No actions means no rows.
+func GetUserTimelineActions(userId uint64, lastId uint64, limit int, actions []int) (entities []*Entity, err error) {
+	if len(actions) == 0 {
+		return []*Entity{}, nil
+	}
+	db := builder().Where("user_id = ? AND action IN ?", userId, actions)
+	if lastId > 0 {
+		db = db.Where("id < ?", lastId)
+	}
+	err = db.Order("id DESC").
+		Limit(limit).
+		Find(&entities).Error
+	return
+}
+
 // HasRecord 检查是否存在指定目标的行为记录（用于审核批准时判断是新建还是编辑）。
 func HasRecord(action ActionType, subjectType string, subjectId uint64) bool {
 	var count int64
@@ -54,4 +72,11 @@ func HasRecord(action ActionType, subjectType string, subjectId uint64) bool {
 		Where("action = ? AND subject_type = ? AND subject_id = ?", int(action), subjectType, subjectId).
 		Count(&count)
 	return count > 0
+}
+
+// HasRecordTx keeps publication accounting on the transaction connection.
+func HasRecordTx(tx *gorm.DB, action ActionType, subjectType string, subjectId uint64) (bool, error) {
+	var count int64
+	err := tx.Model(&Entity{}).Where("action = ? AND subject_type = ? AND subject_id = ?", int(action), subjectType, subjectId).Count(&count).Error
+	return count > 0, err
 }

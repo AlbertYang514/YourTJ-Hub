@@ -1,5 +1,9 @@
+import '../../widgets/user_decoration.dart';
+import '../../realtime/realtime_updates.dart';
+import 'agent_reply_setting.dart';
 import '../../report_content.dart';
 import '../../widgets/stickers/sticker_draft_preview.dart';
+import '../../widgets/identity_picker.dart';
 import '../../widgets/stickers/sticker_picker.dart';
 import '../../widgets/stickers/sticker_strings.dart';
 import '../../private_notes.dart';
@@ -151,6 +155,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
   // 账号切换)时,页面先丢弃旧会话数据再按新世代重载,而不是永久置空。
   late int _writingEpoch;
   late Future<String?> _replyOwner;
+  String _replyIdentity = "member";
   Timer? _replyAutosave;
   int _replyRevision = 0, _replySavedRevision = 0, _replyDraftGeneration = 0;
   bool _restoringReply = false;
@@ -168,7 +173,21 @@ class _TopicPageState extends ConsumerState<TopicPage>
 
   // 浮动层状态(web TopicFloatingControls / PostComposer 语义)。
   bool _composerOpen = false;
-  bool _replyStickerOpen = false;
+  // One input accessory at a time; the slot below the composer owns its
+  // geometry and the bottom inset (issue #1270).
+  GfInputAccessory _replyAccessory = GfInputAccessory.none;
+  bool get _replyStickerOpen => _replyAccessory == GfInputAccessory.panel;
+
+  /// The identity sheet flow is borrowing the editor's focus.
+  bool _replyIdentityMenu = false;
+  final FocusNode _replyPanelFocus = FocusNode(debugLabel: 'reply-panel');
+
+  /// A sticker search field and the keyboard share the space below the editor.
+  bool get _replyPanelTyping =>
+      _replyStickerOpen &&
+      _replyPanelFocus.hasFocus &&
+      !_replyPanelFocus.hasPrimaryFocus;
+  bool _replyEditorCompact = false;
   TextSelection? _replyStickerSelection;
   bool _railOpen = false;
 
@@ -189,6 +208,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
     );
     _replyController.addListener(_onReplyValueChanged);
     _replyFocus.addListener(_onReplyFocusChanged);
+    _replyPanelFocus.addListener(_syncReplyEditorCompact);
     _load(postNo: widget.initialPostNo);
     _restoreReplyDraft();
   }
@@ -211,7 +231,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
       _replySaveFailed = false;
       _discardReplyOnLeave = false;
       _composerOpen = false;
-      _replyStickerOpen = false;
+      _replyAccessory = GfInputAccessory.none;
       _mentionSession.close();
       _restoreReplyDraft();
     }
@@ -263,6 +283,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
           .firstOrNull;
       if (draft == null) return;
       _restoringReply = true;
+      _replyIdentity = draft.identity;
       _replyToPostId = draft.replyToPostId;
       _replyTargetName = draft.replyTargetName;
       _replyMentionPrefix = draft.replyMentionPrefix;
@@ -291,6 +312,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
     // Capture before awaiting identity/storage: disposal and navigation can
     // replace the live controllers, but this copy always belongs to this topic.
     final draft = LocalDraft(
+      identity: _replyIdentity,
       key: replyDraftKey(id),
       kind: DraftKind.reply,
       title: _page.valueOrNull?.topic.title ?? '',
@@ -358,13 +380,23 @@ class _TopicPageState extends ConsumerState<TopicPage>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    FeedTelemetry.instance.routeVisible(
+      ModalRoute.of(context)?.isCurrent ?? true,
+    );
+  }
+
+  @override
   void dispose() {
+    FeedTelemetry.instance.endDetail();
     unawaited(_saveReplyDraft(notify: false));
     _replyAutosave?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _replyController.dispose();
     _replyCaptchaCode.dispose();
     _replyFocus.dispose();
+    _replyPanelFocus.dispose();
     _mentionSession.dispose();
     super.dispose();
   }
@@ -378,6 +410,13 @@ class _TopicPageState extends ConsumerState<TopicPage>
     setState(() {
       _fromCache = cached;
       _page = AsyncValue.data(props);
+      if (_replyRevision == 0 &&
+          _replyController.text.isEmpty &&
+          props.postStream.posts.any(
+            (p) => p.postNo == 1 && p.isOwnPost && p.author.publicUid != null,
+          )) {
+        _replyIdentity = "persona";
+      }
       _viewerAuthenticated = !cached && payload.layout.viewer.isAuthenticated;
       _viewerId = cached ? 0 : payload.layout.viewer.id;
       _posts.clear();
@@ -698,10 +737,18 @@ class _TopicPageState extends ConsumerState<TopicPage>
 
   bool _hasOpReply() {
     final int authorId = _page.valueOrNull?.topic.author.id ?? 0;
-    if (authorId <= 0) return false;
+    if (authorId <= 0 && _page.valueOrNull?.topic.author.publicUid == null) {
+      return false;
+    }
     for (final PostPayload post in _posts) {
       // 主帖(postNo 1)总是楼主所发,只看回复楼层,否则扫描永远提前退出。
-      if (post.postNo > 1 && post.author.id == authorId) return true;
+      if (post.postNo > 1 &&
+          (post.author.publicUid != null
+              ? post.author.publicUid ==
+                    _page.valueOrNull?.topic.author.publicUid
+              : authorId > 0 && post.author.id == authorId)) {
+        return true;
+      }
     }
     return false;
   }
@@ -908,8 +955,40 @@ class _TopicPageState extends ConsumerState<TopicPage>
   /// 焦点丢失(键盘收起/点按他处)关闭候选会话,不劫持系统返回。
   void _onReplyFocusChanged() {
     if (!_replyFocus.hasFocus) _mentionSession.close();
-    if (_replyFocus.hasFocus && _replyStickerOpen) {
-      setState(() => _replyStickerOpen = false);
+    final GfInputAccessory next = _replyFocus.hasFocus
+        ? GfInputAccessory.keyboard
+        : _replyAccessory != GfInputAccessory.keyboard
+        ? _replyAccessory
+        : _replyIdentityMenu
+        ? GfInputAccessory.reserved
+        : GfInputAccessory.none;
+    if (next != _replyAccessory) setState(() => _replyAccessory = next);
+  }
+
+  /// Holds the keyboard space while the identity sheet borrows focus, then
+  /// hands it back to the editor so the composer never drops and rises.
+  void _onReplyIdentityMenuChanged(bool open) {
+    _replyIdentityMenu = open;
+    if (open) {
+      if (_replyAccessory == GfInputAccessory.keyboard) {
+        setState(() => _replyAccessory = GfInputAccessory.reserved);
+      }
+      return;
+    }
+    if (_replyAccessory != GfInputAccessory.reserved) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _replyAccessory != GfInputAccessory.reserved) return;
+      if (_composerOpen && (ModalRoute.of(context)?.isCurrent ?? true)) {
+        _replyFocus.requestFocus();
+      } else {
+        setState(() => _replyAccessory = GfInputAccessory.none);
+      }
+    });
+  }
+
+  void _syncReplyEditorCompact() {
+    if (_replyPanelTyping != _replyEditorCompact) {
+      setState(() => _replyEditorCompact = _replyPanelTyping);
     }
   }
 
@@ -938,6 +1017,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
   MentionUser _toMentionUser(UserBriefPayload user, MentionTag tag) {
     return MentionUser(
       id: user.id,
+      decoration: user.decoration,
       username: user.username,
       nickname: user.nickname,
       avatarUrl: resolveApiAssetUrl(user.avatarUrl),
@@ -1028,8 +1108,8 @@ class _TopicPageState extends ConsumerState<TopicPage>
   }
 
   Future<void> _closeComposer() async {
+    _replyAccessory = GfInputAccessory.none;
     FocusManager.instance.primaryFocus?.unfocus();
-    _replyStickerOpen = false;
     _mentionSession.close();
     if (await _saveReplyDraft() && mounted && _writingCurrent) {
       setState(() => _composerOpen = false);
@@ -1090,16 +1170,23 @@ class _TopicPageState extends ConsumerState<TopicPage>
     _replyChanged();
   }
 
+  /// Declares the target accessory before moving focus, so the slot holds the
+  /// outgoing surface until the incoming one covers it.
   void _pickReplySticker() {
     if (_replyStickerOpen) {
-      FocusManager.instance.primaryFocus?.unfocus();
-      setState(() => _replyStickerOpen = false);
+      setState(() => _replyAccessory = GfInputAccessory.keyboard);
       _replyFocus.requestFocus();
     } else {
       _replyStickerSelection = _replyController.selection;
-      FocusManager.instance.primaryFocus?.unfocus();
-      setState(() => _replyStickerOpen = true);
+      setState(() => _replyAccessory = GfInputAccessory.panel);
+      // Focus stays inside the composer while the software keyboard leaves.
+      _replyPanelFocus.requestFocus();
     }
+  }
+
+  void _hideReplyAccessory() {
+    setState(() => _replyAccessory = GfInputAccessory.none);
+    FocusManager.instance.primaryFocus?.unfocus();
   }
 
   void _insertReplySticker(String token) {
@@ -1176,6 +1263,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
       final result = await ref
           .read(postRepositoryProvider)
           .createPost(
+            identity: _replyIdentity,
             topicId: topicId,
             content: content,
             replyToPostId: target,
@@ -1193,7 +1281,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
         setState(() {
           _replyImageUrl = null;
           _composerOpen = false;
-          _replyStickerOpen = false;
+          _replyAccessory = GfInputAccessory.none;
         });
         await _saveReplyDraft();
       }
@@ -1210,6 +1298,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
           context,
           pendingReviewMessage(l10n, checking: result.checking),
         );
+        await _showCreatedReply(result);
         return;
       }
       showGfToast(context, l10n.topicReplySuccess);
@@ -1435,7 +1524,12 @@ class _TopicPageState extends ConsumerState<TopicPage>
         <PostPayload>[
           for (final PostPayload post in _posts)
             if (post.id != mainPost?.id)
-              if (authorId <= 0 || post.author.id == authorId) post,
+              if (_sort != CommentSort.onlyOp ||
+                  (post.author.publicUid != null
+                      ? post.author.publicUid ==
+                            _page.valueOrNull?.topic.author.publicUid
+                      : authorId > 0 && post.author.id == authorId))
+                post,
         ]..sort(
           (PostPayload a, PostPayload b) => _sort == CommentSort.desc
               ? b.postNo.compareTo(a.postNo)
@@ -1457,8 +1551,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
 
   Future<void> _goBack() async {
     if (_replyStickerOpen) {
-      FocusManager.instance.primaryFocus?.unfocus();
-      setState(() => _replyStickerOpen = false);
+      _hideReplyAccessory();
       return;
     }
     if (_replying || _leavingReply) return;
@@ -1469,20 +1562,20 @@ class _TopicPageState extends ConsumerState<TopicPage>
       if (!saved) {
         if (!_replySaveFailed) return;
         final l10n = AppLocalizations.of(context);
-        final discard = await showDialog<bool>(
-          context: context,
-          animationStyle: GfMotion.dialogStyle(context),
-          builder: (context) => AlertDialog(
-            title: Text(l10n.draftLocalSaveFailed),
-            content: Text(l10n.draftReplyLeaveUnsaved),
+        final discard = await showGfAlertDialog<bool>(
+          context,
+          builder: (context) => GfAlertDialog(
+            title: GfText(l10n.draftLocalSaveFailed),
+            content: GfText(l10n.draftReplyLeaveUnsaved),
             actions: [
-              TextButton(
+              GfDialogAction(
                 onPressed: () => Navigator.pop(context, false),
-                child: Text(l10n.publishContinue),
+                child: GfText(l10n.publishContinue),
               ),
-              TextButton(
+              GfDialogAction(
+                destructive: true,
                 onPressed: () => Navigator.pop(context, true),
-                child: Text(l10n.publishDiscard),
+                child: GfText(l10n.publishDiscard),
               ),
             ],
           ),
@@ -1530,6 +1623,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
     _replyToPostId = 0;
     _replyTargetName = null;
     _replyMentionPrefix = null;
+    _replyIdentity = 'member';
     _restoringReply = false;
     _replyRevision = _replySavedRevision = 0;
     _replySaveStatus = '';
@@ -1553,7 +1647,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
       _posts.clear();
       _replyTargets.clear();
       _composerOpen = false;
-      _replyStickerOpen = false;
+      _replyAccessory = GfInputAccessory.none;
       _railOpen = false;
     });
     _load(postNo: floor > 1 ? floor : null);
@@ -1562,6 +1656,12 @@ class _TopicPageState extends ConsumerState<TopicPage>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(
+      realtimeInvalidationsProvider.select((state) => state.contentRevision),
+      (_, _) {
+        if (mounted) _load(silent: true);
+      },
+    );
     ref.listen<int>(
       cacheClearEpochProvider.select(
         (epochs) => epochs[CacheCategory.forum] ?? 0,
@@ -1601,6 +1701,8 @@ class _TopicPageState extends ConsumerState<TopicPage>
         ? topicTitle
         : l10n.topicTitle;
     final scaffold = Scaffold(
+      // The reply accessory slot consumes the keyboard inset itself.
+      resizeToAvoidBottomInset: false,
       appBar: GfAppBar(
         leading: GfIconButton(
           symbol: 'chevron-left',
@@ -1608,7 +1710,11 @@ class _TopicPageState extends ConsumerState<TopicPage>
           size: 44,
           onPressed: _goBack,
         ),
-        title: Text(appBarTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+        title: GfText(
+          appBarTitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         actions: [
           if (!_fromCache && _page.valueOrNull != null)
             TopicActions(
@@ -1674,6 +1780,19 @@ class _TopicPageState extends ConsumerState<TopicPage>
                               ),
                             ),
                             const SliverToBoxAdapter(child: GfDivider()),
+                            if (_topicAvailable)
+                              SliverToBoxAdapter(
+                                child: AgentReplySetting(
+                                  topicId: props.topic.id,
+                                  disabled: props.topic.agentRepliesDisabled,
+                                  canManage:
+                                      props.permissions.canManageAgentReplies,
+                                  onChanged: () => _load(
+                                    silent: true,
+                                    postNo: _currentFloor,
+                                  ),
+                                ),
+                              ),
                             SliverToBoxAdapter(
                               child: SizedBox(
                                 key: _discussionKey,
@@ -1695,7 +1814,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                             _sort == CommentSort.desc
                                       ? _retryLatestReplies
                                       : () => _loadMore(earlier: true),
-                                  child: Text(
+                                  child: GfText(
                                     _sort == CommentSort.desc
                                         ? l10n.topicLaterReplies
                                         : l10n.topicEarlierReplies,
@@ -1775,7 +1894,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
                               ),
                             ),
                             const SliverToBoxAdapter(
-                              child: SizedBox(height: 104),
+                              child: _ReplyDockClearance(),
                             ),
                           ],
                         ),
@@ -1787,259 +1906,283 @@ class _TopicPageState extends ConsumerState<TopicPage>
                   left: _composerOpen ? 0 : 12,
                   right: _composerOpen ? 0 : 12,
                   bottom: _composerOpen ? 0 : 12,
-                  // Bound the open composer to the keyboard-resized viewport.
+                  // The open composer spans the body; its accessory slot owns
+                  // the bottom edge, keyboard inset and safe area included.
                   top: _composerOpen ? 0 : null,
-                  child: SafeArea(
-                    top: false,
-                    child: Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: <Widget>[
-                          if (_composerOpen && !_replyStickerOpen)
-                            Flexible(
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 560,
-                                ),
-                                child: ListenableBuilder(
-                                  listenable: _mentionSession,
-                                  builder: (context, _) =>
-                                      MentionCandidatesPanel(
-                                        session: _mentionSession,
-                                        messages: MentionPanelMessages(
-                                          listboxLabel:
-                                              l10n.mentionListboxLabel,
-                                          loading: l10n.mentionLoading,
-                                          noResults: l10n.mentionNoResults,
-                                          searchFailed:
-                                              l10n.mentionSearchFailed,
-                                          keepTyping: l10n.mentionKeepTyping,
-                                          tagReplyTarget:
-                                              l10n.mentionTagReplyTarget,
-                                          tagTopicAuthor:
-                                              l10n.mentionTagTopicAuthor,
-                                          tagParticipant:
-                                              l10n.mentionTagParticipant,
+                  child: LayoutBuilder(
+                    builder: (context, box) => SafeArea(
+                      top: false,
+                      bottom: !_composerOpen,
+                      child: Align(
+                        alignment: Alignment.bottomCenter,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: <Widget>[
+                            if (_composerOpen && !_replyStickerOpen)
+                              Flexible(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 560,
+                                  ),
+                                  child: ListenableBuilder(
+                                    listenable: _mentionSession,
+                                    builder: (context, _) =>
+                                        MentionCandidatesPanel(
+                                          session: _mentionSession,
+                                          messages: MentionPanelMessages(
+                                            listboxLabel:
+                                                l10n.mentionListboxLabel,
+                                            loading: l10n.mentionLoading,
+                                            noResults: l10n.mentionNoResults,
+                                            searchFailed:
+                                                l10n.mentionSearchFailed,
+                                            keepTyping: l10n.mentionKeepTyping,
+                                            tagReplyTarget:
+                                                l10n.mentionTagReplyTarget,
+                                            tagTopicAuthor:
+                                                l10n.mentionTagTopicAuthor,
+                                            tagParticipant:
+                                                l10n.mentionTagParticipant,
+                                            agentLabel: l10n.mentionAgentLabel,
+                                          ),
+                                          onSelect: _selectMentionCandidate,
                                         ),
-                                        onSelect: _selectMentionCandidate,
-                                      ),
+                                  ),
                                 ),
                               ),
-                            ),
-                          _composerOpen
-                              ? Flexible(
-                                  key: const Key('topic-reply-composer'),
-                                  child: ConstrainedBox(
-                                    constraints: const BoxConstraints(
-                                      maxWidth: 560,
-                                    ),
-                                    child: ValueListenableBuilder<TextEditingValue>(
-                                      valueListenable: _replyController,
-                                      builder: (context, value, _) {
-                                        return GfPostComposer(
-                                          hideKeyboardLabel:
-                                              l10n.commonHideKeyboard,
-                                          onCollapse: _closeComposer,
-                                          collapseLabel: l10n.draftCollapse,
-                                          controller: _replyController,
-                                          focusNode: _replyFocus,
-                                          targetName: _replyTargetDisplayName(
-                                            context,
-                                          ),
-                                          targetLabel: _replyTargetName == null
-                                              ? null
-                                              : l10n.topicReplyTarget(
-                                                  _replyTargetDisplayName(
-                                                    context,
-                                                  )!,
-                                                ),
-                                          onCloseTarget: () {
-                                            _clearReplyTarget();
-                                            setState(() {});
-                                          },
-                                          onPickImage: _pickReplyImage,
-                                          onPickSticker: _pickReplySticker,
-                                          stickerOpen: _replyStickerOpen,
-                                          stickerTooltip: _replyStickerOpen
-                                              ? StickerStrings(context).keyboard
-                                              : StickerStrings(context).title,
-                                          preview: StickerDraftPreview(
-                                            content: value.text,
-                                            markdown: true,
-                                          ),
-                                          accessory: _replyStickerOpen
-                                              ? GfComposerPanel(
-                                                  child: StickerPicker(
-                                                    onInsert:
-                                                        _insertReplySticker,
+                            _composerOpen
+                                ? Flexible(
+                                    key: const Key('topic-reply-composer'),
+                                    child: ConstrainedBox(
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 560,
+                                      ),
+                                      child: ValueListenableBuilder<TextEditingValue>(
+                                        valueListenable: _replyController,
+                                        builder: (context, value, _) {
+                                          return GfPostComposer(
+                                            leading: IdentityPicker(
+                                              value: _replyIdentity,
+                                              disabled: _replying,
+                                              compact: true,
+                                              onMenuChanged:
+                                                  _onReplyIdentityMenuChanged,
+                                              onChanged: (v) {
+                                                setState(() {
+                                                  _replyIdentity = v;
+                                                  _replyRevision++;
+                                                });
+                                                unawaited(_saveReplyDraft());
+                                              },
+                                            ),
+                                            hideKeyboardLabel:
+                                                l10n.commonHideKeyboard,
+                                            hidePanelLabel: StickerStrings(
+                                              context,
+                                            ).hidePanel,
+                                            onHideAccessory:
+                                                _hideReplyAccessory,
+                                            onCollapse: _closeComposer,
+                                            collapseLabel: l10n.draftCollapse,
+                                            controller: _replyController,
+                                            focusNode: _replyFocus,
+                                            targetName: _replyTargetDisplayName(
+                                              context,
+                                            ),
+                                            targetLabel:
+                                                _replyTargetName == null
+                                                ? null
+                                                : l10n.topicReplyTarget(
+                                                    _replyTargetDisplayName(
+                                                      context,
+                                                    )!,
                                                   ),
-                                                )
-                                              : null,
-                                          imageTooltip: l10n.publishToolImage,
-                                          imageUrl: _replyImageUrl == null
-                                              ? null
-                                              : resolveApiAssetUrl(
-                                                  _replyImageUrl!,
-                                                ),
-                                          onRemoveImage: _removeReplyImage,
-                                          removeImageTooltip:
-                                              l10n.publishRemoveImage,
-                                          uploading: _uploadingReplyImage,
-                                          publishing: _replying,
-                                          canPublish: value.text
-                                              .trim()
-                                              .isNotEmpty,
-                                          publishLabel: l10n.commonSend,
-                                          hintText: l10n.topicReplyHint,
-                                          onPublish: _submitReply,
-                                          toolbar: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              if (_replySaveStatus.isNotEmpty)
-                                                Row(
-                                                  children: [
-                                                    Expanded(
-                                                      child: Text(
-                                                        _replySaveStatus,
-                                                        style: Theme.of(
-                                                          context,
-                                                        ).textTheme.bodySmall,
-                                                      ),
-                                                    ),
-                                                    if (_replySaveFailed)
-                                                      TextButton(
-                                                        onPressed:
-                                                            _saveReplyDraft,
-                                                        child: Text(
-                                                          l10n.commonRetry,
-                                                        ),
-                                                      ),
-                                                  ],
-                                                ),
-                                              if (_replyCaptcha != null)
-                                                Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    if (_showReplyCaptchaExplanation)
-                                                      Padding(
-                                                        padding:
-                                                            const EdgeInsets.only(
-                                                              bottom: 8,
+                                            onCloseTarget: () {
+                                              _clearReplyTarget();
+                                              setState(() {});
+                                            },
+                                            onPickImage: _pickReplyImage,
+                                            onPickSticker: _pickReplySticker,
+                                            stickerOpen: _replyStickerOpen,
+                                            compactEditor:
+                                                _replyStickerOpen &&
+                                                _replyEditorCompact,
+                                            stickerTooltip: _replyStickerOpen
+                                                ? StickerStrings(
+                                                    context,
+                                                  ).keyboard
+                                                : StickerStrings(context).title,
+                                            preview: StickerDraftPreview(
+                                              content: value.text,
+                                              markdown: true,
+                                            ),
+                                            imageTooltip: l10n.publishToolImage,
+                                            imageUrl: _replyImageUrl == null
+                                                ? null
+                                                : resolveApiAssetUrl(
+                                                    _replyImageUrl!,
+                                                  ),
+                                            onRemoveImage: _removeReplyImage,
+                                            removeImageTooltip:
+                                                l10n.publishRemoveImage,
+                                            uploading: _uploadingReplyImage,
+                                            publishing: _replying,
+                                            canPublish: value.text
+                                                .trim()
+                                                .isNotEmpty,
+                                            publishLabel: l10n.commonSend,
+                                            hintText: l10n.topicReplyHint,
+                                            onPublish: _submitReply,
+                                            status: _replySaveStatus.isEmpty
+                                                ? null
+                                                : _ReplySaveStatus(
+                                                    text: _replySaveStatus,
+                                                    failed: _replySaveFailed,
+                                                    retryLabel:
+                                                        l10n.commonRetry,
+                                                    onRetry: _saveReplyDraft,
+                                                  ),
+                                            toolbar: _replyCaptcha == null
+                                                ? null
+                                                : Column(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          if (_showReplyCaptchaExplanation)
+                                                            Padding(
+                                                              padding:
+                                                                  const EdgeInsets.only(
+                                                                    bottom: 8,
+                                                                  ),
+                                                              child: GfText(
+                                                                l10n.publishCaptchaExplanation,
+                                                                style: Theme.of(
+                                                                  context,
+                                                                ).textTheme.bodySmall,
+                                                              ),
                                                             ),
-                                                        child: Text(
-                                                          l10n.publishCaptchaExplanation,
-                                                          style: Theme.of(
-                                                            context,
-                                                          ).textTheme.bodySmall,
-                                                        ),
+                                                          Row(
+                                                            children: [
+                                                              InkWell(
+                                                                onTap:
+                                                                    _replyCaptchaLoading
+                                                                    ? null
+                                                                    : _loadReplyCaptcha,
+                                                                child: GfCaptchaImage(
+                                                                  imageData:
+                                                                      _replyCaptcha!
+                                                                          .captchaImg,
+                                                                  width: 80,
+                                                                  height: 42,
+                                                                  fit: BoxFit
+                                                                      .contain,
+                                                                ),
+                                                              ),
+                                                              const SizedBox(
+                                                                width: 8,
+                                                              ),
+                                                              Expanded(
+                                                                child: GfInput(
+                                                                  key: const Key(
+                                                                    'reply-captcha',
+                                                                  ),
+                                                                  controller:
+                                                                      _replyCaptchaCode,
+                                                                  labelText: l10n
+                                                                      .authCaptcha,
+                                                                  textCapitalization:
+                                                                      TextCapitalization
+                                                                          .characters,
+                                                                ),
+                                                              ),
+                                                              IconButton(
+                                                                tooltip: l10n
+                                                                    .commonRefresh,
+                                                                onPressed:
+                                                                    _replyCaptchaLoading
+                                                                    ? null
+                                                                    : _loadReplyCaptcha,
+                                                                icon: const GfSymbol(
+                                                                  'refresh-cw',
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ],
                                                       ),
-                                                    Row(
-                                                      children: [
-                                                        InkWell(
-                                                          onTap:
-                                                              _replyCaptchaLoading
-                                                              ? null
-                                                              : _loadReplyCaptcha,
-                                                          child: GfCaptchaImage(
-                                                            imageData:
-                                                                _replyCaptcha!
-                                                                    .captchaImg,
-                                                            width: 80,
-                                                            height: 42,
-                                                            fit: BoxFit.contain,
-                                                          ),
-                                                        ),
-                                                        const SizedBox(
-                                                          width: 8,
-                                                        ),
-                                                        Expanded(
-                                                          child: GfInput(
-                                                            key: const Key(
-                                                              'reply-captcha',
-                                                            ),
-                                                            controller:
-                                                                _replyCaptchaCode,
-                                                            labelText: l10n
-                                                                .authCaptcha,
-                                                            textCapitalization:
-                                                                TextCapitalization
-                                                                    .characters,
-                                                          ),
-                                                        ),
-                                                        IconButton(
-                                                          tooltip: l10n
-                                                              .commonRefresh,
-                                                          onPressed:
-                                                              _replyCaptchaLoading
-                                                              ? null
-                                                              : _loadReplyCaptcha,
-                                                          icon: const GfSymbol(
-                                                            'refresh-cw',
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ],
-                                                ),
-                                            ],
-                                          ),
-                                        );
-                                      },
+                                                    ],
+                                                  ),
+                                          );
+                                        },
+                                      ),
                                     ),
-                                  ),
-                                )
-                              : GfFloatingControls(
-                                  joinLabel: l10n.topicJoinDiscussion,
-                                  actions: <GfTopicAction>[
-                                    if (_topicAvailable) ...[
-                                      GfTopicAction(
-                                        symbol: _liked
-                                            ? 'heart-filled'
-                                            : 'heart',
-                                        active: _liked,
-                                        title:
-                                            '${l10n.topicLike} · ${formatNumber(_likeCount)}',
-                                        activeColor: colors.error,
-                                        onTap: _toggleLike,
-                                      ),
-                                      GfTopicAction(
-                                        symbol: _bookmarked
-                                            ? 'bookmark-filled'
-                                            : 'bookmark',
-                                        active: _bookmarked,
-                                        title: _bookmarked
-                                            ? l10n.topicBookmarked
-                                            : l10n.topicBookmark,
-                                        activeColor: colors.warning,
-                                        onTap: _toggleBookmark,
-                                      ),
-                                      GfTopicAction(
-                                        symbol: _watched
-                                            ? 'bell-filled'
-                                            : 'bell',
-                                        active: _watched,
-                                        title: _watched
-                                            ? l10n.topicUnwatch
-                                            : l10n.topicWatch,
-                                        activeColor: colors.primary,
-                                        onTap: _toggleWatch,
-                                      ),
+                                  )
+                                : GfFloatingControls(
+                                    joinLabel: l10n.topicJoinDiscussion,
+                                    actions: <GfTopicAction>[
+                                      if (_topicAvailable) ...[
+                                        GfTopicAction(
+                                          symbol: _liked
+                                              ? 'heart-filled'
+                                              : 'heart',
+                                          active: _liked,
+                                          title:
+                                              '${l10n.topicLike} · ${formatNumber(_likeCount)}',
+                                          activeColor: colors.error,
+                                          onTap: _toggleLike,
+                                        ),
+                                        GfTopicAction(
+                                          symbol: _bookmarked
+                                              ? 'bookmark-filled'
+                                              : 'bookmark',
+                                          active: _bookmarked,
+                                          title: _bookmarked
+                                              ? l10n.topicBookmarked
+                                              : l10n.topicBookmark,
+                                          activeColor: colors.warning,
+                                          onTap: _toggleBookmark,
+                                        ),
+                                        GfTopicAction(
+                                          symbol: _watched
+                                              ? 'bell-filled'
+                                              : 'bell',
+                                          active: _watched,
+                                          title: _watched
+                                              ? l10n.topicUnwatch
+                                              : l10n.topicWatch,
+                                          activeColor: colors.primary,
+                                          onTap: _toggleWatch,
+                                        ),
+                                      ],
                                     ],
-                                  ],
-                                  onOpenReply: _canReply
-                                      ? () => _openComposer()
-                                      : null,
-                                  currentNo: _currentFloor,
-                                  maxNo: props.postStream.maxPostNo,
-                                  onFloorTap: () =>
-                                      setState(() => _railOpen = !_railOpen),
+                                    onOpenReply: _canReply
+                                        ? () => _openComposer()
+                                        : null,
+                                    currentNo: _currentFloor,
+                                    maxNo: props.postStream.maxPostNo,
+                                    onFloorTap: () =>
+                                        setState(() => _railOpen = !_railOpen),
+                                  ),
+                            if (_composerOpen)
+                              GfInputAccessorySlot(
+                                accessory: _replyAccessory,
+                                panelFocusNode: _replyPanelFocus,
+                                availableHeight: box.maxHeight,
+                                panelBuilder: (_) => StickerPicker(
+                                  onInsert: _insertReplySticker,
                                 ),
-                        ],
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -2086,7 +2229,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _goBack();
       },
-      child: scaffold,
+      child: GfStatusBarScrollToTop(controller: _scrollToTop, child: scaffold),
     );
   }
 
@@ -2146,7 +2289,9 @@ class _TopicHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               InkWell(
-                onTap: topic.author.id > 0
+                onTap: topic.author.publicUid != null
+                    ? () => context.push('/a/${topic.author.publicUid}')
+                    : topic.author.id > 0
                     ? () => showUserProfilePreview(
                         context,
                         userId: topic.author.id,
@@ -2158,6 +2303,19 @@ class _TopicHeader extends StatelessWidget {
                     : null,
                 borderRadius: BorderRadius.circular(40),
                 child: GfAvatar(
+                  frameColors: topic.author.publicUid != null
+                      ? const <Color>[]
+                      : decorationColors(
+                          context,
+                          topic.author.decoration?.avatarFrame,
+                        ),
+                  frameAssetUrl: topic.author.publicUid != null
+                      ? ''
+                      : decorationFrameAssetUrl(
+                          topic.author.decoration?.avatarFrame,
+                        ),
+                  frameScale:
+                      topic.author.decoration?.avatarFrame?.assetScale ?? 1.25,
                   src: resolveApiAssetUrl(topic.author.avatarUrl),
                   size: 40,
                   badge: topic.author.wornBadge == null
@@ -2171,17 +2329,25 @@ class _TopicHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     InkWell(
-                      onTap: topic.author.id > 0
+                      onTap: topic.author.publicUid != null
+                          ? () => context.push('/a/${topic.author.publicUid}')
+                          : topic.author.id > 0
                           ? () => context.push('/u/${topic.author.id}')
                           : null,
-                      child: Text(
+                      child: GfDecoratedName(
                         authorName,
+                        colors: topic.author.publicUid != null
+                            ? const []
+                            : decorationColors(
+                                context,
+                                topic.author.decoration?.nicknameStyle,
+                              ),
                         style: GfTheme.typographyOf(context).bodyStrong,
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      '@${topic.author.username} · ${timeAgo(topic.createdAt, l10n: l10n)}',
+                    GfText(
+                      '${topic.author.publicUid != null ? (isOwnTopic ? l10n.anonymousTagOwn : l10n.anonymousTag) : '@${topic.author.username}'} · ${timeAgo(topic.createdAt, l10n: l10n)}',
                       style: GfTheme.typographyOf(
                         context,
                       ).caption.copyWith(color: colors.iconMuted),
@@ -2218,7 +2384,7 @@ class _TopicHeader extends StatelessWidget {
           // 无标题瞬间不渲染详情大标题（titleKey 缺失时滚动页头检测自动跳过）。
           if (topic.title.trim().isNotEmpty) ...[
             const SizedBox(height: 14),
-            Text(
+            GfText(
               topic.title,
               key: titleKey,
               style: GfTheme.typographyOf(context).title1,
@@ -2239,7 +2405,7 @@ class _TopicHeader extends StatelessWidget {
           ],
           if (!available) ...<Widget>[
             const SizedBox(height: 16),
-            Text(l10n.topicRemoved),
+            GfText(l10n.topicRemoved),
           ] else if (mainPost != null) ...<Widget>[
             const SizedBox(height: 16),
             GfMarkdownView(
@@ -2249,7 +2415,7 @@ class _TopicHeader extends StatelessWidget {
             ),
           ] else if (topic.description.isNotEmpty) ...<Widget>[
             const SizedBox(height: 12),
-            Text(topic.description, style: readingBodyStyle(context)),
+            GfText(topic.description, style: readingBodyStyle(context)),
           ],
           const SizedBox(height: 18),
           Wrap(
@@ -2296,7 +2462,7 @@ class _ReplySectionHeader extends StatelessWidget {
         spacing: 8,
         runSpacing: 8,
         children: <Widget>[
-          Text(
+          GfText(
             l10n.topicReplies(count),
             style: GfTheme.typographyOf(context).title3,
           ),
@@ -2333,7 +2499,7 @@ class _CommentSortCapsule extends StatelessWidget {
           child: Container(
             constraints: const BoxConstraints(minHeight: 32),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Text(
+            child: GfText(
               label,
               style: TextStyle(
                 color: selected
@@ -2387,7 +2553,7 @@ class _TopicStat extends StatelessWidget {
           children: [
             GfSymbol(symbol, size: 16, color: color),
             const SizedBox(width: 5),
-            Text(
+            GfText(
               value,
               style: GfTheme.typographyOf(
                 context,
@@ -2439,7 +2605,9 @@ class _PostCard extends StatelessWidget {
           Row(
             children: <Widget>[
               InkWell(
-                onTap: post.author.id > 0 && !post.isAnonymous
+                onTap: post.author.publicUid != null
+                    ? () => context.push('/a/${post.author.publicUid}')
+                    : post.author.id > 0 && !post.isAnonymous
                     ? () => showUserProfilePreview(
                         context,
                         userId: post.author.id,
@@ -2451,6 +2619,19 @@ class _PostCard extends StatelessWidget {
                     : null,
                 borderRadius: BorderRadius.circular(24),
                 child: GfAvatar(
+                  frameColors: post.isAnonymous
+                      ? const <Color>[]
+                      : decorationColors(
+                          context,
+                          post.author.decoration?.avatarFrame,
+                        ),
+                  frameAssetUrl: post.isAnonymous
+                      ? ''
+                      : decorationFrameAssetUrl(
+                          post.author.decoration?.avatarFrame,
+                        ),
+                  frameScale:
+                      post.author.decoration?.avatarFrame?.assetScale ?? 1.25,
                   src: resolveApiAssetUrl(post.author.avatarUrl),
                   size: 32,
                   badge: post.isAnonymous || post.author.wornBadge == null
@@ -2461,10 +2642,12 @@ class _PostCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: InkWell(
-                  onTap: post.author.id > 0 && !post.isAnonymous
+                  onTap: post.author.publicUid != null
+                      ? () => context.push('/a/${post.author.publicUid}')
+                      : post.author.id > 0 && !post.isAnonymous
                       ? () => context.push('/u/${post.author.id}')
                       : null,
-                  child: Text(
+                  child: GfDecoratedName(
                     post.isAnonymous
                         ? (post.author.nickname ?? post.author.username)
                         : privateDisplayName(
@@ -2473,12 +2656,23 @@ class _PostCard extends StatelessWidget {
                             post.author.username,
                             post.author.nickname,
                           ),
+                    colors: post.isAnonymous
+                        ? const []
+                        : decorationColors(
+                            context,
+                            post.author.decoration?.nicknameStyle,
+                          ),
                     style: GfTheme.typographyOf(context).bodyStrong,
                   ),
                 ),
               ),
+              if (post.author.publicUid != null)
+                GfText(
+                  post.isOwnPost ? l10n.anonymousTagOwn : l10n.anonymousTag,
+                  style: GfTheme.typographyOf(context).caption,
+                ),
               if (post.postNo > 0)
-                Text(
+                GfText(
                   '#${post.postNo}',
                   style: GfTheme.typographyOf(context).caption.copyWith(
                     color: GfTheme.colorsOf(context).iconMuted,
@@ -2504,7 +2698,7 @@ class _PostCard extends StatelessWidget {
                     quoteTarget == null || quoteTarget?.unavailable == true,
               )
             else
-              Text(
+              GfText(
                 '${l10n.topicReply} @${post.replyToUsername}',
                 style: GfTheme.typographyOf(
                   context,
@@ -2513,7 +2707,7 @@ class _PostCard extends StatelessWidget {
           ],
           const SizedBox(height: 4),
           if (post.isAuthorDeleted || post.isModeratorRemoved)
-            Text(l10n.topicRemoved)
+            GfText(l10n.topicRemoved)
           else
             GfMarkdownView(data: post.content, mentions: post.mentions),
           // 待审回复（issue #975）：作者与审核员可见，标明尚未公开。
@@ -2526,7 +2720,7 @@ class _PostCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 4),
-          Text(
+          GfText(
             timeAgo(post.createdAt, l10n: l10n),
             style: GfTheme.typographyOf(
               context,
@@ -2632,7 +2826,7 @@ class _ReplyQuoteState extends State<_ReplyQuote> {
                 const SizedBox(width: 8),
               ],
               Expanded(
-                child: Text(
+                child: GfText(
                   '@${widget.username}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -2640,7 +2834,7 @@ class _ReplyQuoteState extends State<_ReplyQuote> {
                 ),
               ),
               if (widget.postNo != null)
-                Text(
+                GfText(
                   '#${widget.postNo}',
                   style: style.copyWith(color: colors.iconMuted),
                 ),
@@ -2648,7 +2842,7 @@ class _ReplyQuoteState extends State<_ReplyQuote> {
           ),
           if (widget.unavailable) ...[
             const SizedBox(height: 6),
-            Text(l10n.topicReplyTargetUnavailable, style: style),
+            GfText(l10n.topicReplyTargetUnavailable, style: style),
           ] else if (hasPreview) ...[
             const SizedBox(height: 6),
             LayoutBuilder(
@@ -2664,7 +2858,7 @@ class _ReplyQuoteState extends State<_ReplyQuote> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    GfText(
                       preview,
                       maxLines: _expanded ? null : 4,
                       overflow: _expanded
@@ -2684,7 +2878,7 @@ class _ReplyQuoteState extends State<_ReplyQuote> {
                           _expanded ? 'chevron-up' : 'chevron-down',
                           size: 16,
                         ),
-                        label: Text(
+                        label: GfText(
                           _expanded
                               ? l10n.replyQuoteCollapse
                               : l10n.replyQuoteExpand,
@@ -2740,11 +2934,63 @@ class _PendingReviewNotice extends StatelessWidget {
             ),
             SizedBox(width: compact ? 4 : 8),
             Expanded(
-              child: Text(text, style: style.copyWith(color: colors.warning)),
+              child: GfText(text, style: style.copyWith(color: colors.warning)),
             ),
           ],
         ),
       ),
     );
   }
+}
+
+/// Keeps the last reply readable above the dock and, since the page no longer
+/// resizes for the keyboard, above the software keyboard too.
+/// Draft state beside the send action: quiet while saving or saved; a failed
+/// local save turns it into a compact retry in the warning color.
+class _ReplySaveStatus extends StatelessWidget {
+  const _ReplySaveStatus({
+    required this.text,
+    required this.failed,
+    required this.retryLabel,
+    required this.onRetry,
+  });
+
+  final String text;
+  final bool failed;
+  final String retryLabel;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = GfTheme.colorsOf(context);
+    final label = GfText(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: GfTheme.typographyOf(
+        context,
+      ).meta.copyWith(color: failed ? colors.warning : colors.iconMuted),
+    );
+    if (!failed) return label;
+    return Tooltip(
+      message: retryLabel,
+      child: TextButton(
+        onPressed: onRetry,
+        style: TextButton.styleFrom(
+          minimumSize: const Size(0, 44),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+        ),
+        child: label,
+      ),
+    );
+  }
+}
+
+class _ReplyDockClearance extends StatelessWidget {
+  const _ReplyDockClearance();
+
+  @override
+  Widget build(BuildContext context) =>
+      SizedBox(height: 104 + MediaQuery.viewInsetsOf(context).bottom);
 }

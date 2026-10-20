@@ -16,6 +16,12 @@ class SelectTests(unittest.TestCase):
             self.assertFalse(plan["deploy"]["run"])
         self.assertTrue(all(v["run"] for v in select(["unknown/execute.sh"]).values()))
 
+    def test_dev_deploy_workflow_change_rehearses_the_deployment(self):
+        plan = select([".github/workflows/deploy-dev.yml"])
+        for domain in ("automation", "backend", "frontend", "deploy"):
+            self.assertTrue(plan[domain]["run"], domain)
+        self.assertFalse(plan["ios"]["run"] or plan["android"]["run"])
+
     def test_missing_skipped_cancelled_fail_closed(self):
         plan = select(["apps/mobile/packages/core/lib/client.dart"])
         good = {k: {"result": "success" if v["run"] else "skipped"} for k, v in plan.items() if k != "deploy"}

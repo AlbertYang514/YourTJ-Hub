@@ -1,9 +1,13 @@
 <script setup lang="ts">
+import UserNickname from '@/site/components/UserNickname.vue'
+import PersonaTag from './PersonaTag.vue'
+import { authorURL } from '@/runtime/anonymous-identity'
 import { userDisplayName } from '@/runtime/private-notes'
 import { BookOpen, Eye, HelpCircle, MessageSquare, Pin, Sparkles } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import { formatNumber, timeAgo } from '@/runtime/format'
 import UserAvatar from '@/site/components/UserAvatar.vue'
+import { feedReasonKey } from '@/site/utils/feed-reason'
 import type { TopicPayload } from '@gooseforum/client'
 
 withDefaults(defineProps<{
@@ -22,12 +26,13 @@ withDefaults(defineProps<{
 })
 
 const { t } = useI18n()
+const feedReason = (reason?: string | null) => { const key = feedReasonKey(reason); return key ? t(key) : '' }
 </script>
 
 <template>
   <div class="min-w-0">
     <div class="flex items-center gap-2.5">
-      <UserAvatar
+      <UserAvatar :frame="topic.author.decoration?.avatarFrame"
         :src="topic.author.avatarUrl"
         :alt="topic.author.username"
         :badge="topic.author.wornBadge"
@@ -36,7 +41,8 @@ const { t } = useI18n()
       <div class="min-w-0 flex-1">
         <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span class="inline-flex max-w-full min-w-0 items-center gap-1.5 text-sm font-semibold leading-5 text-base-content">
-            <span class="min-w-0 truncate">{{ userDisplayName(topic.author.id, topic.author.username, topic.author.nickname) }}</span>
+            <span class="min-w-0 truncate"><UserNickname :style-definition="topic.author.decoration?.nicknameStyle">{{ userDisplayName(topic.author.id, topic.author.username, topic.author.nickname) }}</UserNickname></span>
+            <PersonaTag v-if="topic.author.publicUid" />
             <span
               v-if="!topic.title && !topic.description && topic.unseen"
               class="unread-meta-dot inline-block h-2 w-2 shrink-0 rounded-full bg-primary"
@@ -44,20 +50,21 @@ const { t } = useI18n()
             />
           </span>
           <span class="text-xs leading-5 text-base-content/55">
-            {{ timeAgo(topic.lastUpdateTime) }}
+            {{ timeAgo(topic.lastUpdateTime) }}<template v-if="feedReason(topic.feedReason)"
+              ><span aria-hidden="true"> · </span><span class="font-medium text-base-content/70" data-test="feed-reason">{{ feedReason(topic.feedReason) }}</span></template>
           </span>
         </div>
         <div class="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
           <!-- Content type badge -->
-          <span v-if="topic.contentType === 1" class="inline-flex h-5 items-center gap-1 rounded-full bg-success/15 px-1.5 text-[11px] font-semibold text-success">
+          <span v-if="topic.contentType === 1" class="inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-success/15 px-1.5 text-[11px] font-semibold text-success">
             <HelpCircle class="h-3 w-3" />
             <span>{{ t('publish.contentTypes.question') }}</span>
           </span>
-          <span v-else-if="topic.contentType === 2" class="inline-flex h-5 items-center gap-1 rounded-full bg-purple-500/15 px-1.5 text-[11px] font-semibold text-purple-600 dark:text-purple-400">
+          <span v-else-if="topic.contentType === 2" class="inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-purple-500/15 px-1.5 text-[11px] font-semibold text-purple-600 dark:text-purple-400">
             <Sparkles class="h-3 w-3" />
             <span>{{ t('publish.contentTypes.thought') }}</span>
           </span>
-          <span v-else-if="topic.contentType === 3" class="inline-flex h-5 items-center gap-1 rounded-full bg-amber-500/15 px-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+          <span v-else-if="topic.contentType === 3" class="inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-amber-500/15 px-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
             <BookOpen class="h-3 w-3" />
             <span>{{ t('publish.contentTypes.article') }}</span>
           </span>
@@ -72,12 +79,13 @@ const { t } = useI18n()
           </a>
           <span
             v-if="showHot && topic.viewCount > 500"
-            class="inline-flex h-5 items-center gap-1 rounded-full bg-warning/10 px-1.5 text-[11px] font-semibold text-warning"
+            class="inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-warning/10 px-1.5 text-[11px] font-semibold text-warning"
           >
             <Sparkles class="h-3 w-3" /> hot
           </span>
         </div>
       </div>
+      <span v-if="topic.processStatus === 2" class="inline-flex shrink-0 whitespace-nowrap rounded bg-warning/15 px-2 py-0.5 text-xs text-warning">{{ t('topic.pendingReviewBadge') }}</span>
       <Pin
         v-if="showPinned && topic.pinWeight > 0"
         class="mt-0.5 h-4 w-4 shrink-0 rotate-45 text-error"

@@ -62,6 +62,7 @@ class PushConfigPayload {
     required this.configured,
     this.applicationServerKey,
     this.native,
+    this.viewerId,
   });
 
   /// Web Push（VAPID）通道是否启用。
@@ -73,6 +74,9 @@ class PushConfigPayload {
   /// 原生推送（APNs/JPush/FCM）通道门控；后端未部署原生支持时为 null。
   final NativePushConfig? native;
 
+  /// 调用者自身的数字用户 ID；Service Worker 用它复核推送收件人（issue #1183 第 8 项）。
+  final int? viewerId;
+
   factory PushConfigPayload.fromJson(Map<String, dynamic> json) =>
       PushConfigPayload(
         configured: json['configured'] as bool? ?? false,
@@ -82,5 +86,36 @@ class PushConfigPayload {
             : NativePushConfig.fromJson(
                 Map<String, dynamic>.from(json['native'] as Map),
               ),
+        viewerId: (json['viewerId'] as num?)?.toInt(),
       );
+}
+
+/// Account-level policy shared by Web and native delivery.
+class PushPreferences {
+  const PushPreferences({
+    this.chat = true,
+    this.mentionsAndReplies = true,
+    this.activity = false,
+    this.following = false,
+    this.system = true,
+    this.systemDefaultOnly = true,
+  });
+  final bool chat, mentionsAndReplies, activity, following, system;
+  final bool systemDefaultOnly;
+  factory PushPreferences.fromJson(Map<String, dynamic> json) =>
+      PushPreferences(
+        chat: json['chat'] as bool? ?? true,
+        mentionsAndReplies: json['mentionsAndReplies'] as bool? ?? true,
+        activity: json['activity'] as bool? ?? false,
+        following: json['following'] as bool? ?? false,
+        system: json['system'] as bool? ?? true,
+        systemDefaultOnly: json['systemDefaultOnly'] as bool? ?? true,
+      );
+  Map<String, bool> toJson() => {
+    'chat': chat,
+    'mentionsAndReplies': mentionsAndReplies,
+    'activity': activity,
+    'following': following,
+    'system': system,
+  };
 }

@@ -1,3 +1,4 @@
+import type { UserDecoration } from '@gooseforum/client'
 /**
  * 帖子编辑器 @mention 会话纯逻辑（issue #564）。
  * 与 DOM/Vditor 解耦：输入侧喂入光标前文本，输出识别到的 token 与排序后的候选，
@@ -10,7 +11,10 @@ export interface MentionUser {
   id: number
   username: string
   nickname?: string
+  decoration?: UserDecoration
   avatarUrl: string
+  /** Actor kind from authoritative mention search, enriched onto matching local context. */
+  actorType?: 'human' | 'bot'
   /** 本地上下文弱标签：正在回复 / 主题作者 / 参与者（仅本地候选带） */
   tag?: 'reply-target' | 'topic-author' | 'participant'
 }
@@ -98,10 +102,13 @@ export function rankMentionCandidates(input: MentionRankInput): MentionUser[] {
   const { local, server, query, currentUserId = 0, limit = 8 } = input
   const seen = new Set<number>()
   const out: MentionUser[] = []
+  // Context owns order/tag; server search owns actor identity for the same user.
+  const actorTypes = new Map(server.filter(user => user.actorType).map(user => [user.id, user.actorType]))
   const push = (user: MentionUser) => {
     if (user.id === currentUserId || seen.has(user.id)) return
     seen.add(user.id)
-    out.push(user)
+    const actorType = actorTypes.get(user.id)
+    out.push(actorType && actorType !== user.actorType ? { ...user, actorType } : user)
   }
 
   const localSorted = [...local].sort((a, b) => {

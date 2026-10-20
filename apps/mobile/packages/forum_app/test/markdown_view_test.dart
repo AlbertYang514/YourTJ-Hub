@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_draft_preview.dart';
@@ -12,6 +15,7 @@ import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
+import 'package:forum_app/src/link_navigation.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/reading_preferences.dart';
 import 'package:forum_app/src/widgets/rich_content/gf_code_block.dart';
@@ -51,7 +55,7 @@ class _FakeStickerRepository extends StickerRepository {
 }
 
 class _FakeLinkPreviewRepository extends LinkPreviewRepository {
-  _FakeLinkPreviewRepository(this.previews)
+  _FakeLinkPreviewRepository(this.previews, {this.response})
     : super(
         GfApiClient(
           dio: Dio(BaseOptions(baseUrl: 'http://test')),
@@ -60,12 +64,13 @@ class _FakeLinkPreviewRepository extends LinkPreviewRepository {
       );
 
   final List<LinkPreviewPayload> previews;
+  final Completer<List<LinkPreviewPayload>>? response;
   List<String>? requestedUrls;
 
   @override
   Future<List<LinkPreviewPayload>> resolve(List<String> urls) async {
     requestedUrls = List<String>.of(urls);
-    return previews;
+    return response?.future ?? previews;
   }
 }
 
@@ -73,6 +78,32 @@ Widget _wrap(Widget child) => MaterialApp(
   theme: gfThemeData(Brightness.light),
   home: Scaffold(body: Column(children: [child])),
 );
+
+Offset _textOffsetToPosition(RenderParagraph paragraph, int offset) {
+  const caret = Rect.fromLTWH(0, 0, 2, 20);
+  final localOffset =
+      paragraph.getOffsetForCaret(TextPosition(offset: offset), caret) +
+      Offset(0, paragraph.preferredLineHeight);
+  return paragraph.localToGlobal(localOffset) + const Offset(0, -2);
+}
+
+RenderParagraph _paragraphContaining(WidgetTester tester, String text) {
+  final richText = find.byWidgetPredicate(
+    (widget) =>
+        widget is RichText &&
+        widget.text.toPlainText(includePlaceholders: false).contains(text),
+  );
+  return tester.renderObject<RenderParagraph>(richText.first);
+}
+
+bool _isTwemojiAsset(Widget widget) {
+  if (widget is! Image) return false;
+  final image = widget.image;
+  final provider = image is ResizeImage ? image.imageProvider : image;
+  return provider is AssetImage &&
+      provider.package == 'ui_kit' &&
+      provider.assetName.contains('twemoji-public/twemoji/72x72/');
+}
 
 /// Flattens every [TextSpan] of a rendered rich text so style assertions can
 /// look at the actual token spans instead of the outer wrapper.
@@ -375,6 +406,138 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
+  testWidgets('platform cards localize source, type badge and uploader', (
+    tester,
+  ) async {
+    // 服务端只给平台标识与作者原文，展示名与称呼都由客户端按语言渲染（issue
+    // #1201）。B 站卡片的来源行必须是本地化的「哔哩哔哩」，而不是由页面 og
+    // 决定的文本；真实 host 仍保留，离开前能看到去哪。窄屏是最紧的一档：来源行
+    // 要同时容纳平台名与类型徽标，溢出会直接让这条用例失败。
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const String url = 'https://www.bilibili.com/video/BV1B7411m7LV';
+    final repository = _FakeLinkPreviewRepository(const <LinkPreviewPayload>[
+      LinkPreviewPayload(
+        requestedUrl: url,
+        kind: 'external',
+        status: 'ready',
+        url: url,
+        displayHost: 'www.bilibili.com',
+        siteName: '哔哩哔哩',
+        title: '四月番毒奶安利！四月看这八部动画就够了！！',
+        description: '点个关注再走啦~',
+        platform: 'bilibili',
+        resourceType: 'video',
+        author: '瓶子君152',
+      ),
+    ]);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          linkPreviewRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(body: GfMarkdownView(data: url)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('哔哩哔哩'), findsOneWidget);
+    expect(find.text('视频'), findsOneWidget);
+    expect(find.text('UP主：瓶子君152'), findsOneWidget);
+    expect(find.text('www.bilibili.com'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('apple music song cards label the artist, not an album', (
+    tester,
+  ) async {
+    // 歌曲卡片列出艺术家，专辑名只作为描述行出现：歌曲不得被标成专辑
+    // （issue #1201 AC-2）。
+    const String url = 'https://music.apple.com/cn/song/better-together/1440857786';
+    final repository = _FakeLinkPreviewRepository(const <LinkPreviewPayload>[
+      LinkPreviewPayload(
+        requestedUrl: url,
+        kind: 'external',
+        status: 'ready',
+        url: url,
+        displayHost: 'music.apple.com',
+        siteName: 'Apple Music - 网页播放器',
+        title: 'Better Together',
+        description: 'In Between Dreams (Bonus Track Version)',
+        imageUrl: 'https://is1-ssl.mzstatic.com/image/thumb/x/600x600bb.jpg',
+        platform: 'apple_music',
+        resourceType: 'song',
+        author: 'Jack Johnson',
+      ),
+    ]);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          linkPreviewRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(body: GfMarkdownView(data: url)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 来源行按平台标识渲染，忽略页面自己的 og:site_name。
+    expect(find.text('Apple Music'), findsOneWidget);
+    expect(find.text('歌曲'), findsOneWidget);
+    expect(find.text('艺术家：Jack Johnson'), findsOneWidget);
+    expect(find.text('Apple Music - 网页播放器'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('generic cards keep the page source and add no platform chrome', (
+    tester,
+  ) async {
+    const String url = 'https://example.com/article';
+    final repository = _FakeLinkPreviewRepository(const <LinkPreviewPayload>[
+      LinkPreviewPayload(
+        requestedUrl: url,
+        kind: 'external',
+        status: 'ready',
+        url: url,
+        displayHost: 'example.com',
+        siteName: 'Example',
+        title: 'Example title',
+      ),
+    ]);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          linkPreviewRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(body: GfMarkdownView(data: url)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Example'), findsOneWidget);
+    expect(find.textContaining('UP主：'), findsNothing);
+    expect(find.textContaining('艺术家：'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
   testWidgets('failed preview keeps the original link readable', (
     tester,
   ) async {
@@ -485,6 +648,46 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
+  testWidgets('whitelisted targets still confirm when the label is mislabeled', (
+    tester,
+  ) async {
+    // 白名单只豁免 normalExternal（issue #1200）：帖子正文是最高流量面，
+    // 「标签与目标不符」的链接即使目标命中白名单也必须弹确认层。
+    LinkNavigation.applyTrustedDomains(const <String>['github.com']);
+    addTearDown(() => LinkNavigation.applyTrustedDomains(const <String>[]));
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          locale: Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: GfMarkdownView(
+              data: '[https://bank.example](https://github.com/x)',
+            ),
+          ),
+        ),
+      ),
+    );
+    final RichText link = tester.widget<RichText>(
+      find.byWidgetPredicate(
+        (Widget widget) =>
+            widget is RichText &&
+            widget.text.toPlainText().contains('bank.example'),
+      ),
+    );
+    _linkRecognizer(link.text)?.onTap?.call();
+    await tester.pumpAndSettle();
+    expect(find.text('Leaving YourTJ'), findsOneWidget);
+    // suspicious 不提供「本次浏览期间不再询问」。
+    expect(find.byType(CheckboxListTile), findsNothing);
+    await tester.ensureVisible(find.text('Cancel'));
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
   testWidgets('userinfo links are rejected without opening the guard', (
     tester,
   ) async {
@@ -565,6 +768,200 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
   });
+
+  testWidgets(
+    'selectable markdown copies across headings paragraphs and lists',
+    (tester) async {
+      const markdown = '''
+# 标题 🐦‍🔥
+
+第一段 mixed English 中文 😀 text。
+
+第二段 keeps 🇺🇸, ordinary text, and &#xE000; together.
+
+- 列表项一 👩🏽‍🚀
+- 列表项二 with more text
+''';
+      String? copied;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            home: const Scaffold(
+              body: SingleChildScrollView(
+                child: GfMarkdownView(data: markdown, selectable: true),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byWidgetPredicate(_isTwemojiAsset), findsNWidgets(4));
+      expect(find.byType(GfSelectionArea), findsOneWidget);
+      expect(find.byType(SelectableRegion), findsOneWidget);
+      final heading = _paragraphContaining(tester, '标题');
+      final lastListItem = _paragraphContaining(tester, '列表项二');
+      final gesture = await tester.startGesture(
+        _textOffsetToPosition(heading, 0),
+        kind: PointerDeviceKind.mouse,
+      );
+      addTearDown(gesture.removePointer);
+      await tester.pump();
+      await gesture.moveTo(
+        _textOffsetToPosition(
+          lastListItem,
+          lastListItem.text.toPlainText(includePlaceholders: false).length,
+        ),
+      );
+      await gesture.up();
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyC);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyC);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+
+      expect(copied, contains('标题'));
+      expect(copied, contains('第一段'));
+      expect(copied, contains('第二段'));
+      expect(copied, contains('列表项一'));
+      expect(copied, contains('列表项二'));
+      expect(copied, contains('🐦‍🔥'));
+      expect(copied, contains('😀'));
+      expect(copied, contains('🇺🇸'));
+      expect(copied, contains('👩🏽‍🚀'));
+      expect(copied, contains('\uE000'));
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.linux),
+  );
+
+  testWidgets(
+    'async link preview PUA text does not disable cross-node Emoji copy',
+    (tester) async {
+      const url = 'https://example.com/async-preview';
+      const markdown = '# 前文 🐦‍🔥\n\n$url\n\n后文 😀';
+      final response = Completer<List<LinkPreviewPayload>>();
+      final repository = _FakeLinkPreviewRepository(
+        const <LinkPreviewPayload>[],
+        response: response,
+      );
+      String? copied;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: <Override>[
+            linkPreviewRepositoryProvider.overrideWithValue(repository),
+          ],
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            home: const Scaffold(
+              body: SingleChildScrollView(
+                child: GfMarkdownView(data: markdown, selectable: true),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(repository.requestedUrls, <String>[url]);
+      expect(find.byType(GfLinkPreviewCard), findsNothing);
+
+      Future<void> selectAllAndCopy() async {
+        final region = tester.state<SelectableRegionState>(
+          find.byType(SelectableRegion),
+        );
+        region.selectAll(SelectionChangedCause.keyboard);
+        await tester.pump();
+        final selectionArea = tester.widget<SelectionArea>(
+          find.byType(SelectionArea),
+        );
+        final toolbar =
+            selectionArea.contextMenuBuilder!(
+                  tester.element(find.byType(SelectionArea)),
+                  region,
+                )
+                as AdaptiveTextSelectionToolbar;
+        toolbar.buttonItems!
+            .singleWhere((item) => item.type == ContextMenuButtonType.copy)
+            .onPressed!();
+        await tester.pump();
+      }
+
+      await selectAllAndCopy();
+      expect(copied, contains('前文 🐦‍🔥'));
+      expect(copied, contains(url));
+      expect(copied, contains('后文 😀'));
+
+      response.complete(const <LinkPreviewPayload>[
+        LinkPreviewPayload(
+          requestedUrl: url,
+          kind: 'external',
+          status: 'ready',
+          url: url,
+          displayHost: 'example.com',
+          siteName: '站点 \uE000 🐦‍🔥',
+          title: '标题 \uE000 🐦‍🔥',
+          description: '说明 \uE000 😀',
+        ),
+      ]);
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(GfLinkPreviewCard), findsOneWidget);
+      expect(find.byType(GfSelectionArea), findsOneWidget);
+      expect(find.byType(SelectableRegion), findsOneWidget);
+      copied = null;
+      await selectAllAndCopy();
+
+      expect(copied, isNotNull);
+      expect(copied, contains('前文 🐦‍🔥'));
+      expect(copied, contains('站点 \uE000 🐦‍🔥'));
+      expect(copied, contains('标题 \uE000 🐦‍🔥'));
+      expect(copied, contains('说明 \uE000 😀'));
+      expect(copied, contains('后文 😀'));
+      expect(copied, isNot(contains('\uD800')));
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.linux),
+  );
 
   testWidgets('embedded markdown does not repeat device safe-area spacing', (
     tester,
@@ -826,10 +1223,9 @@ void main() {
             widget.text.toPlainText().contains('final int answer'),
       ),
     );
-    final tokenColors = _textSpans(rendered.text)
-        .map((span) => span.style?.color)
-        .whereType<Color>()
-        .toSet();
+    final tokenColors = _textSpans(
+      rendered.text,
+    ).map((span) => span.style?.color).whereType<Color>().toSet();
     expect(tokenColors.length, greaterThan(1));
     expect(find.text('DART'), findsOneWidget);
 
@@ -851,7 +1247,9 @@ void main() {
   ) async {
     await tester.pumpWidget(
       ProviderScope(
-        child: _wrap(const GfMarkdownView(data: '```klingon\nplain body\n```')),
+        child: _wrap(
+          const GfMarkdownView(data: '```klingon\nplain 🔥 body\n```'),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -863,10 +1261,12 @@ void main() {
       find.byWidgetPredicate(
         (Widget widget) =>
             widget is RichText &&
-            widget.text.toPlainText().contains('plain body'),
+            widget.text.toPlainText().contains('plain 🔥 body'),
       ),
       findsOneWidget,
     );
+    // 未高亮的代码块走 `GfText(source, style: 代码样式)` 分支，同样不出图。
+    expect(find.byWidgetPredicate(_isTwemojiAsset), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
   });
@@ -949,6 +1349,72 @@ void main() {
       closeTo(17 * (1 + .45 * emphasis) * 1.4, .001),
     );
     expect(config.h1.style.fontSize, lessThan(17 * 1.45 * 1.4));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('inline and fenced code keep emoji as source text', (tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: GfMarkdownView(
+              data: '正文 🐦‍🔥 和 `代码 🐦‍🔥`\n\n```\n块 🐦‍🔥\n```',
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // 只有正文里的 emoji 变成 Twemoji 图片；行内代码与围栏代码保持原始
+    // Unicode（对齐 Web 渲染器的 skip-code 行为，MADR 0089）。
+    expect(find.byWidgetPredicate(_isTwemojiAsset), findsOneWidget);
+    final plainTexts = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((richText) => richText.text.toPlainText())
+        .toList();
+    expect(plainTexts.any((text) => text.contains('代码 🐦‍🔥')), isTrue);
+    expect(plainTexts.any((text) => text.contains('块 🐦‍🔥')), isTrue);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('inline code inside a link keeps emoji as source text', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: _wrap(
+          const GfMarkdownView(
+            data:
+                '[链接 🐦‍🔥](https://example.com) 与 '
+                '[`代码 🔥`](https://example.com)',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // 链接会把子 span 重建成带点击识别器的普通 TextSpan；行内代码仍须保持
+    // 原始 Unicode（MADR 0089 skip-code），链接里的正文 emoji 照常出图。
+    expect(find.byWidgetPredicate(_isTwemojiAsset), findsOneWidget);
+    final plainTexts = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((richText) => richText.text.toPlainText())
+        .toList();
+    expect(plainTexts.any((text) => text.contains('代码 🔥')), isTrue);
+    // 链接会重建标签的 span 以挂点击识别器；行内代码的 span 仍须可点击。
+    expect(
+      tester
+          .widgetList<RichText>(find.byType(RichText))
+          .map((richText) => richText.text)
+          .where((span) => span.toPlainText().contains('代码 🔥'))
+          .any((span) => _linkRecognizer(span) != null),
+      isTrue,
+    );
+
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
   });

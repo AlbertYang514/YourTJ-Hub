@@ -1,3 +1,5 @@
+import 'moderation_appeal.dart';
+
 /// Mirrors the user-content OpenAPI domain. Permissions come from the server.
 class UserContentItem {
   const UserContentItem({
@@ -9,9 +11,23 @@ class UserContentItem {
     this.deletedAt = '',
     this.topicId,
     this.postNo,
+    this.processStatus = 0,
+    this.revisionId = 0,
+    this.reviewReason = '',
+    this.hasPublishedVersion = false,
+    this.content = '',
+    this.images = const [],
     this.canRestore = false,
     this.canPermanent = false,
+    this.canAppeal = false,
+    this.appeal,
   });
+  final int processStatus;
+  final int revisionId;
+  final String reviewReason;
+  final bool hasPublishedVersion;
+  final String content;
+  final List<String> images;
   final int id;
   final String contentType;
   final String title;
@@ -22,6 +38,12 @@ class UserContentItem {
   final int? postNo;
   final bool canRestore;
   final bool canPermanent;
+
+  /// The latest rejected revision can still be appealed (#1114).
+  final bool canAppeal;
+
+  /// Appeal filed for the latest revision; null until one exists.
+  final ModerationAppealOwnerSummary? appeal;
   factory UserContentItem.fromJson(Map<String, dynamic> json) =>
       UserContentItem(
         id: (json['id'] as num).toInt(),
@@ -32,8 +54,20 @@ class UserContentItem {
         deletedAt: json['deletedAt'] as String? ?? '',
         topicId: (json['topicId'] as num?)?.toInt(),
         postNo: (json['postNo'] as num?)?.toInt(),
+        processStatus: (json['processStatus'] as num?)?.toInt() ?? 0,
+        revisionId: (json['revisionId'] as num?)?.toInt() ?? 0,
+        reviewReason: json['reviewReason'] as String? ?? '',
+        hasPublishedVersion: json['hasPublishedVersion'] == true,
+        content: json['content'] as String? ?? '',
+        images: (json['images'] as List? ?? []).cast<String>(),
         canRestore: json['canRestore'] == true,
         canPermanent: json['canPermanent'] == true,
+        canAppeal: json['canAppeal'] == true,
+        appeal: json['appeal'] is Map<String, dynamic>
+            ? ModerationAppealOwnerSummary.fromJson(
+                json['appeal'] as Map<String, dynamic>,
+              )
+            : null,
       );
 }
 

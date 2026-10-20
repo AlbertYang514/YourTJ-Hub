@@ -1,14 +1,17 @@
 <script setup lang="ts">
+import { appealNotice, notificationText as describeNotification } from '@/runtime/notification-text'
+import UserNickname from '@/site/components/UserNickname.vue'
+import { authorURL } from '@/runtime/anonymous-identity'
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { Award, Bell, Check, CheckCheck, CheckCircle2, Info, MessageCircle, ShieldAlert, UserPlus } from '@lucide/vue'
+import { Award, Bell, CircleSlash, Clock, Check, CheckCheck, CheckCircle2, Info, MessageCircle, Scale, ShieldAlert, UserPlus, XCircle } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import { fetchNotifications, markAllNotificationsRead, markNotificationRead } from '@/runtime/api'
 import { formatDateTime } from '@/runtime/format'
 import { useUnreadStatus } from '@/runtime/unread-status'
 import EmptyState from '@/site/components/EmptyState.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
-import type { LayoutPayload, NotificationFilter, NotificationPayload, NotificationsPageProps } from '@gooseforum/client'
+import type { LayoutPayload, NotificationCategory, NotificationFilter, NotificationPayload, NotificationsPageProps } from '@gooseforum/client'
 
 const page = defineProps<{
   layout: LayoutPayload
@@ -24,7 +27,12 @@ interface NotificationListState {
 }
 
 const pageSize = 20
-const activeFilter = ref<NotificationFilter>('all')
+const activeFilter = ref<NotificationFilter>(page.props.filter ?? 'all')
+const activeCategory = ref<NotificationCategory>(page.props.category ?? 'all')
+const categories: NotificationCategory[] = ['all', 'mentions', 'replies', 'likes', 'following', 'system']
+let categoryGeneration = 0
+// 用户最近一次主动选择的分类；服务端 payload 只在它为空或与 payload 分类相同时接管。
+let userCategory: NotificationCategory | null = null
 const unreadCount = ref(page.props.unreadCount)
 const markingAllRead = ref(false)
 const actionError = ref('')
@@ -35,18 +43,18 @@ let loadObserver: IntersectionObserver | undefined
 
 const lists = reactive<Record<NotificationFilter, NotificationListState>>({
   all: {
-    items: copyNotifications(page.props.notifications),
+    items: page.props.filter === 'unread' ? [] : copyNotifications(page.props.notifications),
     nextCursor: initialNextCursor(),
     hasNext: page.props.pagination.hasNext,
     loading: false,
-    loaded: true,
+    loaded: page.props.filter !== 'unread',
   },
   unread: {
-    items: [],
-    nextCursor: 0,
-    hasNext: true,
+    items: page.props.filter === 'unread' ? copyNotifications(page.props.notifications) : [],
+    nextCursor: page.props.filter === 'unread' ? initialNextCursor() : 0,
+    hasNext: page.props.filter === 'unread' ? page.props.pagination.hasNext : true,
     loading: false,
-    loaded: false,
+    loaded: page.props.filter === 'unread',
   },
 })
 
@@ -64,24 +72,47 @@ if (page.props.unreadCount === 0) {
 watch(
   () => page.props.notifications,
   () => {
-    lists.all.items = copyNotifications(page.props.notifications)
-    lists.all.nextCursor = initialNextCursor()
-    lists.all.hasNext = page.props.pagination.hasNext
-    lists.all.loaded = true
-    lists.all.loading = false
-    lists.unread.items = []
-    lists.unread.nextCursor = 0
-    lists.unread.hasNext = true
-    lists.unread.loaded = false
-    lists.unread.loading = false
+    const incomingCategory = page.props.category ?? 'all'
+    const incomingFilter = page.props.filter ?? 'all'
+    // 服务端 payload 只在没有更新的用户选择时接管分类：同一次 flush 内既刷新
+    // props 又点击分类时，点击胜出（issue #1183 第 3 项），否则 props 刷新会
+    // 把选中项改回服务端分类而列表还停在用户刚加载的数据上。
+    if (userCategory === null || userCategory === incomingCategory) {
+      userCategory = null
+      categoryGeneration++
+      activeCategory.value = incomingCategory
+      activeFilter.value = incomingFilter
+      for (const filter of ['all', 'unread'] as const) {
+        Object.assign(lists[filter], {
+          items: filter === incomingFilter ? copyNotifications(page.props.notifications) : [],
+          nextCursor: filter === incomingFilter ? initialNextCursor() : 0,
+          hasNext: filter === incomingFilter ? page.props.pagination.hasNext : true,
+          loaded: filter === incomingFilter,
+          loading: false,
+        })
+      }
+      actionError.value = ''
+    }
     unreadCount.value = page.props.unreadCount
-    actionError.value = ''
     if (page.props.unreadCount === 0) {
       unreadStatus.clearNotifications()
     }
     void nextTick(observeLoadMore)
   },
 )
+
+// 分类点击直接加载，不经过 activeCategory watcher：用户意图必须一次点击即生效，
+// 不能与服务端 props 刷新共用握手状态。
+async function selectCategory(category: NotificationCategory) {
+  if (category === activeCategory.value) return
+  userCategory = category
+  activeCategory.value = category
+  categoryGeneration++
+  for (const filter of ['all', 'unread'] as const) {
+    Object.assign(lists[filter], { items: [], nextCursor: 0, hasNext: true, loading: false, loaded: false })
+  }
+  await loadNotifications(activeFilter.value, true)
+}
 
 watch(activeFilter, async (filter) => {
   actionError.value = ''
@@ -140,10 +171,12 @@ async function loadNotifications(filter: NotificationFilter, reset = false) {
   if (list.loading) return
   if (!reset && !list.hasNext) return
 
+  const generation = categoryGeneration
   list.loading = true
   actionError.value = ''
   try {
-    const payload = await fetchNotifications(filter, reset ? 0 : list.nextCursor, pageSize)
+    const payload = await fetchNotifications(filter, reset ? 0 : list.nextCursor, pageSize, activeCategory.value)
+    if (generation !== categoryGeneration) return
     const nextItems = payload.items.map((item) => ({ ...item }))
     list.items = reset ? nextItems : mergeNotifications(list.items, nextItems)
     list.nextCursor = payload.nextCursor
@@ -152,8 +185,10 @@ async function loadNotifications(filter: NotificationFilter, reset = false) {
     unreadCount.value = payload.unreadCount
     unreadStatus.setNotifications(payload.unreadCount > 0)
   } catch (error) {
+    if (generation !== categoryGeneration) return
     actionError.value = error instanceof Error ? error.message : t('api.notificationsLoadFailed')
   } finally {
+    if (generation !== categoryGeneration) return
     list.loading = false
     await nextTick()
     observeLoadMore()
@@ -177,10 +212,23 @@ function setActiveFilter(filter: NotificationFilter) {
 
 // 人工审核结果（issue #975）：无触发者，标题即结论，副行说明后续。
 function isReviewResult(item: NotificationPayload) {
-  return item.eventType === 'review_approved' || item.eventType === 'review_rejected'
+  return item.eventType === 'review_pending' || item.eventType === 'review_approved' || item.eventType === 'review_rejected'
+}
+
+// 申诉结论与审核结果同屏，但图标、详情和去向各自独立，避免“申诉被驳回”读成“新内容被拒”。
+const appealIcons = { appealSubmitted: Scale, appealApproved: CheckCircle2, appealRejected: XCircle, appealStale: CircleSlash }
+
+function reviewDetail(item: NotificationPayload) {
+  const appeal = appealNotice(item)
+  if (appeal) return t(`notifications.${appeal}Detail`)
+  if (item.eventType === 'review_pending') return t('notifications.reviewPendingDetail')
+  return item.eventType === 'review_approved' ? t('notifications.reviewApprovedDetail') : t('notifications.reviewRejectedDetail')
 }
 
 function notificationIcon(item: NotificationPayload) {
+  const appeal = appealNotice(item)
+  if (appeal) return appealIcons[appeal]
+  if (item.eventType === 'review_pending') return Clock
   if (item.eventType === 'review_approved') return CheckCircle2
   if (item.eventType === 'review_rejected') return ShieldAlert
   if (item.eventType === 'follow') return UserPlus
@@ -189,27 +237,18 @@ function notificationIcon(item: NotificationPayload) {
   return MessageCircle
 }
 
+// Private contact labels belong only to the authenticated list, never push copy.
+function notificationDescription(item: NotificationPayload) {
+  const actor = item.actor
+  return describeNotification(actor ? { ...item, actor: { ...actor, username: userDisplayName(actor.id, actor.username, actor.nickname) } } : item, t)
+}
+
 function notificationText(item: NotificationPayload) {
-  const templateText = notificationTemplateText(item)
-  if (item.eventType === 'badge') {
-    return templateText || (item.payload.metadata?.badgeName
-      ? t('notifications.badgeEarned', { badge: item.payload.metadata.badgeName })
-      : item.content || item.payload.content || t('notifications.fallback'))
-  }
-  if (item.eventType === 'follow') {
-    return templateText || item.content || item.payload.content || t('notifications.followDescription', { actor: actorName(item) })
-  }
-  // 无标题瞬间：无标题时回退到模板文案/正文，避免渲染空通知文本。
-  if (item.topic?.title) {
-    return item.topic.title
-  }
-  if (templateText) return templateText
-  return item.content || item.payload.content || t('notifications.fallback')
+  return item.topic?.title || notificationDescription(item)
 }
 
 function notificationTitleText(item: NotificationPayload) {
-  if (isReviewResult(item)) return notificationTemplateText(item) || t('notifications.fallback')
-  return item.title || t('notifications.fallback')
+  return notificationDescription(item)
 }
 
 function notificationTemplateText(item: NotificationPayload) {
@@ -233,13 +272,30 @@ function notificationTemplateText(item: NotificationPayload) {
     }
     case 'notifications.templates.wikiUpdated':
       return t('notifications.templates.wikiUpdated')
+    case 'notifications.templates.reviewPending':
+      return t('notifications.templates.reviewPending')
     case 'notifications.templates.reviewApproved':
       return t('notifications.templates.reviewApproved')
     case 'notifications.templates.reviewRejected':
       return t('notifications.templates.reviewRejected')
+    case 'notifications.templates.appealSubmitted':
+    case 'notifications.templates.appealApproved':
+    case 'notifications.templates.appealRejected':
+    case 'notifications.templates.appealStale':
+      return t(`notifications.templates.${appealNotice(item)}`)
     default:
       return ''
   }
+}
+
+function notificationTone(item: NotificationPayload) {
+  if (appealNotice(item) === 'appealStale') return 'text-base-content/55'
+  if (item.eventType === 'review_approved') return item.isRead ? 'text-base-content/55' : 'text-success'
+  if (item.eventType === 'review_rejected') return item.isRead ? 'text-base-content/55' : 'text-error'
+  if (item.eventType === 'follow') return item.isRead ? 'text-base-content/55' : 'text-success'
+  if (item.eventType === 'badge') return item.isRead ? 'text-base-content/55' : 'text-warning'
+  if (item.eventType === 'system') return item.isRead ? 'text-base-content/55' : 'text-warning'
+  return item.isRead ? 'text-base-content/55' : 'text-primary'
 }
 
 function notificationVerb(item: NotificationPayload) {
@@ -253,25 +309,17 @@ function notificationVerb(item: NotificationPayload) {
   return notificationTitleText(item)
 }
 
-function notificationTone(item: NotificationPayload) {
-  if (item.eventType === 'review_approved') return item.isRead ? 'text-base-content/55' : 'text-success'
-  if (item.eventType === 'review_rejected') return item.isRead ? 'text-base-content/55' : 'text-error'
-  if (item.eventType === 'follow') return item.isRead ? 'text-base-content/55' : 'text-success'
-  if (item.eventType === 'badge') return item.isRead ? 'text-base-content/55' : 'text-warning'
-  if (item.eventType === 'system') return item.isRead ? 'text-base-content/55' : 'text-warning'
-  return item.isRead ? 'text-base-content/55' : 'text-primary'
-}
-
 function actorName(item: NotificationPayload) {
   if (item.eventType === 'badge') return notificationTemplateText(item) || item.title || t('notifications.actorFallback')
   return userDisplayName(item.actor.id, item.actor.username || item.payload.actorName || item.payload.metadata?.followerName || t('notifications.actorFallback'), item.actor.nickname)
 }
 
 function actorURL(item: NotificationPayload) {
-  return item.actor.id ? `/u/${item.actor.id}` : ''
+  return authorURL(item.actor)
 }
 
 function targetURL(item: NotificationPayload) {
+  if (item.eventType === 'review_rejected' || appealNotice(item) === 'appealSubmitted') return '/settings?tab=content'
   if (item.topic) return item.topic.url
   if (item.eventType === 'badge') return item.payload.metadata?.profileUrl || actorURL(item)
   if (item.eventType === 'follow') return actorURL(item)
@@ -281,32 +329,18 @@ function targetURL(item: NotificationPayload) {
 async function markAllRead() {
   if (!hasUnread.value || markingAllRead.value) return
 
-  const previousAll = copyNotifications(lists.all.items)
-  const previousUnread = copyNotifications(lists.unread.items)
-  const previousUnreadState = {
-    nextCursor: lists.unread.nextCursor,
-    hasNext: lists.unread.hasNext,
-    loaded: lists.unread.loaded,
-  }
-  const previousUnreadCount = unreadCount.value
   markingAllRead.value = true
   actionError.value = ''
-  lists.all.items = lists.all.items.map((item) => ({ ...item, isRead: true }))
-  lists.unread.items = []
-  lists.unread.nextCursor = 0
-  lists.unread.hasNext = false
-  lists.unread.loaded = true
-  unreadCount.value = 0
   try {
     await markAllNotificationsRead()
+    lists.all.items = lists.all.items.map((item) => ({ ...item, isRead: true }))
+    lists.unread.items = []
+    lists.unread.nextCursor = 0
+    lists.unread.hasNext = false
+    lists.unread.loaded = true
+    unreadCount.value = 0
     unreadStatus.clearNotifications()
   } catch (error) {
-    lists.all.items = previousAll
-    lists.unread.items = previousUnread
-    lists.unread.nextCursor = previousUnreadState.nextCursor
-    lists.unread.hasNext = previousUnreadState.hasNext
-    lists.unread.loaded = previousUnreadState.loaded
-    unreadCount.value = previousUnreadCount
     actionError.value = error instanceof Error ? error.message : t('notifications.markAllReadFailed')
   } finally {
     markingAllRead.value = false
@@ -316,6 +350,7 @@ async function markAllRead() {
 function markItemRead(item: NotificationPayload) {
   if (item.isRead) return
 
+  const generation = categoryGeneration
   const previousAll = copyNotifications(lists.all.items)
   const previousUnread = copyNotifications(lists.unread.items)
   const previousUnreadCount = unreadCount.value
@@ -327,9 +362,12 @@ function markItemRead(item: NotificationPayload) {
   unreadStatus.setNotifications(unreadCount.value > 0)
 
   void markNotificationRead(notificationId).catch(() => {
-    lists.all.items = previousAll
-    lists.unread.items = previousUnread
-    unreadCount.value = previousUnreadCount
+    if (generation === categoryGeneration) {
+      lists.all.items = previousAll
+      lists.unread.items = previousUnread
+      unreadCount.value = previousUnreadCount
+      unreadStatus.setNotifications(previousUnreadCount > 0)
+    }
     void unreadStatus.refresh(true).catch(() => undefined)
   })
 }
@@ -364,24 +402,15 @@ function markItemReadAndNavigate(item: NotificationPayload) {
     </PageHeader>
 
     <section class="gf-card overflow-hidden">
-      <div class="flex items-center gap-1 border-b border-line bg-base-200/60 p-2">
-        <button
-          type="button"
-          class="gf-tab"
-          :class="activeFilter === 'all' ? 'bg-base-100 text-base-content shadow-sm ring-1 ring-line' : 'text-base-content/55 hover:bg-base-100/70 hover:text-base-content'"
-          @click="setActiveFilter('all')"
-        >
-          {{ t('notifications.tabs.all') }}
-        </button>
-        <button
-          type="button"
-          class="gf-tab gap-1.5"
-          :class="activeFilter === 'unread' ? 'bg-base-100 text-base-content shadow-sm ring-1 ring-line' : 'text-base-content/55 hover:bg-base-100/70 hover:text-base-content'"
-          @click="setActiveFilter('unread')"
-        >
+      <div class="flex flex-wrap items-center gap-1 border-b border-line bg-base-200/60 p-2">
+        <button v-for="category in categories" :key="category" type="button" class="gf-tab"
+          :aria-pressed="activeCategory === category"
+          :class="activeCategory === category ? 'bg-base-100 text-base-content shadow-sm ring-1 ring-line' : 'text-base-content/55 hover:bg-base-100/70'"
+          @click="selectCategory(category)">{{ t(`notifications.tabs.${category}`) }}</button>
+        <label class="ml-auto flex items-center gap-2 px-2 text-sm">
+          <input type="checkbox" :checked="activeFilter === 'unread'" @change="setActiveFilter(activeFilter === 'unread' ? 'all' : 'unread')" />
           {{ t('notifications.tabs.unread') }}
-          <span v-if="unreadCount" class="gf-badge gf-badge-info px-1.5 text-[11px] font-bold tabular-nums">{{ unreadCount }}</span>
-        </button>
+        </label>
       </div>
 
       <div class="hidden grid-cols-[34px_minmax(0,1fr)_116px_40px] gap-3 border-b border-line bg-base-200/60 px-3 py-2 text-[11px] font-bold uppercase text-base-content/75 md:grid">
@@ -405,14 +434,16 @@ function markItemReadAndNavigate(item: NotificationPayload) {
             <component :is="notificationIcon(item)" class="h-4 w-4" :class="notificationTone(item)" />
           </div>
           <div class="min-w-0">
-            <div class="flex min-w-0 items-center gap-1.5 text-sm leading-5">
+            <div class="flex min-w-0 items-center gap-1.5 text-sm leading-5" :class="{ 'flex-wrap': isReviewResult(item) }">
               <a v-if="actorURL(item) && item.eventType !== 'badge'" :href="actorURL(item)" class="max-w-[42%] shrink-0 truncate font-semibold text-base-content hover:text-primary" @click="markItemReadAndNavigate(item)">
-                {{ actorName(item) }}
+                <UserNickname :style-definition="item.actor?.decoration?.nicknameStyle">{{ actorName(item) }}</UserNickname>
               </a>
-              <span v-else class="max-w-[42%] shrink-0 truncate font-semibold text-base-content">{{ item.eventType === 'follow' ? actorName(item) : notificationTitleText(item) }}</span>
-              <span class="shrink-0 text-base-content/55">{{ item.actor.id || item.eventType === 'follow' ? notificationVerb(item) : '' }}</span>
+              <span v-else class="shrink-0 font-semibold text-base-content" :class="isReviewResult(item) ? 'w-full' : 'max-w-[42%] truncate'">{{ item.eventType === 'follow' ? actorName(item) : notificationTitleText(item) }}</span>
+              <span class="shrink-0 text-base-content/55">{{ item.actor.id || item.actor.publicUid || item.eventType === 'follow' ? notificationVerb(item) : '' }}</span>
+              <a v-if="isReviewResult(item) && targetURL(item)" :href="targetURL(item)" class="min-w-0 truncate font-medium text-primary" @click="markItemReadAndNavigate(item)">{{ item.payload.topicTitle || t('contentReview.view') }}</a>
+              <span v-else-if="isReviewResult(item)" class="min-w-0 truncate font-medium text-base-content/75">{{ item.payload.topicTitle }}</span>
               <a
-                v-if="item.topic"
+                v-else-if="item.topic"
                 :href="item.topic.url"
                 class="min-w-0 max-w-full truncate font-semibold text-primary hover:text-primary"
                 @click="markItemReadAndNavigate(item)"
@@ -435,14 +466,14 @@ function markItemReadAndNavigate(item: NotificationPayload) {
               >
                 {{ t('notifications.viewProfile') }}
               </a>
-              <span v-else-if="item.actor.id || item.eventType === 'follow'" class="font-medium text-base-content/75">{{ notificationText(item) }}</span>
-              <span v-else-if="isReviewResult(item) && item.payload.topicTitle" class="min-w-0 truncate font-medium text-base-content/75">{{ item.payload.topicTitle }}</span>
+              <span v-else-if="item.actor.id || item.actor.publicUid || item.eventType === 'follow'" class="font-medium text-base-content/75">{{ notificationText(item) }}</span>
               <span v-if="!item.isRead" class="h-1.5 w-1.5 rounded-full bg-primary" />
             </div>
-            <p v-if="isReviewResult(item)" class="mt-0.5 line-clamp-2 text-xs text-base-content/55">
-              {{ item.eventType === 'review_approved' ? t('notifications.reviewApprovedDetail') : t('notifications.reviewRejectedDetail') }}
+            <p v-if="isReviewResult(item)" class="mt-0.5 text-xs text-base-content/55">
+              {{ reviewDetail(item) }}
             </p>
             <p v-else-if="item.content && item.content !== notificationText(item)" class="mt-0.5 line-clamp-1 text-xs text-base-content/55">{{ item.content }}</p>
+            <p v-if="!targetURL(item)" class="mt-0.5 text-xs text-base-content/55">{{ t('notifications.noDirectTarget') }}</p>
             <time class="mt-1 block text-xs text-base-content/55 md:hidden">{{ formatDateTime(item.createdAt) }}</time>
           </div>
           <time class="hidden text-right text-xs font-medium tabular-nums text-base-content/55 md:block">{{ formatDateTime(item.createdAt) }}</time>

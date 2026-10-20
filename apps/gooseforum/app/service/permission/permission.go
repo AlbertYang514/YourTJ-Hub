@@ -11,6 +11,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/datastruct"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
 	"github.com/samber/lo"
+	"gorm.io/gorm"
 )
 
 var rolePermissionCache = localcache.Cache[[]Enum]{MaxEntries: cacheconfig.Current().RolePermission}
@@ -34,6 +35,8 @@ func (receiver Enum) i18nKey() string {
 		return "permission.siteManager"
 	case CourseManager:
 		return "permission.courseManager"
+	case RevealAnonymousIdentity:
+		return "permission.revealAnonymousIdentity"
 	}
 	return ""
 }
@@ -65,10 +68,11 @@ const (
 	RoleManager
 	SiteManager
 	CourseManager
+	RevealAnonymousIdentity // anonymous.identity.reveal requires an explicit grant.
 )
 
 func BuildOptions(lang string) []datastruct.Option[string, Enum] {
-	return lo.Map(lo.RangeFrom(int(Admin), int(CourseManager-Admin+1)), func(i int, _ int) datastruct.Option[string, Enum] {
+	return lo.Map(lo.RangeFrom(int(Admin), int(RevealAnonymousIdentity-Admin+1)), func(i int, _ int) datastruct.Option[string, Enum] {
 		item := Enum(i)
 		name := item.LocalizedName(lang)
 		return datastruct.Option[string, Enum]{Name: name, Label: name, Value: item}
@@ -76,7 +80,7 @@ func BuildOptions(lang string) []datastruct.Option[string, Enum] {
 }
 
 func All() []Enum {
-	return lo.Map(lo.RangeFrom(int(Admin), int(CourseManager-Admin+1)), func(i int, _ int) Enum {
+	return lo.Map(lo.RangeFrom(int(Admin), int(RevealAnonymousIdentity-Admin+1)), func(i int, _ int) Enum {
 		return Enum(i)
 	})
 }
@@ -103,13 +107,27 @@ func CheckRole(roleId uint64, permission Enum) bool {
 	if len(pList) == 0 {
 		return false
 	}
-	return slices.Contains(pList, permission) || slices.Contains(pList, Admin)
+	return slices.Contains(pList, permission) || (permission != RevealAnonymousIdentity && slices.Contains(pList, Admin))
 }
 
 func CheckAnyRole(roleId uint64) bool {
 	all := All()
 	for _, item := range GetPermissionByRoleId(roleId) {
 		if slices.Contains(all, item) {
+			return true
+		}
+	}
+	return false
+}
+
+// CheckRoleTx reads permission grants using the caller's transaction without the role cache.
+func CheckRoleTx(tx *gorm.DB, roleID uint64, requested Enum) bool {
+	var grants []rolePermissionRs.Entity
+	if err := tx.Where("role_id = ?", roleID).Find(&grants).Error; err != nil {
+		return false
+	}
+	for _, grant := range grants {
+		if grant.PermissionId == requested.Id() || (requested != RevealAnonymousIdentity && grant.PermissionId == Admin.Id()) {
 			return true
 		}
 	}

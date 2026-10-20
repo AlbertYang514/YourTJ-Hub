@@ -60,6 +60,25 @@ void main() {
     updatedAt: 1,
   );
   test(
+    'robot reply choice survives local recovery and old drafts default allowed',
+    () async {
+      final old = LocalDraft.fromJson(
+        draft.toJson()..remove('agentRepliesDisabled'),
+      );
+      expect(old.agentRepliesDisabled, isFalse);
+      final optedOut = LocalDraft.fromJson({
+        ...draft.toJson(),
+        'agentRepliesDisabled': true,
+      });
+      final store = WritingStore();
+      await store.save('site:1', optedOut);
+      expect(
+        (await store.drafts('site:1')).single.agentRepliesDisabled,
+        isTrue,
+      );
+    },
+  );
+  test(
     'undo restores all metadata only while the deleted identity is absent',
     () async {
       final store = WritingStore();
@@ -285,6 +304,49 @@ void main() {
     await store.clearHistory('site:1');
     expect(await store.history('site:1'), isEmpty);
   });
+
+  test(
+    'history forget removes one query and handles absent and last items',
+    () async {
+      final store = WritingStore();
+      // Forgetting from an empty scope is a no-op.
+      await store.forget('site:1', 'anything');
+      expect(await store.history('site:1'), isEmpty);
+      await store.remember('site:1', '选课');
+      await store.remember('site:1', '宿舍');
+      await store.remember('site:1', '食堂');
+      await store.forget('site:1', '宿舍');
+      expect(await store.history('site:1'), ['食堂', '选课']);
+      // Removing a query that is absent keeps the rest intact.
+      await store.forget('site:1', '不存在');
+      expect(await store.history('site:1'), ['食堂', '选课']);
+      // Removing the last query leaves an empty history.
+      await store.forget('site:1', '食堂');
+      await store.forget('site:1', '选课');
+      expect(await store.history('site:1'), isEmpty);
+    },
+  );
+
+  test(
+    'a damaged history record reads empty and is repaired on write',
+    () async {
+      final store = WritingStore();
+      final db = UserWorkDatabase.instance;
+      // Invalid JSON (FormatException) and wrong-shape JSON (TypeError) both
+      // read as empty instead of throwing.
+      for (final damaged in ['not-a-json-list', '{"not":"a list"}']) {
+        await db.writeBatch('site:1', 'history', {'search': damaged});
+        expect(await store.history('site:1'), isEmpty);
+      }
+      // Forgetting from a damaged record completes and repairs the record.
+      await db.writeBatch('site:1', 'history', {'search': '{broken'});
+      await expectLater(store.forget('site:1', '选课'), completes);
+      expect(await store.history('site:1'), isEmpty);
+      // Remembering a query overwrites the damage.
+      await store.remember('site:1', '选课');
+      expect(await store.history('site:1'), ['选课']);
+    },
+  );
 
   group('missing-key cleanup is idempotent (#704)', () {
     setUp(() {

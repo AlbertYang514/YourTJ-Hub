@@ -8,6 +8,7 @@ import '../link_navigation.dart';
 import '../providers.dart';
 import '../server_messages.dart';
 import '../widgets/stickers/resolved_sticker_content.dart';
+import '../widgets/stickers/sticker_strings.dart';
 import '../widgets/sticker_message_span.dart';
 import 'message_content.dart';
 import 'swipe_reply.dart';
@@ -87,6 +88,9 @@ class ChatMessageBubble extends ConsumerWidget {
                     mine: mine,
                     onOpenLink: (url) async {
                       try {
+                        // MessageContent 是纯文本渲染：可点 span 的可见文本就是 URL
+                        // 自身（message_content.dart），不存在「标签与目标不符」，
+                        // 因此这里无需 risk（issue #1200 review）。
                         await LinkNavigation.open(
                           context,
                           url,
@@ -183,6 +187,7 @@ class _ChatReplyQuoteBlock extends StatelessWidget {
     final excerpt = localizedChatReplyExcerpt(
       quote.excerpt,
       imageLabel: AppLocalizations.of(context).messagesImage,
+      stickerLabel: StickerStrings(context).animatedSticker,
     );
     return Semantics(
       button: onTap != null,
@@ -218,7 +223,7 @@ class _ChatReplyQuoteBlock extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (quote.sender.isNotEmpty)
-                          Text(
+                          GfText(
                             quote.sender,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -229,7 +234,7 @@ class _ChatReplyQuoteBlock extends StatelessWidget {
                             ),
                           ),
                         if (quote.excerpt.isNotEmpty)
-                          Text(
+                          GfText(
                             excerpt,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,

@@ -22,6 +22,7 @@ func TestCopyTableComplete(t *testing.T) {
 		eventNotification.EventTypeLike,
 		eventNotification.EventTypeWikiUpdated,
 		eventNotification.EventTypeSystem,
+		eventNotification.EventTypeReviewPending,
 		eventNotification.EventTypeReviewApproved,
 		eventNotification.EventTypeReviewRejected,
 	}
@@ -89,7 +90,7 @@ func TestBuildPushContentComment(t *testing.T) {
 	if content == nil {
 		t.Fatal("comment content is nil")
 	}
-	if content.Body != "评论了你的内容" {
+	if content.Body != "一位用户 评论了你的内容" {
 		t.Errorf("comment body = %q, want zh comment copy", content.Body)
 	}
 	wantURL := urlconfig.PostDetail(1001) + "/3"
@@ -101,6 +102,10 @@ func TestBuildPushContentComment(t *testing.T) {
 	}
 	if content.Icon == "" {
 		t.Error("comment icon is empty")
+	}
+	// 复核为 unknown 时 SW 用该字段替换原始标题：必须随负载下发且为订阅语言的通用文案。
+	if content.GenericTitle != genericTitle("zh") || content.GenericTitle == "" {
+		t.Errorf("comment generic title = %q, want non-empty zh generic title", content.GenericTitle)
 	}
 }
 
@@ -160,7 +165,7 @@ func TestBuildPushContentBadgeReplacesPlaceholder(t *testing.T) {
 	if content == nil {
 		t.Fatal("badge content is nil")
 	}
-	if content.Body != "获得了「灌水大师」徽章" {
+	if content.Body != "你获得了「灌水大师」徽章" {
 		t.Errorf("badge body = %q, want {badge} replaced with BadgeName", content.Body)
 	}
 	if strings.Contains(content.Body, "{badge}") {
@@ -196,7 +201,7 @@ func TestBuildPushContentSystem(t *testing.T) {
 		if content == nil {
 			t.Fatalf("system %s content is nil", lang)
 		}
-		if content.Body != body {
+		if !strings.HasSuffix(content.Body, body) {
 			t.Errorf("system %s body = %q, want %q", lang, content.Body, body)
 		}
 		if content.URL != urlconfig.Notifications() {
@@ -256,15 +261,14 @@ func TestBuildPushContentMention(t *testing.T) {
 			if postNo > 0 {
 				wantURL = urlconfig.PostDetail(512) + "/8"
 			}
-			if content == nil || content.Body != body || content.URL != wantURL {
+			if content == nil || !strings.HasSuffix(content.Body, body) || content.URL != wantURL {
 				t.Fatalf("mention %s/%d: %#v", lang, postNo, content)
 			}
 		}
 	}
 }
 
-// 人工审核结果推送（issue #975）：通过深链到楼层；被拒内容对作者不可见，
-// 深链落通知中心、标题取写入时的快照。
+// Approved content links to its floor; rejection links to the owner content manager.
 func TestBuildPushContentReviewResult(t *testing.T) {
 	approved := eventNotification.Entity{Id: 7, EventType: eventNotification.EventTypeReviewApproved,
 		Payload: eventNotification.NotificationPayload{TopicId: 42, PostNo: 3, TopicTitle: "期末复习资料"}}
@@ -275,7 +279,34 @@ func TestBuildPushContentReviewResult(t *testing.T) {
 	rejected := eventNotification.Entity{Id: 8, EventType: eventNotification.EventTypeReviewRejected,
 		Payload: eventNotification.NotificationPayload{TopicTitle: "被拒的话题"}}
 	content = buildPushContent(rejected, "en")
-	if content == nil || content.URL != "/notifications" || content.Title != "被拒的话题" || !strings.Contains(content.Body, "wasn’t approved") {
+	if content == nil || content.URL != "/settings?tab=content" || strings.Contains(content.Title, "被拒的话题") || !strings.Contains(content.Body, "wasn’t approved") {
 		t.Fatalf("rejected push = %+v", content)
+	}
+}
+
+// 申诉结论按模板出独立文案：通过直达内容，其余回内容管理；驳回/失效不带内容标题。
+func TestBuildPushContentAppealTemplates(t *testing.T) {
+	cases := []struct {
+		eventType, template, wantTitle, wantURL string
+	}{
+		{eventNotification.EventTypeReviewPending, eventNotification.TemplateAppealSubmitted, "申诉已提交", "/settings?tab=content"},
+		{eventNotification.EventTypeReviewApproved, eventNotification.TemplateAppealApproved, "申诉通过，内容已公开", urlconfig.PostDetail(1001)},
+		{eventNotification.EventTypeReviewRejected, eventNotification.TemplateAppealRejected, "申诉未通过", "/settings?tab=content"},
+		{eventNotification.EventTypeReviewRejected, eventNotification.TemplateAppealStale, "申诉已失效", "/settings?tab=content"},
+	}
+	for _, tc := range cases {
+		notification := eventNotification.Entity{Id: 9, EventType: tc.eventType, Payload: eventNotification.NotificationPayload{TemplateKey: tc.template, TopicId: 1001, TopicTitle: "敏******题"}}
+		content := buildPushContent(notification, "zh")
+		if content == nil || content.Title != tc.wantTitle || content.URL != tc.wantURL || content.Body == "" || content.GenericTitle != genericTitle("zh") {
+			t.Fatalf("%s: %+v", tc.template, content)
+		}
+		if strings.Contains(content.Title+content.Body, "敏") {
+			t.Fatalf("%s leaked the subject: %+v", tc.template, content)
+		}
+		for _, lang := range []string{"en", "ja", "de"} {
+			if localized := buildPushContent(notification, lang); localized == nil || localized.Title == content.Title || localized.Body == "" {
+				t.Fatalf("%s missing %s copy", tc.template, lang)
+			}
+		}
 	}
 }

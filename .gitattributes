@@ -15,6 +15,8 @@
 *.css text eol=lf
 *.dart text eol=lf
 *.mjs text eol=lf
+# The launcher source hash is defined over canonical SVG bytes.
+apps/gooseforum/resource/src/site/assets/logo.svg text eol=lf
 
 *.png binary
 *.jpg binary
@@ -27,3 +29,6 @@
 *.zip binary
 *.db binary
 *.sqlite binary
+
+# Preserve the licensed THUOCL source bytes, including CR line endings and empty DF fields.
+apps/gooseforum/app/bundles/anonymousnames/data/*.txt -text -whitespace linguist-vendored

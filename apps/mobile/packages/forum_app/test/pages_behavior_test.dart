@@ -335,6 +335,18 @@ class RecordingWritingCleanup extends WritingStore {
   }
 }
 
+/// Simulates the generation fence rejecting a stale write: [forget] advances
+/// the cache epoch (as an account switch does) before throwing.
+class _FailingForgetStore extends WritingStore {
+  _FailingForgetStore(this.onForget);
+  final void Function() onForget;
+  @override
+  Future<void> forget(String scope, String query) async {
+    onForget();
+    throw StateError('Local work operation invalidated');
+  }
+}
+
 class DelayedChatRepository extends RecordingChatRepository {
   DelayedChatRepository(super.client);
   final acknowledgement = Completer<int>();
@@ -1413,6 +1425,7 @@ class FilteringNotificationRepository extends NotificationRepository {
   @override
   Future<NotificationListResponse> fetchNotifications({
     String filter = 'all',
+    String category = 'all',
     int cursor = 0,
     int limit = 20,
     Object? cancelToken,
@@ -1471,6 +1484,7 @@ class RecordingPostRepository extends PostRepository {
     int replyToPostId = 0,
     String? captchaId,
     String? captchaCode,
+    String? identity,
   }) async {
     lastTopicId = topicId;
     lastContent = content;
@@ -1498,6 +1512,7 @@ class ReplyCaptchaPostRepository extends RecordingPostRepository {
     int replyToPostId = 0,
     String? captchaId,
     String? captchaCode,
+    String? identity,
   }) async {
     attempts++;
     if (captchaId != 'reply-challenge' || captchaCode != 'ABCD') {
@@ -1853,7 +1868,7 @@ void main() {
         find.byWidgetPredicate(
           (w) =>
               w is Semantics &&
-              w.properties.label == label &&
+              w.properties.label?.split('\n').first == label &&
               w.properties.selected == true,
         ),
         findsOneWidget,
@@ -2345,6 +2360,10 @@ void main() {
         rows.singleWhere((r) => r.text.contains('活动内容')).contextSymbol,
         entry.value,
       );
+      // Unmount each container's page before starting the next icon case so
+      // auto-disposed profile providers can finish their scheduled cleanup.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
     }
   });
 
@@ -2650,12 +2669,25 @@ void main() {
       await tester.pumpAndSettle();
       const query = '高等数学 & 选课';
       await tester.enterText(find.byType(TextField), query);
-      await tester.tap(find.text('搜索课程'));
+      await tester.pump();
+      await tester.tap(find.text('在课程中搜索“$query”'));
       await tester.pumpAndSettle();
       expect(router.state.uri.queryParameters['q'], query);
       router.pop();
       await tester.pumpAndSettle();
+      // The unsent text is kept; clearing it returns to recent searches.
+      expect(find.text('搜索“$query”'), findsOneWidget);
+      await tester.tap(find.byTooltip('清空搜索'));
+      await tester.pumpAndSettle();
       expect(find.text('最近搜索'), findsOneWidget);
+      expect(find.text('搜索课程'), findsOneWidget);
+      expect(find.text('搜索 Wiki'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), '高等');
+      await tester.pump();
+      // Matching history is offered while typing.
+      expect(find.text(query), findsOneWidget);
+      await tester.tap(find.byTooltip('清空搜索'));
+      await tester.pumpAndSettle();
       expect(await container.read(writingStoreProvider).history('site:1'), [
         query,
       ]);
@@ -2666,6 +2698,76 @@ void main() {
         isEmpty,
       );
       expect(find.text('最近搜索'), findsNothing);
+    },
+  );
+
+  testWidgets('a single recent search can be removed', (tester) async {
+    final client = GfApiClient(
+      dio: Dio(),
+      tokenStorage: MemTokenStorage(),
+      baseUrl: 'http://fake.local',
+    );
+    final container = await makeContainer(
+      pageRepo: CountingPageRepository(client),
+      extraOverrides: [
+        writingScopeProvider.overrideWith((ref) async => 'site:1'),
+      ],
+    );
+    final store = container.read(writingStoreProvider);
+    await store.remember('site:1', '选课');
+    await store.remember('site:1', '宿舍');
+    await tester.pumpWidget(app(container, const SearchPage()));
+    await tester.pumpAndSettle();
+    expect(find.text('选课'), findsOneWidget);
+    expect(find.text('宿舍'), findsOneWidget);
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey('search-recent-宿舍')),
+        matching: find.byTooltip('从最近搜索中移除'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('宿舍'), findsNothing);
+    expect(find.text('选课'), findsOneWidget);
+    expect(await store.history('site:1'), ['选课']);
+  });
+
+  testWidgets(
+    'a failed recent-search removal during an account switch does not toast',
+    (tester) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      ProviderContainer? holder;
+      final failing = _FailingForgetStore(() {
+        holder!.read(offlineCacheEpochProvider.notifier).invalidate();
+      });
+      final container = await makeContainer(
+        pageRepo: CountingPageRepository(client),
+        extraOverrides: [
+          writingScopeProvider.overrideWith((ref) async => 'site:1'),
+          writingStoreProvider.overrideWithValue(failing),
+        ],
+      );
+      holder = container;
+      await failing.remember('site:1', '选课');
+      await tester.pumpWidget(app(container, const SearchPage()));
+      await tester.pumpAndSettle();
+      expect(find.text('选课'), findsOneWidget);
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const ValueKey('search-recent-选课')),
+          matching: find.byTooltip('从最近搜索中移除'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // The epoch advanced mid-write, so no meaningless error toast is shown.
+      expect(
+        find.text('Bad state: Local work operation invalidated'),
+        findsNothing,
+      );
     },
   );
 
@@ -3289,6 +3391,135 @@ void main() {
         },
       );
     }
+    testWidgets(
+      'reply input keeps its anchor while keyboard and stickers trade places',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final client = GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        );
+        final library = StickerLibrary(ComposerStickerRepository(client));
+        final container = await makeContainer(
+          pageRepo: CountingPageRepository(client),
+          extraOverrides: [
+            stickerLibraryProvider.overrideWithValue(library),
+            stickerCollectionProvider.overrideWith(
+              (ref) =>
+                  StickerCollection(ComposerStickerRepository(client), library),
+            ),
+          ],
+        );
+        await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('参与讨论'));
+        await tester.pump();
+        final surface = find.byKey(const Key('reply-input-surface'));
+        // The identity docks into the input's leading edge, centred on it.
+        final identity = find.byKey(const Key('identity-picker'));
+        expect(find.descendant(of: surface, matching: identity), findsNothing);
+        expect(tester.getSize(identity), const Size.square(44));
+        expect(
+          tester.getCenter(identity).dx,
+          lessThan(tester.getTopLeft(surface).dx),
+        );
+        expect(
+          tester.getTopRight(identity).dx,
+          greaterThan(tester.getTopLeft(surface).dx),
+        );
+        expect(
+          tester.getCenter(identity).dy,
+          closeTo(tester.getCenter(surface).dy, 1),
+        );
+        expect(find.byKey(const Key('identity-switch-badge')), findsOneWidget);
+        final field = find
+            .descendant(
+              of: find.byType(GfPostComposer),
+              matching: find.byType(TextField),
+            )
+            .first;
+        await tester.enterText(field, 'line one\nline two\nline three');
+        // Draft state sits beside send, never above the editor where the
+        // composer's top edge could clip it.
+        await tester.pump();
+        final saveState = find.textContaining('保存');
+        expect(saveState, findsOneWidget);
+        expect(
+          tester.getCenter(saveState).dy,
+          closeTo(tester.getCenter(find.widgetWithText(GfButton, '发送')).dy, 1),
+        );
+
+        // Frame-by-frame IME animation, as reported through window insets.
+        Future<List<double>> keyboard(double from, double to) async {
+          final trace = <double>[tester.getBottomLeft(surface).dy];
+          for (var frame = 1; frame <= 10; frame++) {
+            tester.view.viewInsets = FakeViewPadding(
+              bottom: from + (to - from) * frame / 10,
+            );
+            await tester.pump(const Duration(milliseconds: 16));
+            trace.add(tester.getBottomLeft(surface).dy);
+          }
+          await tester.pump(const Duration(milliseconds: 400));
+          await tester.pumpAndSettle();
+          trace.add(tester.getBottomLeft(surface).dy);
+          return trace;
+        }
+
+        await keyboard(0, 300);
+        final anchor = tester.getBottomLeft(surface).dy;
+        expect(anchor, lessThan(844 - 300));
+
+        // Switching identity lends focus to a sheet; the keyboard space is
+        // kept while it is away and the editor gets focus back.
+        await tester.tap(identity);
+        await tester.pump();
+        final toSheet = await keyboard(300, 0);
+        expect(find.byKey(const Key('identity-option-member')), findsOneWidget);
+        for (final y in toSheet) {
+          expect(y, closeTo(anchor, 3), reason: 'identity sheet opening');
+        }
+        await tester.tap(find.byKey(const Key('identity-option-member')));
+        await tester.pump();
+        final fromSheet = await keyboard(0, 300);
+        expect(find.byKey(const Key('identity-option-member')), findsNothing);
+        expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
+        for (final y in fromSheet) {
+          expect(y, closeTo(anchor, 3), reason: 'identity sheet closing');
+        }
+        for (var round = 0; round < 2; round++) {
+          await tester.tap(find.byTooltip('表情库'));
+          await tester.pump();
+          final toStickers = await keyboard(300, 0);
+          expect(find.byType(StickerPicker), findsOneWidget);
+          for (final y in toStickers) {
+            expect(y, closeTo(anchor, 3), reason: 'keyboard → stickers');
+          }
+          expect(tester.widget<TextField>(field).maxLines, 4);
+          await tester.tap(find.byTooltip('键盘'));
+          await tester.pump();
+          final toKeyboard = await keyboard(0, 300);
+          expect(find.byType(StickerPicker), findsNothing);
+          for (final y in toKeyboard) {
+            expect(y, closeTo(anchor, 3), reason: 'stickers → keyboard');
+          }
+        }
+        expect(
+          tester.widget<TextField>(field).controller!.text,
+          'line one\nline two\nline three',
+        );
+        // Dismissing the keyboard lowers the editor in one direction only.
+        final dismissal = await keyboard(300, 0);
+        for (var i = 1; i < dismissal.length; i++) {
+          expect(dismissal[i], greaterThanOrEqualTo(dismissal[i - 1] - 0.5));
+        }
+        tester.view.viewInsets = const FakeViewPadding();
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(seconds: 1));
+      },
+    );
     testWidgets('sticker caret follows removal of the reply target', (
       tester,
     ) async {
@@ -4152,6 +4383,9 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
     testWidgets('新私信弹层可渲染并搜索用户', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
       final pageRepo = CountingPageRepository(
         GfApiClient(
           dio: Dio(),
@@ -4216,6 +4450,11 @@ void main() {
       expect(chatRepo.sent, isEmpty, reason: '选联系人时不应向后端发送空消息');
       expect(find.text('开始聊天'), findsOneWidget);
       expect(find.text('给 Dave 发出第一条消息。'), findsOneWidget);
+      expect(
+        find.descendant(of: find.byType(GfAppBar), matching: find.text('Dave')),
+        findsOneWidget,
+        reason: 'Pushing the selected contact must preserve their nickname',
+      );
 
       await tester.enterText(find.byType(TextField), '你好');
       await tester.pump();
@@ -4643,7 +4882,10 @@ void main() {
 
       expect(router.state.uri.path, '/messages');
       expect(router.state.uri.queryParameters['userId'], '2');
-      expect(find.text('bob'), findsOneWidget);
+      expect(
+        find.descendant(of: find.byType(GfAppBar), matching: find.text('bob')),
+        findsOneWidget,
+      );
       expect(find.text('开始聊天'), findsOneWidget);
       expect(router.canPop(), isTrue);
 
@@ -4678,6 +4920,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('开始聊天'), findsOneWidget);
     expect(chatRepo.fetchedConvIds, isEmpty);
+    expect(find.byType(GfConversationRow), findsNothing);
 
     await tester.pump(const Duration(seconds: 15));
     await tester.pumpAndSettle();
@@ -4685,6 +4928,15 @@ void main() {
     expect(pageRepo.messagesFetches, greaterThanOrEqualTo(2));
     expect(chatRepo.fetchedConvIds, contains(9));
     expect(find.text('刚刚发来的消息'), findsOneWidget);
+    final resolvedFetches = pageRepo.messagesFetches;
+    await tester.pump(const Duration(seconds: 15));
+    await tester.pumpAndSettle();
+    expect(
+      pageRepo.messagesFetches,
+      resolvedFetches,
+      reason:
+          'The hidden directory stops polling once the conversation resolves',
+    );
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -5077,7 +5329,19 @@ void main() {
       pageRepo.complete(settingsPayloadJson());
       await tester.pumpAndSettle();
       expect(find.byType(GfSettingsSkeleton), findsNothing);
-      expect(find.text('个人资料与展示'), findsOneWidget);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('settings-detail-title')))
+            .data,
+        '个人资料与展示',
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('settings-detail')),
+          matching: find.text('编辑资料'),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('下拉刷新再次请求设置数据', (tester) async {
@@ -5098,7 +5362,10 @@ void main() {
       final int callsBefore = pageRepo.fetchCalls;
 
       await tester.fling(
-        find.byType(ListView).first,
+        find.descendant(
+          of: find.byKey(const ValueKey('settings-detail')),
+          matching: find.byType(ListView),
+        ),
         const Offset(0, 400),
         1200,
       );
@@ -5214,7 +5481,7 @@ void main() {
   });
 
   group('设置登出', () {
-    testWidgets('登出调用 authRepository.logout、清 token 并跳转登录页', (tester) async {
+    testWidgets('设置索引登出支持取消，确认后清 token 和缓存并跳转登录页', (tester) async {
       final authRepo = LogoutAuthRepository(
         GfApiClient(
           dio: Dio(),
@@ -5266,7 +5533,7 @@ void main() {
         ],
       );
 
-      // 设置更大视口,保证安全分类内"退出登录"按钮无需滚动即可见。
+      // 设置更大视口，保证索引底部的登出入口无需滚动即可见。
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -5284,15 +5551,48 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 打开 Security 分类 找登出按钮。
-      await tester.tap(find.text('安全'));
+      final directory = find.byKey(const ValueKey('settings-directory'));
+      final detail = find.byKey(const ValueKey('settings-detail'));
+      final logout = find.descendant(
+        of: directory,
+        matching: find.widgetWithText(GfButton, '退出登录'),
+      );
+      // 宽屏安全详情不提供登出；持久目录保留该操作。
+      await tester.tap(
+        find.descendant(of: directory, matching: find.text('安全')),
+      );
       await tester.pumpAndSettle();
-      expect(find.text('退出登录'), findsOneWidget);
+      expect(
+        find.descendant(of: detail, matching: find.text('退出登录')),
+        findsNothing,
+      );
+      expect(logout, findsOneWidget);
+
+      await tester.tap(logout);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(GfAlertDialog),
+          matching: find.text('取消'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(GfAlertDialog), findsNothing);
+      expect(logout, findsOneWidget);
+      expect(authRepo.logoutCalls, 0);
+      expect(await storage.read(), 'token');
+      expect(topicCache.clears + chatCache.clears, 0);
+      expect(router.state.uri.path, '/settings');
 
       // 点击登出 → 确认对话框 → 确认。
-      await tester.tap(find.text('退出登录'));
+      await tester.tap(logout);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('退出登录').last);
+      await tester.tap(
+        find.descendant(
+          of: find.byType(GfAlertDialog),
+          matching: find.text('退出登录'),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(authRepo.logoutCalls, 1, reason: '登出应调用 authRepository.logout');

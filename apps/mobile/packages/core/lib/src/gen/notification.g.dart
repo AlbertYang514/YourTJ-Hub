@@ -45,7 +45,11 @@ Map<String, dynamic> _$$NotificationPayloadImplToJson(
 _$NotificationActorPayloadImpl _$$NotificationActorPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$NotificationActorPayloadImpl(
+  decoration: UserDecoration.parse(json['decoration']),
   id: (json['id'] as num).toInt(),
+  kind: json['kind'] as String?,
+  publicUid: json['publicUid'] as String?,
+  profileUrl: json['profileUrl'] as String?,
   username: json['username'] as String,
   nickname: json['nickname'] as String?,
   avatarUrl: json['avatarUrl'] as String?,
@@ -54,7 +58,11 @@ _$NotificationActorPayloadImpl _$$NotificationActorPayloadImplFromJson(
 Map<String, dynamic> _$$NotificationActorPayloadImplToJson(
   _$NotificationActorPayloadImpl instance,
 ) => <String, dynamic>{
+  'decoration': instance.decoration,
   'id': instance.id,
+  'kind': instance.kind,
+  'publicUid': instance.publicUid,
+  'profileUrl': instance.profileUrl,
   'username': instance.username,
   'nickname': instance.nickname,
   'avatarUrl': instance.avatarUrl,
@@ -89,6 +97,8 @@ _$NotificationInnerPayloadImpl _$$NotificationInnerPayloadImplFromJson(
         ),
   actorId: (json['actorId'] as num).toInt(),
   actorName: json['actorName'] as String?,
+  actorPersonaUid: json['actorPersonaUid'] as String?,
+  hasDirectMention: json['hasDirectMention'] as bool? ?? false,
   topicId: (json['topicId'] as num?)?.toInt(),
   postId: (json['postId'] as num?)?.toInt(),
   postNo: (json['postNo'] as num?)?.toInt(),
@@ -107,6 +117,8 @@ Map<String, dynamic> _$$NotificationInnerPayloadImplToJson(
   'templateParams': instance.templateParams,
   'actorId': instance.actorId,
   'actorName': instance.actorName,
+  'actorPersonaUid': instance.actorPersonaUid,
+  'hasDirectMention': instance.hasDirectMention,
   'topicId': instance.topicId,
   'postId': instance.postId,
   'postNo': instance.postNo,

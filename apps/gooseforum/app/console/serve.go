@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/feedservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
 	"log/slog"
 	"net"
 	"net/http"
@@ -26,12 +29,17 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/routes"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/migration"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentwebhookservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/backgroundservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/filemigrateservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/httpnotifyservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/nativepushservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
@@ -275,6 +283,10 @@ func (r *serveRuntime) runStartup() (fatalErr error) {
 // writes the database (or depends on a migrated schema). It runs only after
 // migration succeeds or defers via a non-fatal sentinel.
 func startBusinessServices() {
+	agentwebhookservice.Register()
+	backgroundservice.RunManagedWorker("agent_interaction_worker", "agent-interaction.", agenteventservice.HandleTask)
+	backgroundservice.RunManagedWorker("agent_webhook_worker", "agent-webhook.", agentwebhookservice.HandleTask)
+	feedservice.Start()
 	// 初始化OAuth配置
 	oauthservice.InitOAuth()
 	oidcservice.InitOIDC()
@@ -311,6 +323,16 @@ func startBusinessServices() {
 	backgroundservice.RunWorker("course_search_worker", searchservice.TaskTypeCourseSearch, searchservice.RunCourseSearchTask)
 	// 主题、用户、分类搜索 worker：消费 transaction-bound outbox，避免业务
 	// 请求/事件 consumer 同步等待 Meilisearch。
+	backgroundservice.RunWorker("content_review_worker", publicationservice.TaskType, publicationservice.RunReviewTask)
+	backgroundservice.RunWorker("sticker_review_worker", stickerservice.TaskTypeReview, func(ctx context.Context, task *taskQueue.Entity) error {
+		return stickerservice.RunReviewTask(ctx, task, func(ctx context.Context, authorID, stickerID uint64, imageURL string) *moderationDecision.Entity {
+			return moderationservice.EvaluateSubmission(ctx, moderationservice.AIContentInput{
+				AuthorID: authorID, SubjectType: moderationDecision.SubjectSticker,
+				SubjectID: stickerID, Gallery: []string{imageURL},
+			})
+		})
+	})
+	backgroundservice.RunWorker("content_published_worker", publicationservice.EffectTaskType, publicationservice.RunEffectsTask)
 	backgroundservice.RunWorker("topic_search_worker", searchservice.TaskTypeTopicSearch, searchservice.RunTopicSearchTask)
 	backgroundservice.RunWorker("user_search_worker", searchservice.TaskTypeUserSearch, searchservice.RunUserSearchTask)
 	backgroundservice.RunWorker("category_search_worker", searchservice.TaskTypeCategorySearch, searchservice.RunCategorySearchTask)
@@ -331,6 +353,8 @@ func startBusinessServices() {
 	// 绝不会外发——与 webpush worker 同语义）。
 	_ = nativepushservice.RecoverStaleTasks()
 	backgroundservice.RunWorker("nativepush_worker", nativepushservice.TaskTypeNativePush, nativepushservice.RunPushTask)
+	// Failed HTTP notification deliveries are retried through the shared task queue.
+	backgroundservice.RunWorker("http_notify_retry_worker", httpnotifyservice.TaskTypeDeliveryRetry, httpnotifyservice.RunDeliveryRetryTask)
 	sessionservice.CleanupExpired()
 	oidcservice.CleanupExpired()
 	job.Run()

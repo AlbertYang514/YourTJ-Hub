@@ -59,6 +59,48 @@ void main() {
       expect(adapter.requests.single.path, '/api/forum/topics/status');
     });
 
+    test('feed card action owns its request attribution', () async {
+      setupClient(initialToken: 'tok-1');
+      final telemetry = FeedTelemetry.instance;
+      telemetry.bindAccount(12);
+      addTearDown(() => telemetry.bindAccount(0));
+      TopicPayload topic(int id, String trace, int position) =>
+          TopicPayload.fromJson({
+            'id': id,
+            'title': 'topic',
+            'description': '',
+            'participants': [],
+            'categories': [],
+            'replyCount': 0,
+            'viewCount': 0,
+            'pinWeight': 0,
+            'processStatus': 0,
+            'activityText': '',
+            'lastUpdateTime': '',
+            'url': '/p/post/$id',
+            'author': {'id': 1, 'username': 'author', 'avatarUrl': ''},
+            'feedTrace': trace,
+            'feedPosition': position,
+          });
+      telemetry.select(topic(31, 'selected-detail', 0));
+      final adapter = MockAdapter((request) async {
+        expect(request.headers['X-Goose-Feed-Trace'], 'card-trace');
+        expect(request.headers['X-Goose-Feed-Position'], '2');
+        expect(request.headers['X-Goose-Feed-Topic'], '32');
+        return ResponseData(200, {'code': 0, 'result': true});
+      });
+      dio.httpClientAdapter = adapter;
+      final repository = TopicRepository(client);
+      final card = topic(32, 'card-trace', 2);
+      await repository.likeTopic(topicId: 32, action: 1, feedTopic: card);
+      await repository.bookmarkTopic(topicId: 32, action: 1, feedTopic: card);
+      expect(adapter.requests, hasLength(2));
+      expect(
+        telemetry.headers('/p/post/31')['X-Goose-Feed-Trace'],
+        'selected-detail',
+      );
+    });
+
     test(
       'own course reviews sends session and pagination without author selector',
       () async {
@@ -659,6 +701,111 @@ void main() {
   });
 
   group('repositories 请求体', () {
+    test(
+      'AuthRepository.resendActivationEmail preserves success metadata',
+      () async {
+        final storage = _MemoryTokenStorage();
+        await storage.write('session-token');
+        final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+        final client = GfApiClient(dio: dio, tokenStorage: storage);
+        final cancelToken = CancelToken();
+        final adapter = MockAdapter((request) async {
+          expect(request.method, 'POST');
+          expect(request.path, '/api/resend-activation-email');
+          expect(request.headers['Authorization'], 'Bearer session-token');
+          expect(request.cancelToken, same(cancelToken));
+          return ResponseData(200, {
+            'code': 0,
+            'result': {'remainingToday': 2},
+            'messageCode': 'auth.activation.resendSuccess',
+            'params': {'remainingToday': 2},
+          });
+        });
+        dio.httpClientAdapter = adapter;
+
+        final response = await AuthRepository(
+          client,
+        ).resendActivationEmail(cancelToken: cancelToken);
+
+        expect(response.messageCode, 'auth.activation.resendSuccess');
+        expect(response.params, {'remainingToday': 2});
+        expect(response.result, {'remainingToday': 2});
+        expect(adapter.requests, hasLength(1));
+      },
+    );
+
+    test(
+      'AuthRepository.resendActivationEmail preserves cooldown error params',
+      () async {
+        final storage = _MemoryTokenStorage();
+        await storage.write('session-token');
+        final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+        final client = GfApiClient(dio: dio, tokenStorage: storage);
+        final adapter = MockAdapter((request) async {
+          expect(request.method, 'POST');
+          expect(request.path, '/api/resend-activation-email');
+          expect(request.headers['Authorization'], 'Bearer session-token');
+          return ResponseData(200, {
+            'code': 1,
+            'messageCode': 'auth.activation.resendCooldown',
+            'params': {'retryAfterSeconds': 30},
+          });
+        });
+        dio.httpClientAdapter = adapter;
+
+        await expectLater(
+          AuthRepository(client).resendActivationEmail(),
+          throwsA(
+            isA<ApiException>()
+                .having(
+                  (error) => error.messageCode,
+                  'messageCode',
+                  'auth.activation.resendCooldown',
+                )
+                .having((error) => error.params, 'params', {
+                  'retryAfterSeconds': 30,
+                }),
+          ),
+        );
+        expect(adapter.requests, hasLength(1));
+      },
+    );
+
+    test(
+      'AuthRepository.resendActivationEmail preserves daily-limit error params',
+      () async {
+        final storage = _MemoryTokenStorage();
+        await storage.write('session-token');
+        final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+        final client = GfApiClient(dio: dio, tokenStorage: storage);
+        final adapter = MockAdapter((request) async {
+          expect(request.method, 'POST');
+          expect(request.path, '/api/resend-activation-email');
+          expect(request.headers['Authorization'], 'Bearer session-token');
+          return ResponseData(200, {
+            'code': 1,
+            'messageCode': 'auth.activation.resendDaily',
+            'params': {'limit': 3},
+          });
+        });
+        dio.httpClientAdapter = adapter;
+
+        await expectLater(
+          AuthRepository(client).resendActivationEmail(),
+          throwsA(
+            isA<ApiException>()
+                .having(
+                  (error) => error.messageCode,
+                  'messageCode',
+                  'auth.activation.resendDaily',
+                )
+                .having((error) => error.params, 'params', {'limit': 3}),
+          ),
+        );
+        expect(adapter.requests, hasLength(1));
+      },
+    );
+
     test('AuthRepository.login 请求体含加密密码且无蜜罐字段', () async {
       final storage = _MemoryTokenStorage();
       final dio = Dio(BaseOptions(baseUrl: 'http://test'));
@@ -811,12 +958,14 @@ void main() {
 
       final result = await repo.fetchNotifications(
         filter: 'unread',
+        category: 'mentions',
         cursor: 20,
         limit: 10,
       );
       expect(result.unreadCount, 0);
       expect(capturedUri.path, '/api/forum/notifications');
       expect(capturedUri.queryParameters['filter'], 'unread');
+      expect(capturedUri.queryParameters['category'], 'mentions');
       expect(capturedUri.queryParameters['cursor'], '20');
       expect(capturedUri.queryParameters['limit'], '10');
     });

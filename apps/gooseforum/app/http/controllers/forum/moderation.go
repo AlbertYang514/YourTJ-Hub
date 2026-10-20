@@ -145,7 +145,7 @@ type ModerationReportListReq struct {
 
 type ModerationReportStatusReq struct {
 	Id     uint64 `json:"id" validate:"required"`
-	Action string `json:"action" validate:"oneof=ban resolve reject"`
+	Action string `json:"action" validate:"oneof=ban resolve reject show"`
 }
 
 type ModerationPostStatusReq struct {
@@ -207,18 +207,47 @@ func UpdateModerationTopicStatus(req component.BetterRequest[ModerationTopicStat
 	if !moderationservice.CanModerateAnyCategory(req.UserId, topic.CategoryIds) {
 		return component.FailResponseCode(component.MessagePermissionDenied, nil)
 	}
-	nextStatus := moderationTargetStatus(req.Params.Action)
-	if topic.ProcessStatus == nextStatus {
-		return component.SuccessResponse(true)
-	}
-	if err := dbconnect.ConnectContext(moderationRequestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
-		if err := topics.UpdateProcessStatusTx(tx, topic.Id, nextStatus); err != nil {
-			return err
-		}
-		return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
-	}); err != nil {
+	if err := applyTopicModerationStatus(moderationRequestContext(req.GinContext), req.UserId, topic, moderationTargetStatus(req.Params.Action)); err != nil {
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
+	return component.SuccessResponse(true)
+}
+
+// applyTopicModerationStatus 版主封禁/解封话题的唯一实现（工作台与快捷审批共用，
+// issue #1049）。调用方负责权限校验；目标状态未变时幂等返回。
+func applyTopicModerationStatus(ctx context.Context, actorID uint64, topic topics.Entity, nextStatus int8) error {
+	changed := false
+	if err := dbconnect.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		changed, err = applyTopicModerationStatusTx(tx, topic, nextStatus)
+		return err
+	}); err != nil {
+		return err
+	}
+	if changed {
+		afterTopicModerationStatusChanged(actorID, topic, nextStatus)
+	}
+	return nil
+}
+
+func applyTopicModerationStatusTx(tx *gorm.DB, topic topics.Entity, nextStatus int8) (bool, error) {
+	var current topics.Entity
+	if err := tx.Select("process_status").First(&current, topic.Id).Error; err != nil {
+		return false, err
+	}
+	if current.ProcessStatus == nextStatus {
+		return false, nil
+	}
+	if err := topics.UpdateProcessStatusTx(tx, topic.Id, nextStatus); err != nil {
+		return false, err
+	}
+	if err := searchservice.EnqueueTopicSearchTask(tx, topic.Id); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func afterTopicModerationStatusChanged(actorID uint64, topic topics.Entity, nextStatus int8) {
 	topic.ProcessStatus = nextStatus
 	if nextStatus == topics.ProcessStatusNormal {
 		// 解封待审内容时其 PENDING 图片随之公开（issue #975）。
@@ -227,16 +256,19 @@ func UpdateModerationTopicStatus(req component.BetterRequest[ModerationTopicStat
 	hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 	// 审核封禁/解封不发布事件，同步清理 LLMS 投影缓存，避免封禁内容在 10s 窗口内继续导出。
 	llmsservice.ClearCache()
-	moderationservice.TopicStatusChanged(req.UserId, topic.Id, topic.Title, nextStatus == 1)
-	return component.SuccessResponse(true)
+	moderationservice.TopicStatusChanged(actorID, topic.Id, topic.Title, nextStatus == 1)
 }
 
 func CreateReport(req component.BetterRequest[CreateReportReq]) component.Response {
 	if req.Params.TargetType == reports.TargetChatMessage {
-		if err := chatservice.ReportMessage(req.UserId, req.Params.TargetId, req.Params.Reason, req.Params.Note); err != nil {
+		report, created, err := chatservice.ReportMessage(req.UserId, req.Params.TargetId, req.Params.Reason, req.Params.Note)
+		if err != nil {
 			return component.FailResponseCode(component.MessageReportTargetInvalid, nil)
 		}
 		moderationservice.InvalidatePrivateReports()
+		if created {
+			publishReportCreated(req.GinContext, report)
+		}
 		return component.SuccessResponse(true)
 	}
 	target, ok := reportTargetInfo(req.Params.TargetType, req.Params.TargetId, req.UserId)
@@ -262,15 +294,22 @@ func CreateReport(req component.BetterRequest[CreateReportReq]) component.Respon
 		return component.FailResponseCode(component.MessageReportDuplicate, nil)
 	}
 	moderationservice.InvalidateTopic(target.TopicID)
-	eventbus.Publish(detachedModerationRequestContext(req.GinContext), &eventhandlers.ReportCreatedEvent{
+	publishReportCreated(req.GinContext, report)
+	return component.SuccessResponse(true)
+}
+
+// publishReportCreated 新举报进入审批通知层（issue #1049）：topic/post/chat_message/
+// course_review 四类举报创建成功（且为新举报）后统一发布，通知失败不影响举报本身。
+func publishReportCreated(c *gin.Context, report reports.Entity) {
+	eventbus.Publish(detachedModerationRequestContext(c), &eventhandlers.ReportCreatedEvent{
 		ReportId:   report.Id,
 		TargetType: report.TargetType,
 		TargetId:   report.TargetId,
 		TopicId:    report.TopicId,
 		ReporterId: report.ReporterId,
 		Reason:     report.Reason,
+		Note:       report.Note,
 	})
-	return component.SuccessResponse(true)
 }
 
 // buildReportEvidenceSnapshot 在举报创建时刻定格目标内容（Issue #94 R6）。
@@ -292,6 +331,10 @@ func buildReportEvidenceSnapshot(targetType string, targetID uint64, topicID uin
 	case reports.TargetTopic:
 		topic := topics.GetSimple(targetID)
 		if topic.Id > 0 {
+			if topic.PersonaUID != "" {
+				snapshot.AuthorID = 0
+				snapshot.AuthorName = ""
+			}
 			snapshot.Title = topic.Title
 			snapshot.Excerpt = moderationExcerpt(topic.Excerpt)
 			snapshot.CategoryIDs = topic.CategoryIds
@@ -332,18 +375,47 @@ func UpdateModerationPostStatus(req component.BetterRequest[ModerationPostStatus
 	if topic.Id == 0 || !moderationservice.CanModerateAnyCategory(req.UserId, topic.CategoryIds) {
 		return component.FailResponseCode(component.MessagePermissionDenied, nil)
 	}
-	nextStatus := moderationTargetStatus(req.Params.Action)
-	if post.ProcessStatus == nextStatus {
-		return component.SuccessResponse(true)
-	}
-	if err := dbconnect.ConnectContext(moderationRequestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
-		if err := posts.UpdateProcessStatusTx(tx, post.Id, nextStatus); err != nil {
-			return err
-		}
-		return searchservice.EnqueueTopicSearchTask(tx, post.TopicId)
-	}); err != nil {
+	if err := applyPostModerationStatus(moderationRequestContext(req.GinContext), req.UserId, post, topic, moderationTargetStatus(req.Params.Action)); err != nil {
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
+	return component.SuccessResponse(true)
+}
+
+// applyPostModerationStatus 版主封禁/解封回复的唯一实现（工作台与快捷审批共用，
+// issue #1049）。调用方负责权限校验；目标状态未变时幂等返回。
+func applyPostModerationStatus(ctx context.Context, actorID uint64, post posts.Entity, topic topics.Entity, nextStatus int8) error {
+	changed := false
+	if err := dbconnect.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		changed, err = applyPostModerationStatusTx(tx, post, nextStatus)
+		return err
+	}); err != nil {
+		return err
+	}
+	if changed {
+		afterPostModerationStatusChanged(actorID, post, topic, nextStatus)
+	}
+	return nil
+}
+
+func applyPostModerationStatusTx(tx *gorm.DB, post posts.Entity, nextStatus int8) (bool, error) {
+	var current posts.Entity
+	if err := tx.Select("process_status").First(&current, post.Id).Error; err != nil {
+		return false, err
+	}
+	if current.ProcessStatus == nextStatus {
+		return false, nil
+	}
+	if err := posts.UpdateProcessStatusTx(tx, post.Id, nextStatus); err != nil {
+		return false, err
+	}
+	if err := searchservice.EnqueueTopicSearchTask(tx, post.TopicId); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func afterPostModerationStatusChanged(actorID uint64, post posts.Entity, topic topics.Entity, nextStatus int8) {
 	if nextStatus == posts.ProcessStatusNormal {
 		fileusageservice.PromotePendingPostFiles(post.Id)
 	}
@@ -357,7 +429,7 @@ func UpdateModerationPostStatus(req component.BetterRequest[ModerationPostStatus
 		userMap := users.GetMapByIds([]uint64{post.UserId})
 		postAuthor = userPayload(post.UserId, userMap).Username
 	}
-	moderationservice.PostStatusChanged(req.UserId, moderationservice.PostSnapshot{
+	moderationservice.PostStatusChanged(actorID, moderationservice.PostSnapshot{
 		PostId:       post.Id,
 		TopicId:      post.TopicId,
 		TopicTitle:   topic.Title,
@@ -366,7 +438,6 @@ func UpdateModerationPostStatus(req component.BetterRequest[ModerationPostStatus
 		PostAuthor:   postAuthor,
 		Excerpt:      moderationExcerpt(post.Content),
 	}, nextStatus == 1)
-	return component.SuccessResponse(true)
 }
 
 // ModerationPostRevealReq 匿名楼层作者揭示请求体（Admin；必须填写理由）。
@@ -394,6 +465,9 @@ func ModerationPostReveal(req component.BetterRequest[ModerationPostRevealReq]) 
 	post := posts.Get(req.Params.PostId)
 	if post.Id == 0 {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+	if post.PersonaUID != "" {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
 	}
 	payload := PostAuthorRevealPayload{
 		PostId:       post.Id,
@@ -444,6 +518,23 @@ func UpdateModerationReportStatus(req component.BetterRequest[ModerationReportSt
 	if !canModerateReportTarget(req.UserId, report.TargetType, report.TargetId) {
 		return component.FailResponseCode(component.MessagePermissionDenied, nil)
 	}
+	if req.Params.Action == ReportQuickActionShow || (req.Params.Action == ReportQuickActionBan && report.TargetType != reports.TargetChatMessage) {
+		state := applyReportQuickAction(moderationRequestContext(req.GinContext), req.UserId, report, req.Params.Action)
+		switch state {
+		case QuickActionDone:
+			return component.SuccessResponse(true)
+		case QuickActionProcessed:
+			return component.FailResponseCode(component.MessageReportAlreadyProcessed, nil)
+		case QuickActionNotFound:
+			return component.FailResponseCode(component.MessageReportNotFound, nil)
+		case QuickActionForbidden:
+			return component.FailResponseCode(component.MessagePermissionDenied, nil)
+		case QuickActionInvalid:
+			return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+		default:
+			return component.FailResponseCode(component.MessageOperationFailed, nil)
+		}
+	}
 	nextStatus := reports.StatusResolved
 	resolution := reports.ResolutionBanned
 	switch req.Params.Action {
@@ -453,8 +544,12 @@ func UpdateModerationReportStatus(req component.BetterRequest[ModerationReportSt
 	case "resolve":
 		resolution = ""
 	}
-	if err := reports.UpdateStatus(report.Id, nextStatus, resolution, req.UserId); err != nil {
+	updated, err := reports.UpdateStatusIfOpen(report.Id, nextStatus, resolution, req.UserId)
+	if err != nil {
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	if !updated {
+		return component.FailResponseCode(component.MessageReportAlreadyProcessed, nil)
 	}
 	// Private reports retain handler/status on the report itself. Do not copy
 	// message evidence or reporter identity to the broader moderator audit feed.
@@ -553,16 +648,25 @@ func ViewDeletedContent(req component.BetterRequest[ViewDeletedContentReq]) comp
 			return component.FailResponseCode(component.MessagePermissionDenied, nil)
 		}
 		view = ModerationDeletedContentView{
-			ContentType:  reports.TargetTopic,
-			ContentID:    topic.Id,
-			TopicID:      topic.Id,
-			Title:        topic.Title,
-			AuthorID:     topic.UserId,
+			ContentType: reports.TargetTopic,
+			ContentID:   topic.Id,
+			TopicID:     topic.Id,
+			Title:       topic.Title,
+			AuthorID: func() uint64 {
+				if topic.PersonaUID != "" {
+					return 0
+				}
+				return topic.UserId
+			}(),
 			DeletedBy:    topic.DeletedBy,
 			DeletedAt:    formatDeletedTime(topic.DeletedAt),
 			DeleteReason: topic.DeleteReason,
 			TargetURL:    urlconfig.PostDetail(topic.Id),
 			Categories:   categoryPayloads(topic.CategoryIds),
+		}
+		// A self-delete operator is the anonymous author, not a separate public moderator.
+		if topic.PersonaUID != "" && view.DeletedBy == topic.UserId {
+			view.DeletedBy = 0
 		}
 		firstPost := posts.UnscopedGet(topic.FirstPostId)
 		if firstPost.Id > 0 {
@@ -596,6 +700,9 @@ func ViewDeletedContent(req component.BetterRequest[ViewDeletedContentReq]) comp
 		if post.IsAnonymous {
 			view.AuthorID = 0
 			view.AuthorName = ""
+			if view.DeletedBy == post.UserId {
+				view.DeletedBy = 0
+			}
 		}
 	default:
 		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)

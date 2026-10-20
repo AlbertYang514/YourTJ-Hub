@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-25
+> Last verified: 2026-10-13
 
 ## Deployment shape
 
@@ -36,6 +36,24 @@ and database snapshot/reset procedure. It does not create another server site.
   - `main` — production, `/opt/yourtj/main`
   - `dev` — test line, `/opt/yourtj/dev`
   - DB sync is one-way: dev gets a consistent snapshot of main on each deploy (below).
+
+### 服务器时区：必须无夏令时
+
+进程按容器/宿主机的系统时区（Go 的 `time.Local`）换算「自然日」。逐日口径不止一处依赖它：
+`dailyStats` 用 `time.Now().Format("2006-01-02")` 写日键，内容贡献统计（`/api/admin/stats/*`）
+把请求区间换算成本地日边界，并在 SQL 里用**查询时刻的时区偏移**统一作用于整段区间
+（`app/models/forum/contributionstats` 的 `localDayExpr`）。只有**无夏令时**的时区才与逐日换算
+完全一致：跨 DST 边界会静默错桶，`MaxRangeDays`（366 自然日）的跨度判定也会差 1。
+
+- 部署要求：运行容器的时区必须是固定偏移。UTC 与 `Asia/Shanghai` 都满足；`Europe/*`、
+  `America/*` 等有 DST 的时区不满足。
+- 当前 compose/Dockerfile 都不设置 `TZ`，容器按镜像默认运行（未挂载 `/etc/localtime`）。
+  需要固定到某个偏移时显式设置 `TZ`（如 `TZ: Asia/Shanghai`）；镜像已装 `tzdata`。
+- 该前提有测试兜底：`TestDeploymentTimezoneHasNoDST`
+  （`apps/gooseforum/app/models/forum/contributionstats/contributionstats_rep_test.go`）在
+  Jan/Jul 偏移不一致的时区直接失败，而不是让统计默默给出错误分桶。
+- 接口返回的 `coverage.timezone` 就是进程实际使用的时区，管理端界面直接显示；改动部署时区会
+  改变管理员看到的分日口径，切换前需说明历史对比口径。
 
 ### Foreground event stream
 
@@ -123,7 +141,7 @@ curl -sS -D - -o /dev/null https://f.yourtj.de/                               # 
 ### Umami 访问统计与会话回放
 
 生产公共论坛页面由 `apps/gooseforum/resource/templates/layout/app.gohtml` 加载自建 Umami 的
-统计脚本与会话记录器；服务端仅在 `setting.IsProduction()` 且隐私政策 `enabled=true` 时注入。
+统计脚本与会话记录器；服务端仅在访客未登录、`setting.IsProduction()` 且隐私政策 `enabled=true` 时注入。登录态页面的身份选择及揭示结果不进入统计或回放，配置的注入脚本也不加载。
 两份脚本均使用 website id `36750dcd-8c48-46ab-9dfb-2f09cdcef501`：
 
 - `https://umi.yourtj.de/script.js`：页面访问、SPA 路由、基础访问统计与页面性能；模板设置 `data-performance="true"`；
@@ -236,6 +254,8 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
   snapshots/
     main/pg-*.sql         # pre-deploy pg_dump backups (keep 7) — PostgreSQL 部署
 
+Dev 同步成功后，`snapshots/dev-prev` 仅保留最近 5 个时间戳组的同步前数据库副本；同组 `sqlite`/`file` 一起保留。同步失败不清理旧快照，未知命名文件和符号链接不参与清理。此策略不改变在线库或其他备份目录，首次成功同步也会清理历史遗留的较旧组。
+
 ## Branch model & CI/CD
 
 - `dev` is the default development branch. [CI / Verify](../../.github/workflows/ci.yml) selects
@@ -279,6 +299,8 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
   and `feed-raw-tables.json`: copied Agent credentials are disabled, feed observations are
   scrubbed, and previous-dev snapshots remain usable without preinstalled helpers. The trusted
   `main` checkout must contain this complete script bundle before the dev workflow uses it.
+  Changes to `deploy-dev.yml` select backend/frontend checks and a dev deployment, so workflow
+  repairs are exercised after merge even when application source is unchanged.
 
 ## GitHub Actions Environments secrets
 
@@ -558,6 +580,13 @@ instance:
   本地提供方保持服务端代理 multipart 上传。bucket 需配置 CORS（精确论坛源 + POST），
   未完成对象 2 小时后由清理任务移除。详见 [Object storage](object-storage.md)。
 
+## Anonymous identity recovery
+
+Persistent anonymous identity requires restricted, consistent database backups; ordinary public
+exports cannot restore its private binding. Permission grants, indefinite audit retention, candidate
+cleanup and the unsafe downgrade boundary are owned by
+[anonymous identity operations](anonymous-identity.md).
+
 ## Data export/import
 
 - Admin panel (数据管理): export users/topics/posts (plus derived topic_category_index /
@@ -596,37 +625,41 @@ instance:
 - 分数线：低于人工审核线发布；达到人工审核线进入人工审核；规则设为“直接拦截”时达到拦截线才拦截，
   介于两线之间仍进入人工审核（严重程度达到提级线时例外）。每条决策记录保存结论原因（如
   `between_thresholds`），管理端决策记录与审核队列直接显示“为什么是这个结果”。
-- 运行方式（管理端「运行方式」）：「仅记录」（`shadow`，默认）、「发布前检查」（`enforce`）、「发布后检查」
-  （`deferred`）。默认关闭且为仅记录：写库后异步判定，只写 `moderation_ai_decisions`，不影响发布；在
-  「决策记录」中对样本人工标注（审核队列的通过/拒绝会自动回写，但只写到评估过当前正文的决策；
-  决策之后正文又被编辑过则不回写），用「离线阈值回放」看误杀/漏检后再切到检查模式。回放样本同时包含
-  各模式的决策，解读前可在决策记录按模式筛选核对。不得直接套用任何示例阈值。
-- 发布前检查：含图发布会同步等待模型（视觉超时 × 轮次 + Jev 超时 × (重试+1)，上限 50 秒）；仅这些
-  请求放宽 10 秒 HTTP 写超时。反向代理读超时须大于该预算（openresty 默认 60 秒满足）。
-- 发布后检查：发布立即返回 `content.moderation.checking`，内容以待审写入（仅作者、版主与站点管理员
-  可见），后台判定后复用审核队列的同一实现处理：放行则自动公开（不通知作者），达到拦截线则自动拒绝并
-  通知作者，介于两线或任何故障留在审核队列。检查期间审核队列显示「AI 检查中」，版主也可直接处理；
-  作者在检查期间改稿时旧结论作废。站点拦截外链图片时仍在发布时同步拦截（无需调用模型）。判定在进程内
-  后台执行，服务重启时未完成的检查丢失，内容留在审核队列由人工处理。
+- 运行方式：“仅记录”（`shadow`，默认）与“异步审核”（`deferred`）；已有 `enforce` 配置兼容映射为
+  后台审核，发布请求不再等待模型。仅记录不影响发布。用人工标注样本与离线阈值回放校准规则后再启用审核。
+  AI 决策携带 `revision_id`，人工结果只标注同一版本的决策，旧任务不能覆盖作者的新稿。
+- 内容与 `content-review` 任务在同一事务保存，然后返回 `content.moderation.checking`（Web/App 文案“发送成功”）。
+  敏感词与站外图片策略同样在保存后判定。`task_queue` worker 每 5 秒取任务，模型判定有 2 分钟上限；
+  重启后排队任务继续，崩溃时的 running 任务在 10 分钟租约到期后回收。数据库错误按现有队列最多重试 3 次；
+  终止失败的任务仍保留 pending 内容供人工处理。查看 `type=content-review` 的 status/last_error 排障，
+  不在日志中复制正文或证据。模型故障正常产生 review，由人工处理，不作为任务基础设施错误无限重试。
+- AI 通过静默公开；转人工及人工通过分别通知作者并链接内容，转人工后不再接受延迟的自动结果；拒绝产生一次站内通知，链接 `/settings?tab=content`（App 转至内容管理）。推送和发布副作用
+  经 `content-published` 任务投递。SSE `content.changed` 通知作者重读，连接恢复的 hello 同样触发重读。
+  已公开内容改稿期间旧版保留，拒绝改稿不会撤掉旧版。草稿保存不送审，发布草稿不能绕过审核。
+- schema 先自动迁移，数据迁移的目标版本为 33：v31 将活跃的旧 pending 内容分批纳入版本和任务队列，v32 回填 Bot 徽章，
+  v33 为活跃的旧被拒内容建立可申诉的不可变版本；每步成功后才推进迁移版本。
+  中途失败可重启重试；已有版本记录不会重复送审。旧实现已覆盖的公开正文无法可靠还原，不从历史猜测。
 - 任何模型故障、拒答、无效 JSON、未配置、超出每分钟护栏、图片数超限或标题超过 300 字／可见正文超过
   4000 字（超出部分未送审，证据状态 `text_truncated`）都转人工审核，审核队列负担会
   随之上升；服务器从不抓取站外图片，含站外图片按配置转审或拦截。
 - 隐私：待发布图片与正文会在推理期间发给所配置的 provider。生产须在 OpenRouter 工作区开启 Zero Data
   Retention、关闭 prompt/completion 日志并限定 provider 白名单；没有合规 provider 时保持关闭。
-- 拦截时 Web 与 App 弹出“内容暂未发布”提示：说明原因（站外图片单独说明）、正文与图片仍保留在编辑器、
-  如何修改后重发，不展示模型类别、概率或证据。
+- 作者收到拒绝结果后，在内容管理查看原因、完整正文和图片，修改后可重新提交；Blocked 不代表账号被封禁。
+  账号写权限限制独立生效。通知使用作者可理解的原因，不展示模型概率或原始证据。
 - 观测：失败另输出 `ai_moderation_vision_failed` / `ai_moderation_jev_failed`（只含分类与状态码，如
   `http_404`、`jev_config_401`）；每次判定输出结构化日志 `ai_moderation_decision`（动作、证据状态、错误类型、触发政策、
   延迟、provider 返回的 cost），不含正文、OCR 或 key；待审决策只在库内保留截断的证据摘要供审核员查看。
-- 审核入口：前台「版主管理 → 待审核」（`/api/forum/moderation/review-queue|review-action`，按版主
-  管辖分类收窄，越权按不存在处理）与管理后台审核队列等价。审核完成后作者收到 `review_approved` /
-  `review_rejected` 站内通知、Web Push 与原生推送；被拒内容对作者也不可见，因此通知不带跳转。
-- 待审内容（敏感词或 AI）的图片登记为 `PENDING` 引用：`/file/img` 对匿名和他人返回 404，作者、站点
-  管理员与管辖所属话题分类的版主（全局版主不限分类）以 `private, no-store` 预览；审核通过或解封后转
-  `ACTIVE`。引用在启动后台判定前登记。App 先匿名请求图片，本站 `/file/img/` 返回 404 时才带登录态重试
-  一次（不跟随重定向、不发往其他域名），带登录态取回的图片不写入磁盘缓存。
-- 待审话题与回复：作者可以打开自己审核中的内容（话题详情与楼层窗口走 `topicaccessservice.CanRead`），
-  页面标明“审核中”，审核前不开放回复；被拒内容对作者仍不可见，他人访问仍为 404。
+- 审核入口：前台“版主管理 → 待审核”（`/api/forum/moderation/review-queue|review-action`）与后台相同。
+  队列返回候选版本全文和 `revisionId`；版本化内容的处理请求必须带所见版本 ID，过期或遗漏返回已处理提示。
+  版主须有当前分类和候选分类的管理权限。通过不通知；拒绝通知带可编辑入口。
+  作者申诉走 `/api/forum/content/appeals`（内容管理里每个被拒版本一次），版主在“版主管理 → 申诉”复核
+  （`/api/forum/moderation/appeals|appeal-action`），通过即公开该版本并通知作者，拒绝须写理由；目标已变更时申诉失效。
+- 待审图片登记为私有 `post_revision` 引用；`/file/img` 对匿名和他人返回 404，作者、站点管理员、相关版主
+  以 `private, no-store` 预览。批准仅切换有效公开引用，旧版保留期间其图片继续公开，历史候选引用始终私有。
+  App 对本站图片匿名 404 后用登录态重试一次，不跟随重定向，不将授权响应写入磁盘缓存。
+  尚未绑定到内容的旧上传兼容行为不变；此机制不撤销浏览器此前取得的公开文件副本。
+- 删除/恢复不把版本化 pending 或 blocked 状态重置为正常；已删除内容不再被旧审核任务发布，附件引用按
+  原有删除保留规则处理。恢复后未完成的内容可由作者重提或审核员处理。
 
 ## 一系统排课同步（course-pk-sync，issue #186）
 
@@ -989,6 +1022,77 @@ A 404 means routes were not registered; check the deployed configuration and OID
 `oidc.enabled = false` in the deployment template and apply/restart through the same workflow.
 Password and Web social login remain separate from that switch.
 
+## Passkey configuration
+
+`Partial`: passkeys ship disabled on both instances until each one has verified domain association
+and production app signing identities. The forum itself is the WebAuthn relying party; it serves
+Apple's `/.well-known/apple-app-site-association` and Android's `/.well-known/assetlinks.json` from
+the configured values. Keep the RP ID and each HTTPS web origin within the instance hostname
+boundary. Main and dev use separate RP IDs/origins so their credentials remain isolated.
+
+Configure an instance in its `deploy/instances/<env>.json` entry, under `passkeys`. The renderer
+writes that block into the instance `[passkeys]` section, so the values are reviewed with the PR and
+survive every deploy; editing `config.toml` on the server does not, because CI replaces it
+atomically:
+
+```json
+"passkeys": {
+  "enabled": true,
+  "rp_id": "f.yourtj.de",
+  "display_name": "YourTJ",
+  "web_origins": ["https://f.yourtj.de"],
+  "apple_team_id": "<Apple Developer Team ID>",
+  "ios_bundle_id": "tj.yourtj.forumApp",
+  "android_package_name": "tj.yourtj.forum_app",
+  "android_sha256_cert_fingerprints": ["<SHA-256 app-signing certificate fingerprint>"]
+}
+```
+
+`rp_id`, `display_name` and `web_origins` are non-secret; each instance pins its own so main and dev
+credentials stay isolated. Keep the RP ID inside the instance hostname boundary, and treat a change to
+it as breaking: existing credentials are bound to the RP ID they were created under.
+
+`enabled = true` requires every identity below, and the renderer rejects a malformed enabled config
+before it reaches the server (same rules as the running service, which fails closed and reports
+`disabled` on the public status endpoint):
+
+- `apple_team_id`: 10 uppercase alphanumerics, with a non-empty `ios_bundle_id`.
+- `android_package_name` plus at least one 32-byte SHA-256 fingerprint (colon-separated or compact
+  hex). Include every Android signing identity that should be accepted, such as debug and Play
+  signing; do not substitute an upload-key fingerprint for Play's app-signing certificate, and verify
+  values against publisher records first.
+- At least one bare HTTPS `web_origins` entry on the RP ID or one of its subdomains.
+
+The signing identities are the property of the iOS and Android signing owners; leave
+`apple_team_id` and `android_sha256_cert_fingerprints` empty until those owners confirm them. While
+`enabled = false` the identity values are not validated, so the non-signing values can be filled and
+the association documents verified first. iOS Associated Domains include the exact main and dev
+hosts, and the matching AASA `appID` must be `<TeamID>.tj.yourtj.forumApp`; each configured hostname
+must serve its AASA or Digital Asset Links document directly over HTTPS without redirects. Android
+association binds the package name to the configured fingerprints. Passkey credential encryption and
+user handles derive from `app.signingKey`; rotating that key makes existing credentials unusable.
+Keep it stable and include credential re-enrollment in any planned key rotation.
+
+After a reviewed config rollout, verify both files and the public enabled flag:
+
+```bash
+curl --fail --silent --show-error https://f.yourtj.de/.well-known/apple-app-site-association
+curl --fail --silent --show-error https://f.yourtj.de/.well-known/assetlinks.json
+curl --fail --silent --show-error https://f.yourtj.de/api/auth/passkey/status
+```
+
+Check the corresponding `dev.yourtj.de` paths for dev. Keep `enabled = false` if any signing identity
+or domain association is unknown; invalid enabled configuration fails closed and hides the client
+entry. A `disabled` status alone cannot distinguish "not enabled" from "configured but invalid", so
+read the server log before concluding that passkeys are not deployed.
+
+Enable, disable and roll back through the same reviewed path: change `enabled` in
+`deploy/instances/<env>.json`, merge, then let the next instance deploy apply it, or run the
+`Apply / instance config` workflow for a config-only change. A config apply that fails its health
+check restores the previous config transaction. Disabling stops every passkey ceremony while leaving
+registered credentials in place, so re-enabling needs no re-enrollment unless `app.signingKey` was
+rotated.
+
 ## Runbooks to write
 
 - Meilisearch index rebuild, backup
@@ -1076,3 +1180,10 @@ GitHub `Deploy / main` 仅部署应用和渲染配置，不自动执行索引全
 `rebuild-course-search --in-place` 的区别是：后台流程还清理失效文档、重新检查并保存进度；
 CLI 的原地刷新仅补写字段。管理页只在可见且存在活动任务时每 5 秒轮询，失败、离开页面
 或任务终止后停止；点击「刷新状态」可重新获取状态。
+
+## Agent isolation during database replacement
+
+Agent instance identity and stream epoch are deployment state outside business database backups.
+Database restore rotates the epoch before reopening; dev snapshot synchronization also revokes copied
+Agent credentials/secrets, clears Agent-derived rows and disables ingress/production/outbound switches.
+See the [Agent runbook](agents.md#retention-restore-and-rollback) for activation and reconciliation.

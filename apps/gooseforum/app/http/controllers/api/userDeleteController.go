@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/campusservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"log/slog"
 	"time"
 
@@ -65,8 +66,18 @@ func ReportContentEvent(req component.BetterRequest[ContentEventReq]) component.
 	return component.SuccessResponse(true)
 }
 
-// MyContentItem 本人仍公开的话题/回复条目（PRD R9 批量管理）。
+// MyContentItem includes the owner-only latest candidate and recovery details.
 type MyContentItem struct {
+	ProcessStatus       int8     `json:"processStatus"`
+	RevisionId          uint64   `json:"revisionId"`
+	ReviewReason        string   `json:"reviewReason,omitempty"`
+	HasPublishedVersion bool     `json:"hasPublishedVersion"`
+	Content             string   `json:"content"`
+	Images              []string `json:"images"`
+	// CanAppeal/Appeal describe the latest rejected revision (#1114); Appeal is null until one is filed.
+	CanAppeal bool                            `json:"canAppeal"`
+	Appeal    *publicationservice.OwnerAppeal `json:"appeal"`
+
 	ID          uint64 `json:"id"`
 	ContentType string `json:"contentType"`
 	Title       string `json:"title"`
@@ -98,7 +109,12 @@ func MyContentList(req component.BetterRequest[MyContentListReq]) component.Resp
 		}
 		items := make([]MyContentItem, 0, len(entities))
 		for _, topic := range entities {
+			post := posts.Get(topic.FirstPostId)
+			public := topic.Status == 1 && topic.ProcessStatus == topics.ProcessStatusNormal && post.ProcessStatus == posts.ProcessStatusNormal
+			appeal := publicationservice.OwnerAppealStateFor(requestContext(req.GinContext), req.UserId, topic, post)
+			revision := publicationservice.OwnerSnapshot(&topic, &post, req.UserId, true)
 			items = append(items, MyContentItem{
+				ProcessStatus: post.ProcessStatus, RevisionId: post.LatestRevisionId, ReviewReason: revision.ReviewReason, HasPublishedVersion: public, Content: post.Content, Images: append([]string{}, topic.ImageUrls...), CanAppeal: appeal.CanAppeal, Appeal: appeal.Appeal,
 				ID:          topic.Id,
 				ContentType: "topic",
 				Title:       topic.Title,
@@ -119,7 +135,12 @@ func MyContentList(req component.BetterRequest[MyContentListReq]) component.Resp
 		}
 		items := make([]MyContentItem, 0, len(entities))
 		for _, post := range entities {
+			topic := topics.Get(post.TopicId)
+			public := topic.Status == 1 && topic.ProcessStatus == topics.ProcessStatusNormal && post.ProcessStatus == posts.ProcessStatusNormal
+			appeal := publicationservice.OwnerAppealStateFor(requestContext(req.GinContext), req.UserId, topic, post)
+			revision := publicationservice.OwnerSnapshot(&topic, &post, req.UserId, true)
 			items = append(items, MyContentItem{
+				ProcessStatus: post.ProcessStatus, RevisionId: post.LatestRevisionId, ReviewReason: revision.ReviewReason, HasPublishedVersion: public, Content: post.Content, Images: []string{}, CanAppeal: appeal.CanAppeal, Appeal: appeal.Appeal,
 				ID:          post.Id,
 				ContentType: "post",
 				Title:       fmt.Sprintf("回复 #%d", post.PostNo),

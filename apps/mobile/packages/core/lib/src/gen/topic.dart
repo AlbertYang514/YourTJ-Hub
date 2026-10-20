@@ -1,3 +1,4 @@
+import 'decoration.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'topic.freezed.dart';
@@ -6,7 +7,11 @@ part 'topic.g.dart';
 @freezed
 abstract class UserBriefPayload with _$UserBriefPayload {
   const factory UserBriefPayload({
+    @JsonKey(fromJson: UserDecoration.parse) UserDecoration? decoration,
     required int id,
+    String? kind,
+    String? publicUid,
+    String? profileUrl,
     required String username,
     String? nickname,
     required String avatarUrl,
@@ -170,6 +175,9 @@ bool _sameVariants(
 @freezed
 abstract class TopicPayload with _$TopicPayload {
   const factory TopicPayload({
+    String? feedTrace,
+    int? feedPosition,
+    String? feedReason,
     required int id,
     required String title,
     required String description,
@@ -201,6 +209,7 @@ abstract class TopicPayload with _$TopicPayload {
 @freezed
 abstract class TopicDetailPayload with _$TopicDetailPayload {
   const factory TopicDetailPayload({
+    @Default(false) bool agentRepliesDisabled,
     required int id,
     required String title,
     required String description,
@@ -258,6 +267,8 @@ abstract class PostPayload with _$PostPayload {
     required int likeCount,
     required bool isLiked,
     required bool isBookmarked,
+    /// Topic gallery, only on the visible first post (issue #1228).
+    List<String>? images,
   }) = _PostPayload;
 
   factory PostPayload.fromJson(Map<String, dynamic> json) =>
@@ -313,6 +324,7 @@ abstract class TopicDetailProps with _$TopicDetailProps {
 @freezed
 abstract class TopicDetailPermissions with _$TopicDetailPermissions {
   const factory TopicDetailPermissions({
+    @Default(false) bool canManageAgentReplies,
     required bool isOwnTopic,
     required bool canPost,
     required bool canModerateTopic,

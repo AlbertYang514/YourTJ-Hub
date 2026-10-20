@@ -5,13 +5,18 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 ///
 /// 同时保存 token 与登录用户信息(轻量会话元数据),供论坛 UI 展示。
 class SecureTokenStorage implements TokenStorage {
-  SecureTokenStorage({FlutterSecureStorage? storage})
+  SecureTokenStorage({FlutterSecureStorage? storage, this.namespace = ''})
     : _storage = storage ?? const FlutterSecureStorage();
 
-  static const _keyRevoked = 'yourtj.session.locallyRevoked';
-  static const _keyToken = 'yourtj.session.token';
-  static const _keyUserId = 'yourtj.session.userId';
-  static const _keyUsername = 'yourtj.session.username';
+  /// Empty preserves installed production sessions. Other sites get their own
+  /// credentials, metadata and revocation tombstone across app replacement.
+  final String namespace;
+  String get _prefix =>
+      namespace.isEmpty ? 'yourtj.session' : 'yourtj.session.$namespace';
+  String get _keyRevoked => '$_prefix.locallyRevoked';
+  String get _keyToken => '$_prefix.token';
+  String get _keyUserId => '$_prefix.userId';
+  String get _keyUsername => '$_prefix.username';
 
   final FlutterSecureStorage _storage;
   String? _cachedToken;

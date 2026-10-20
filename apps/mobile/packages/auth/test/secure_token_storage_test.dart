@@ -6,6 +6,28 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test(
+    'preview credentials and revocation never reuse production sessions',
+    () async {
+      FlutterSecureStorage.setMockInitialValues({
+        'yourtj.session.token': 'production',
+      });
+      final production = SecureTokenStorage();
+      final dev = SecureTokenStorage(namespace: 'https://dev.yourtj.de');
+      expect(await dev.read(), isNull);
+      await dev.write('dev');
+      await dev.writeSession(userId: 7, username: 'tester');
+      expect(await production.read(), 'production');
+      expect(await production.readUserId(), isNull);
+      await dev.clear();
+      expect(await SecureTokenStorage().read(), 'production');
+      expect(
+        await SecureTokenStorage(namespace: 'https://dev.yourtj.de').read(),
+        isNull,
+      );
+    },
+  );
+
+  test(
     'failed token deletion cannot restore a revoked session on restart',
     () async {
       final backing = DeleteFailingStorage();

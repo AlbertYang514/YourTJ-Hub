@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-03
+> Last verified: 2026-10-13
 
 ## System shape
 
@@ -62,7 +62,8 @@ flowchart TB
 
 ### Auth
 
-- Web: password login (optional forum-side TOTP 2FA), GitHub OAuth (goth, config [github]), optional
+- Web: password login (optional forum-side TOTP 2FA), discoverable WebAuthn passkeys (optional,
+  disabled by default; shared credential store and normal forum session), GitHub OAuth (goth, config [github]), optional
   Google OAuth (goth, config [google]), Tongji SSO (campus credentials and callback), and the
   built-in OIDC Provider (authorization code + PKCE S256, numeric `sub` = users.id) for first-party
   clients. Sessions are `jti` + `user_sessions` backed and revocable (see identity-and-access.md).
@@ -108,6 +109,17 @@ flowchart TB
   bounded HTML fetcher that validates every DNS result and redirect, dials only the checked IP, and caps
   time, redirects, decompressed bytes and concurrency. Cached and singleflight results expose only a
   fixed metadata whitelist.
+- Platform cards are a recognition layer over that same pipeline, not a second fetch path: Bilibili
+  `/video/BV…|av…` and Apple Music `/{storefront}/{song|album}/…/{id}` are matched by host, path shape
+  and resource id before any field is added, and short links are recognized by their validated
+  redirect target so the card still shows the URL the author pasted. Bilibili metadata comes from the
+  same bounded page fetch (whitelisted `og:*` and `<meta name="author">`, cover restricted to the
+  platform CDN); Apple Music metadata comes from one code-owned JSON endpoint through the same URL,
+  DNS, redirect, size and timeout policy, parsed into a whitelisted struct whose final host must still
+  be that endpoint. Cache keys for recognized platform URLs lowercase the host, drop a whitelist of
+  share-tracking parameters and keep resource-defining parameters (`p`, `t`, `i`) and the storefront.
+  Clients render platform and resource-type labels from their own locale; the server sends
+  identifiers, never localized copy or remote markup.
 - Preview cards are progressive enhancement: a timeout, policy rejection or unsupported page leaves the
   original link intact. All UGC external links use one per-client guard that displays the canonical
   hostname and complete URL. Session trust is keyed by Public Suffix List eTLD+1 and never applies to a
@@ -219,3 +231,11 @@ rules, persisted through `pageConfig`'s compare-and-swap API. It drafts public n
 applies confirmed rules to original dated occurrences before emitting ICS; source teaching
 weeks and stable event identities are preserved. Both clients explicitly choose whether to
 apply rules. The LLM does not receive private timetables.
+
+## Agent interaction boundary
+
+Public source revisions and durable intents commit with forum content. Agent event materialization
+and optional signed delivery reuse `task_queue`; external runners own models, scheduling, ingress
+deduplication and processing ACK. Instance identity/epoch remain outside business snapshots.
+See [MADR 0065](../decisions/0069-agent-interaction-events.md) for transaction/lock and protocol choices
+and the [Agent runbook](../operations/agents.md) for current limits and restore behavior.

@@ -99,6 +99,76 @@ class _DelayedResume extends FakeCampusRepository {
 }
 
 void main() {
+  testWidgets('iPad campus has persistent modules and a two-column today', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(campusTestApp(FakeCampusRepository()));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('campus-module-directory')), findsOneWidget);
+    final courses = find.byKey(const Key('campus-today-courses'));
+    final notices = find.byKey(const Key('campus-today-notices'));
+    expect(
+      tester.getRect(courses).right,
+      lessThan(tester.getRect(notices).left),
+    );
+    await tester.tap(find.byKey(const Key('campus-module-messages')));
+    await tester.pumpAndSettle();
+    await tester.enterText(_search, '图书馆');
+    final state = tester.state(find.byType(CampusPage));
+    for (final size in [
+      const Size(834, 1120),
+      const Size(620, 834),
+      const Size(1200, 900),
+    ]) {
+      tester.view.physicalSize = size;
+      await tester.pumpAndSettle();
+      expect(tester.state(find.byType(CampusPage)), same(state));
+      expect(tester.widget<TextField>(_search).controller!.text, '图书馆');
+      expect(tester.takeException(), isNull);
+    }
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pumpAndSettle();
+    for (final state in [AppLifecycleState.hidden, AppLifecycleState.paused]) {
+      tester.binding.handleAppLifecycleStateChanged(state);
+      tester.binding.scheduleForcedFrame();
+      await tester.pumpAndSettle();
+    }
+    expect(find.text('图书馆开放时间调整（演示）'), findsNothing);
+    expect(find.byType(GfSkeleton), findsWidgets);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(_search).controller!.text, '图书馆');
+    expect(find.text('图书馆开放时间调整（演示）'), findsWidgets);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('iPad campus large type stacks today and retains its modules', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(campusTestApp(FakeCampusRepository(), scale: 2));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('campus-module-directory')), findsNothing);
+    final courses = find.byKey(const Key('campus-today-courses'));
+    final notices = find.byKey(const Key('campus-today-notices'));
+    expect(
+      tester.getRect(notices).top,
+      greaterThan(tester.getRect(courses).top),
+    );
+    expect(find.byType(GfTabBar), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('campus tab return preserves selected notice search', (
     tester,
   ) async {
@@ -139,12 +209,18 @@ void main() {
     await tester.enterText(_search, '图书馆');
     await tester.pumpAndSettle();
 
-    for (final state in [
-      AppLifecycleState.inactive,
-      AppLifecycleState.hidden,
-      AppLifecycleState.paused,
-    ]) {
+    // 瞬时遮挡（inactive：通知栏/弹窗）不再触发隐私重建，内容原样保留。
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pumpAndSettle();
+    expect(find.byType(GfTabBar), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.byType(GfSkeleton), findsNothing);
+
+    // 真正被覆盖（hidden/paused）才丢弃隐私内容、回退骨架屏。hidden/paused
+    // 起 scheduler 禁用帧（framesEnabled=false），需强制一帧让卸载渲染生效。
+    for (final state in [AppLifecycleState.hidden, AppLifecycleState.paused]) {
       tester.binding.handleAppLifecycleStateChanged(state);
+      tester.binding.scheduleForcedFrame();
       await tester.pumpAndSettle();
       expect(find.byType(GfTabBar), findsOneWidget);
       expect(find.byType(GfSkeleton), findsWidgets);
@@ -223,7 +299,7 @@ void main() {
       _list(tester).jumpTo(120);
       await tester.pump();
 
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       await tester.pumpAndSettle();
       repo.statusResponse = Completer<CampusStatus>();
       repo.messagesResponse = Completer<CampusDataset>();
@@ -279,7 +355,7 @@ void main() {
     await tester.pumpAndSettle();
     await _select(tester, 'timetable');
     final l = AppLocalizations.of(tester.element(find.byType(CampusPage)));
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     await tester.pumpAndSettle();
     repo.statusResponse = Completer<CampusStatus>();
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);

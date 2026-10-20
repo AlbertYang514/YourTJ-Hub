@@ -3,9 +3,16 @@ import { i18n } from '@/runtime/i18n'
 import { resolveApiMessage } from '@/runtime/api-message'
 import type {
   ApiEnvelope,
+  BotContentSource,
   AdminAgent,
+  AdminAgentCommentPolicy,
+  AdminAgentCommentTopicPolicy,
   AdminAgentCreateResult,
   AdminAgentRotateResult,
+  AdminAgentWebhookDelivery,
+  AdminAgentWebhookDeliveryPage,
+  AdminAgentInteractionIntentPage,
+  AdminAgentWebhookSecretResult,
   AdminTaskRow,
   AdminTopic,
   AdminSticker,
@@ -24,6 +31,7 @@ import type {
   DailyTraffic,
   FriendLinkGroup,
   GithubRelease,
+  HttpNotifyEndpoint,
   HttpNotifySettings,
   MailSettings,
   PageResult,
@@ -74,13 +82,15 @@ function apiError(data: ApiEnvelope<unknown>, fallback: string) {
 }
 
 async function readApiResponse<T>(response: Response, fallback: string): Promise<T> {
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`)
-  }
   if (response.status === 204) {
     return undefined as T
   }
-  const data = (await response.json()) as ApiEnvelope<T>
+  const data = (await response.json().catch(() => undefined)) as ApiEnvelope<T> | undefined
+  if (!response.ok) {
+    if (data?.messageCode) throw apiError(data, fallback)
+    throw new Error(`HTTP ${response.status}`)
+  }
+  if (!data) throw new Error(fallback)
   if (data.code !== undefined && data.code !== 0) {
     throw apiError(data, fallback)
   }
@@ -275,7 +285,7 @@ export function deleteCategoryModerator(id: number) {
   return postJson<unknown>('/api/admin/category-moderator-delete', { id }, adminText('k00er'))
 }
 
-export function getTopicsList(params: { page?: number, pageSize?: number, search?: string }) {
+export function getTopicsList(params: { page?: number, pageSize?: number, search?: string, agentCommentDisabled?: boolean }) {
   return postJson<PageResult<AdminTopic>>('/api/admin/topics/list', params, adminText('k0012'))
 }
 
@@ -509,6 +519,15 @@ export function saveHttpNotifySettings(settings: HttpNotifySettings) {
   return postJson<unknown>('/api/admin/save-http-notify-settings', { settings }, adminText('k00ci'))
 }
 
+// testHttpNotifyEndpoint 用表单中的（可能未保存的）配置向单个回调地址发送测试消息（issue #1049）。
+export function testHttpNotifyEndpoint(endpoint: HttpNotifyEndpoint) {
+  return postJson<{ success: boolean, messageCode: string, params?: { error?: string } }>(
+    '/api/admin/test-http-notify-endpoint',
+    { endpoint },
+    adminText('k00xi'),
+  )
+}
+
 export function saveAnnouncement(settings: AnnouncementConfig) {
   return postJson<unknown>('/api/admin/save-announcement', { settings }, adminText('k001o'))
 }
@@ -553,7 +572,7 @@ export function savePrivacyPolicy(settings: PrivacyPolicyConfig) {
   return postJson<unknown>('/api/admin/save-privacy-policy', { settings }, adminText('k00gt'))
 }
 
-export function getReviewQueue(kind: 'topic' | 'post', page: number, pageSize: number) {
+export function getReviewQueue(kind: 'topic' | 'post' | 'sticker', page: number, pageSize: number) {
   return postJson<{ items: ReviewQueueItem[], total: number, page: number, pageSize: number }>(
     '/api/admin/review-queue',
     { kind, page, pageSize },
@@ -561,8 +580,8 @@ export function getReviewQueue(kind: 'topic' | 'post', page: number, pageSize: n
   )
 }
 
-export function reviewAction(kind: 'topic' | 'post', id: number, approve: boolean) {
-  return postJson<unknown>('/api/admin/review-action', { kind, id, approve }, adminText('k00gd'))
+export function reviewAction(kind: 'topic' | 'post' | 'sticker', id: number, approve: boolean, revisionId = 0) {
+  return postJson<unknown>('/api/admin/review-action', { kind, id, approve, revisionId }, adminText('k00gd'))
 }
 
 export function createExportTask(tables: string[], format: 'json' | 'csv') {
@@ -599,7 +618,7 @@ export function createAgent(data: { username: string, nickname?: string, webhook
   return postJson<AdminAgentCreateResult>('/api/admin/agent-create', data, adminText('k00k3'))
 }
 
-export function updateAgent(data: { agentId: number, nickname?: string, webhookEndpoint?: string, enabled?: number }) {
+export function updateAgent(data: { agentId: number, nickname?: string, avatarUrl?: string, profileCoverUrl?: string, bio?: string, signature?: string, website?: string, websiteName?: string, webhookEndpoint?: string, enabled?: number }) {
   return postJson<AdminAgent>('/api/admin/agent-update', data, adminText('k00k4'))
 }
 
@@ -609,6 +628,71 @@ export function rotateAgentToken(agentId: number) {
 
 export function disableAgent(agentId: number) {
   return postJson<unknown>('/api/admin/agent-disable', { agentId }, adminText('k00k6'))
+}
+
+export function saveAgentWebhookConfig(data: {
+  agentId: number
+  configVersion: number
+  eventsEnabled: boolean
+  eventTypes: string[]
+  webhookEnabled: boolean
+  webhookEndpoint: string
+  /** Omit to keep the stored value; '' clears it. Never returned by the server. */
+  webhookAuthorization?: string
+}) {
+  return postJson<AdminAgent>('/api/admin/agent-webhook-config', data, t('agentWebhook.loadFailed'))
+}
+
+export function rotateAgentWebhookSecret(data: {
+  agentId: number
+  configVersion: number
+  emergency: boolean
+}) {
+  return postJson<AdminAgentWebhookSecretResult>(
+    '/api/admin/agent-webhook-rotate-secret', data, t('agentWebhook.loadFailed'),
+  )
+}
+
+export function testAgentWebhook(agentId: number) {
+  return postJson<AdminAgentWebhookDelivery>(
+    '/api/admin/agent-webhook-test', { agentId }, t('agentWebhook.testFailed'),
+  )
+}
+
+export function getAgentWebhookDeliveries(agentId: number, page: number, pageSize: number) {
+  return postJson<AdminAgentWebhookDeliveryPage>(
+    '/api/admin/agent-webhook-deliveries', { agentId, page, pageSize }, t('agentWebhook.loadFailed'),
+  )
+}
+
+export function redeliverAgentWebhookDelivery(agentId: number, deliveryId: number) {
+  return postJson<AdminAgentWebhookDelivery>(
+    '/api/admin/agent-webhook-redeliver', { agentId, deliveryId }, t('agentWebhook.redeliverFailed'),
+  )
+}
+
+export function getAgentInteractionIntents(agentId: number, page: number, pageSize: number) {
+  return postJson<AdminAgentInteractionIntentPage>(
+    '/api/admin/agent-interaction-intents', { agentId, page, pageSize }, t('agentWebhook.loadFailed'),
+  )
+}
+
+export function replayAgentInteractionIntent(agentId: number, intentId: string) {
+  return postJson<unknown>(
+    '/api/admin/agent-interaction-replay', { agentId, intentId }, t('agentWebhook.replayFailed'),
+  )
+}
+
+export function getAgentCommentPolicy() {
+  return getJson<AdminAgentCommentPolicy>('/api/admin/agent-comment-policy', t('agentPolicy.loadFailed'))
+}
+
+export function saveAgentCommentPolicy(allowAgentComments: boolean) {
+  return postJson<unknown>('/api/admin/save-agent-comment-policy', { allowAgentComments }, t('agentPolicy.saveFailed'))
+}
+
+export function setAgentCommentTopicPolicy(topicId: number, disabled: boolean) {
+  return postJson<AdminAgentCommentTopicPolicy>('/api/admin/set-agent-comment-topic-policy', { topicId, disabled }, t('agentPolicy.toggleFailed'))
 }
 
 export function getWikiNamespaces() {
@@ -697,4 +781,93 @@ export function getSearchMaintenance(): Promise<SearchMaintenanceStatus> {
 
 export function createSearchMaintenance(request: SearchMaintenanceRequest): Promise<SearchMaintenanceSubmission> {
   return postJson('/api/admin/search/maintenance', request, adminText('k004q'))
+}
+
+export type FeedSummary = import('@gooseforum/client').components['schemas']['FeedSummary']
+export function getFeedSummary(): Promise<FeedSummary> {return getJson<FeedSummary>('/api/admin/feed/summary', t('common.loadFailed'))}
+
+
+export type AdminAnonymousIdentity = import('@gooseforum/client').components['schemas']['AdminAnonymousIdentity']
+export type AdminAnonymousListRequest = import('@gooseforum/client').components['schemas']['AdminAnonymousListRequest']
+export type AdminAnonymousList = import('@gooseforum/client').components['schemas']['AdminAnonymousList']
+export function listAnonymousIdentities(request: AdminAnonymousListRequest): Promise<AdminAnonymousList> {
+  return postJson('/api/admin/anonymous-identities/list', request, t('common.loadFailed'))
+}
+export function governAnonymousIdentity(request: import('@gooseforum/client').components['schemas']['AdminAnonymousGovernRequest']): Promise<boolean> {
+  return postJson('/api/admin/anonymous-identities/govern', request, t('anonymousAdmin.saveFailed'))
+}
+
+export function getDecorations() { return getJson<import('@gooseforum/client').DecorationStyle[]>('/api/admin/decorations', i18n.global.t('decoration.loadFailed')) }
+export function saveDecoration(style: import('@gooseforum/client').DecorationStyle) { return postJson<import('@gooseforum/client').DecorationStyle>('/api/admin/decoration-save', style) }
+export function uploadDecorationAsset(file: File) {
+  const body = new FormData()
+  body.append('file', file)
+  return postForm<{ url: string }>('/api/admin/decoration-asset', body, i18n.global.t('decoration.uploadFailed'))
+}
+export function uploadBadgeAsset(file: File) {
+  const body = new FormData()
+  body.append('file', file)
+  return postForm<{ url: string }>('/api/admin/badge-asset', body, i18n.global.t('badgeAdmin.uploadFailed'))
+}
+export function getUserDecorations(userId: number) { return getJson<import('@gooseforum/client').DecorationState>(`/api/admin/user-decorations?userId=${encodeURIComponent(userId)}`, i18n.global.t('decoration.loadFailed')) }
+export function changeUserDecoration(action: 'grant' | 'revoke', body: { userId: number; code: string; reason: string; requestKey: string }) { return postJson<import('@gooseforum/client').DecorationState>(`/api/admin/decoration-${action}`, body) }
+
+// ---- 内容贡献统计（issue #1145）----
+// 口径（冻结）：时间按首次公开时间归属、板块按当前所属且多板块主题各计一次、
+// 获赞为当前仍有效获赞、贡献人数按账号去重且匿名/已注销不计入。
+
+/** 统计筛选：区间含起止两天（服务器本地日），categoryId 为 0 表示全站。 */
+export interface AdminStatsFilter {
+  startDate: string
+  endDate: string
+  categoryId: number
+}
+
+export type AdminStatsUserSort = NonNullable<
+  import('@gooseforum/client').components['schemas']['AdminStatsUserRankingRequest']['sortBy']
+>
+/** 0 = 真人，1 = Agent（R7：两类账号分开统计，不混入）。 */
+export type AdminStatsActorType = NonNullable<
+  import('@gooseforum/client').components['schemas']['AdminStatsUserRankingRequest']['actorType']
+>
+
+export type AdminStatsCategorySummaryRequest = import('@gooseforum/client').components['schemas']['AdminStatsCategorySummaryRequest']
+export type AdminStatsCategoryTrendRequest = import('@gooseforum/client').components['schemas']['AdminStatsCategoryTrendRequest']
+export type AdminStatsUserRankingRequest = import('@gooseforum/client').components['schemas']['AdminStatsUserRankingRequest']
+/** userId 与 username 恰给一个。 */
+export type AdminStatsUserDetailRequest = import('@gooseforum/client').components['schemas']['AdminStatsUserDetailRequest']
+
+export type AdminStatsCategorySummaryResult = import('@gooseforum/client').components['schemas']['AdminStatsCategorySummaryResult']
+export type AdminStatsCategoryTrendResult = import('@gooseforum/client').components['schemas']['AdminStatsCategoryTrendResult']
+export type AdminStatsUserRankingResult = import('@gooseforum/client').components['schemas']['AdminStatsUserRankingResult']
+export type AdminStatsUserDetailResult = import('@gooseforum/client').components['schemas']['AdminStatsUserDetailResult']
+
+export function getAdminStatsCategorySummary(request: AdminStatsCategorySummaryRequest): Promise<AdminStatsCategorySummaryResult> {
+  return postJson('/api/admin/stats/category-summary', request, t('statsAdmin.loadFailed'))
+}
+
+export function getAdminStatsCategoryTrend(request: AdminStatsCategoryTrendRequest): Promise<AdminStatsCategoryTrendResult> {
+  return postJson('/api/admin/stats/category-trend', request, t('statsAdmin.loadFailed'))
+}
+
+export function getAdminStatsUserRanking(request: AdminStatsUserRankingRequest): Promise<AdminStatsUserRankingResult> {
+  return postJson('/api/admin/stats/user-ranking', request, t('statsAdmin.loadFailed'))
+}
+
+export function getAdminStatsUserDetail(request: AdminStatsUserDetailRequest): Promise<AdminStatsUserDetailResult> {
+  return postJson('/api/admin/stats/user-detail', request, t('statsAdmin.loadFailed'))
+}
+
+export function getBotContentSource(data: { topicId?: number, postId?: number }) {
+  return postJson<BotContentSource>('/api/admin/agents/content-source', data)
+}
+
+export async function editBotContent(kind: 'topic' | 'post', data: { topicId?: number, postId?: number, title?: string, content: string, categoryId?: number[], expectedRevisionNo: number }) {
+  const response = await fetch(`/api/admin/agents/edit-${kind}`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  await readApiResponse<unknown>(response.clone(), adminText('k000l'))
+  return await response.json() as ApiEnvelope<unknown>
 }

@@ -6,12 +6,17 @@
 >
 > Owner: Wiki maintainers
 >
-> Last verified: 2026-08-16
+> Last verified: 2026-10-09
 
 Wiki content is authored in the public `YourTongji/YourTJ-Wiki` Git repository. The forum is a
 read-only projection: merge changes through GitHub, then wait for the scheduled sync or trigger the
 admin Wiki sync. Pages are Markdown files beneath a top-level namespace directory; page URLs omit the
 `.md` suffix; the URL path segment is the top-level namespace directory name (the display name).
+
+`Current`: YourTJ Wiki page content is licensed under [CC BY-NC-SA 4.0](../development/licensing.md).
+Redistribution requires attribution, a link to the license, notice of changes and the same license for adaptations.
+This grant covers only rights held or authorized by the contributor; third-party works and personal information may need separate permission.
+The license is irrevocable for recipients who comply with its terms; removing a page from Wiki does not revoke copies already shared.
 
 ## Wiki local search (Current)
 
@@ -27,7 +32,10 @@ The public endpoint is `GET /api/wiki/search`:
 - Results are aggregated at the page level. Each item represents one public page and carries all
   matching paragraph anchors, so `total` counts distinct pages rather than paragraph hits.
 - Paragraph anchors use the form `s-<n>`. Selecting a result opens the page at its first matching
-  paragraph and briefly highlights the target; subsequent matches can be cycled from the page.
+  paragraph with an instant header-offset adjustment and briefly highlights the target. Direct
+  heading or paragraph fragment links use the same instant landing behavior. `Ctrl/Cmd+G` cycles
+  subsequent matches on the same page with smooth scrolling; the highlight waits for `scrollend`
+  or a 700 ms fallback.
 - `searchUnavailable: true` means the optional Meilisearch backend is unavailable. The API keeps HTTP
   200 and returns an empty item list so Wiki reading remains available.
 

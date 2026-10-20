@@ -4,10 +4,11 @@
 /// 触发边界、匹配强度排序、userId 去重、排除自己、空 query 上限 5 / 有 query
 /// 上限 8。会话编排镜像 `useMentionAutocomplete.ts`：300ms 防抖、query 变化即
 /// 废弃在途响应、stale 响应丢弃、搜索失败不阻塞编辑。TextField 的 caret 采集
-/// 与写入由 topic_page 桥接；搜索依赖由调用方注入（core 依赖不进入本文件）。
+/// 与写入由 topic_page 桥接；搜索依赖由调用方注入。
 library;
 
 import 'dart:async';
+import 'package:core/core.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -24,14 +25,18 @@ class MentionUser {
     required this.username,
     required this.avatarUrl,
     this.nickname,
+    this.decoration,
     this.tag,
+    this.actorType = 'human',
   });
 
+  final UserDecoration? decoration;
   final int id;
   final String username;
   final String? nickname;
   final String avatarUrl;
   final MentionTag? tag;
+  final String actorType;
 
   String get displayName =>
       (nickname == null || nickname!.isEmpty) ? username : nickname!;
@@ -44,10 +49,20 @@ class MentionUser {
           other.username == username &&
           other.nickname == nickname &&
           other.avatarUrl == avatarUrl &&
-          other.tag == tag;
+          other.actorType == actorType &&
+          other.tag == tag &&
+          other.decoration == decoration;
 
   @override
-  int get hashCode => Object.hash(id, username, nickname, avatarUrl, tag);
+  int get hashCode => Object.hash(
+    id,
+    username,
+    nickname,
+    avatarUrl,
+    actorType,
+    tag,
+    decoration,
+  );
 }
 
 /// 识别出的 mention token：光标前文本中 [start, start + length) 即 "@query"。
@@ -208,10 +223,24 @@ List<MentionUser> rankMentionCandidates({
 }) {
   final seen = <int>{};
   final out = <MentionUser>[];
+  // Keep contextual order/tag while merging the server's actor identity.
+  final actorTypes = {for (final user in server) user.id: user.actorType};
   void push(MentionUser user) {
     if (user.id == currentUserId || seen.contains(user.id)) return;
     seen.add(user.id);
-    out.add(user);
+    final actorType = actorTypes[user.id] ?? user.actorType;
+    out.add(
+      actorType == user.actorType
+          ? user
+          : MentionUser(
+              id: user.id,
+              username: user.username,
+              nickname: user.nickname,
+              avatarUrl: user.avatarUrl,
+              tag: user.tag,
+              actorType: actorType,
+            ),
+    );
   }
 
   final localSorted =
