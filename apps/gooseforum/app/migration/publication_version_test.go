@@ -7,6 +7,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userBadges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	xpmodel "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/xp"
@@ -15,7 +16,7 @@ import (
 // A deployment already at v30 must still run the legacy pending adoption.
 func TestVersionedMigrationRunsPublicationAdoptionFrom30(t *testing.T) {
 	conn := dbconnect.Connect()
-	models := []any{&pageConfig.Entity{}, &posts.Entity{}, &users.EntityComplete{}, &badges.Entity{}, &userBadges.Entity{}}
+	models := []any{&topics.Entity{}, &pageConfig.Entity{}, &posts.Entity{}, &users.EntityComplete{}, &badges.Entity{}, &userBadges.Entity{}}
 	models = append(models, xpmodel.Models()...)
 	if err := conn.AutoMigrate(models...); err != nil {
 		t.Fatal(err)
@@ -26,8 +27,8 @@ func TestVersionedMigrationRunsPublicationAdoptionFrom30(t *testing.T) {
 	if err := runVersionedDataMigrations(); err != nil {
 		t.Fatal(err)
 	}
-	if got := pageConfig.GetMigrationVersion(); got != 34 {
-		t.Fatalf("migration stopped at %d; expected initial XP rules at version 34", got)
+	if got := pageConfig.GetMigrationVersion(); got != pageConfig.AppMigrationVersion {
+		t.Fatalf("migration stopped at %d; want %d", got, pageConfig.AppMigrationVersion)
 	}
 	var dailyRule xpmodel.RewardRule
 	if err := conn.Where("rule_set_version = ? AND rule_key = ?", 1, "daily_base").Take(&dailyRule).Error; err != nil {
@@ -40,7 +41,7 @@ func TestVersionedMigrationRunsPublicationAdoptionFrom30(t *testing.T) {
 
 func TestVersionedMigrationFrom33SeedsInitialXPRule(t *testing.T) {
 	conn := dbconnect.Connect()
-	models := []any{&pageConfig.Entity{}}
+	models := []any{&topics.Entity{}, &pageConfig.Entity{}, &posts.Entity{}}
 	models = append(models, xpmodel.Models()...)
 	if err := conn.AutoMigrate(models...); err != nil {
 		t.Fatal(err)
@@ -51,8 +52,8 @@ func TestVersionedMigrationFrom33SeedsInitialXPRule(t *testing.T) {
 	if err := runVersionedDataMigrations(); err != nil {
 		t.Fatal(err)
 	}
-	if got := pageConfig.GetMigrationVersion(); got != 34 {
-		t.Fatalf("migration from v33 stopped at %d; want v34", got)
+	if got := pageConfig.GetMigrationVersion(); got != pageConfig.AppMigrationVersion {
+		t.Fatalf("migration from v33 stopped at %d; want %d", got, pageConfig.AppMigrationVersion)
 	}
 	var dailyRule xpmodel.RewardRule
 	if err := conn.Where("rule_set_version = ? AND rule_key = ?", 1, "daily_base").Take(&dailyRule).Error; err != nil {
@@ -63,9 +64,34 @@ func TestVersionedMigrationFrom33SeedsInitialXPRule(t *testing.T) {
 	}
 }
 
+func TestVersionedMigrationFrom34SeedsInitialXPRule(t *testing.T) {
+	conn := dbconnect.Connect()
+	models := []any{&topics.Entity{}, &pageConfig.Entity{}, &posts.Entity{}}
+	models = append(models, xpmodel.Models()...)
+	if err := conn.AutoMigrate(models...); err != nil {
+		t.Fatal(err)
+	}
+	if err := pageConfig.SyncMigrationVersion(34); err != nil {
+		t.Fatal(err)
+	}
+	if err := runVersionedDataMigrations(); err != nil {
+		t.Fatal(err)
+	}
+	if got := pageConfig.GetMigrationVersion(); got != pageConfig.AppMigrationVersion {
+		t.Fatalf("migration from v34 stopped at %d; want %d", got, pageConfig.AppMigrationVersion)
+	}
+	var dailyRule xpmodel.RewardRule
+	if err := conn.Where("rule_set_version = ? AND rule_key = ?", 1, "daily_base").Take(&dailyRule).Error; err != nil {
+		t.Fatalf("initial daily XP rule missing after v34 upgrade: %v", err)
+	}
+	if dailyRule.RewardXP != 5 {
+		t.Fatalf("initial daily XP rule grants %d; want confirmed +5 XP", dailyRule.RewardXP)
+	}
+}
+
 func TestVersionedMigrationFrom31RunsRobotBadgesThenXPAndIsIdempotent(t *testing.T) {
 	conn := dbconnect.Connect()
-	models := []any{&pageConfig.Entity{}, &posts.Entity{}, &users.EntityComplete{}, &badges.Entity{}, &userBadges.Entity{}}
+	models := []any{&topics.Entity{}, &pageConfig.Entity{}, &posts.Entity{}, &users.EntityComplete{}, &badges.Entity{}, &userBadges.Entity{}}
 	models = append(models, xpmodel.Models()...)
 	if err := conn.AutoMigrate(models...); err != nil {
 		t.Fatal(err)
@@ -76,8 +102,8 @@ func TestVersionedMigrationFrom31RunsRobotBadgesThenXPAndIsIdempotent(t *testing
 	if err := runVersionedDataMigrations(); err != nil {
 		t.Fatal(err)
 	}
-	if got := pageConfig.GetMigrationVersion(); got != 34 {
-		t.Fatalf("migration from v31 stopped at %d; want v34", got)
+	if got := pageConfig.GetMigrationVersion(); got != pageConfig.AppMigrationVersion {
+		t.Fatalf("migration from v31 stopped at %d; want %d", got, pageConfig.AppMigrationVersion)
 	}
 	var ruleCount int64
 	if err := conn.Model(&xpmodel.RewardRule{}).Where("rule_set_version = ? AND rule_key = ?", 1, "daily_base").Count(&ruleCount).Error; err != nil || ruleCount != 1 {

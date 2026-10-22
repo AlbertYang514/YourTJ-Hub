@@ -113,7 +113,8 @@ one is a product-requirements question for #1149, to be answered before any XP c
 this check. Registration time is not an input. An XP decrease therefore lowers the computed level
 without a separate level-write operation.
 
-Schema migration registers the XP models; app migration v34 seeds the initial rule. Existing accounts
+Schema migration registers the XP models; app migration v35 seeds the initial rule after the v34
+public-topic excerpt backfill. Existing accounts
 without an XP balance have zero XP. No history is backfilled, and neither legacy points nor
 `users.prestige` are converted or modified. There is no XP HTTP API, business-event subscription, daily settlement worker,
 or Web/Flutter XP UI in this scope. Future trusted event adapters must map anonymous personas to the
