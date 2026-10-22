@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../app_config.dart';
 import 'android_release.dart';
 import 'release_notes.dart';
 import 'ios_store_release.dart';
@@ -59,6 +60,21 @@ class MobileUpdateHostState extends State<MobileUpdateHost>
   }
 
   Future<void> check({bool force = false}) async {
+    // Preview distributions never query or install a stable release. Testers
+    // receive the next build through the cycle's TestFlight group/download link.
+    if (AppConfig.preview) {
+      final context = widget.navigatorKey.currentContext;
+      if (force && mounted && context != null && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: GfText(
+              AppLocalizations.of(context).previewUpdateInstructions,
+            ),
+          ),
+        );
+      }
+      return;
+    }
     if (!supportsMobileReleaseNotes || _busy || !mounted) return;
     _busy = true;
     try {

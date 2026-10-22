@@ -1,0 +1,132 @@
+name: Release / Preview iOS
+on:
+  workflow_call:
+    inputs:
+      cycle: {type: string, required: true}
+      source: {type: string, required: true}
+      purpose: {type: string, required: true}
+      version: {type: string, required: true}
+      number: {type: string, required: true}
+permissions:
+  contents: read
+  actions: read
+  deployments: read
+  pull-requests: read
+concurrency:
+  group: release-apple-6809457637
+  cancel-in-progress: false
+  queue: max
+jobs:
+  preview:
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-26
+    environment: mobile-release
+    timeout-minutes: 90
+    env:
+      CYCLE_ID: ${{ inputs.cycle }}
+      SOURCE_SHA: ${{ inputs.source }}
+      PURPOSE: ${{ inputs.purpose }}
+      PREVIEW_ARTIFACT: ios
+      MOBILE_ENVIRONMENT: ${{ inputs.purpose }}
+      MOBILE_PREVIEW: 'true'
+      RELEASE_SOURCE_ROOT: ${{ github.workspace }}/.source
+      MOBILE_VERSION: ${{ inputs.version }}
+      MOBILE_BUILD_NUMBER: ${{ inputs.number }}
+      IOS_TEAM_ID: 4HJTS3G3T2
+      ASC_TELEMETRY_DISABLED: '1'
+      ASC_TIMEOUT: 90s
+      RELEASE_RESULT_PATH: .preview-ios.json
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Recheck preview authorization
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release/cycle_control.py check-build
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.source }}
+          path: .source
+          persist-credentials: false
+      - uses: ./.github/actions/release-apple-auth
+        with:
+          private-key: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+          key-id: ${{ secrets.ASC_KEY_ID }}
+          issuer-id: ${{ secrets.ASC_ISSUER_ID }}
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: "3.44.9"
+          channel: stable
+          cache: true
+      - name: Bootstrap
+        working-directory: .source/apps/mobile/packages/forum_app
+        run: flutter pub get
+      - name: Install private iOS signing inputs
+        env:
+          IOS_DISTRIBUTION_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_P12_BASE64 }}
+          IOS_PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
+          IOS_WIDGET_PROFILE_BASE64: ${{ secrets.IOS_WIDGET_PROFILE_BASE64 }}
+          ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+        run: |
+          python3 - <<'PY'
+          import os, base64
+          from pathlib import Path
+          os.umask(0o077)
+          root = Path(os.environ['RUNNER_TEMP']) / 'yourtj-ios-secrets'
+          root.mkdir()
+          for key, name in {'IOS_DISTRIBUTION_P12_BASE64': 'distribution.p12', 'IOS_PROFILE_BASE64': 'profile.mobileprovision', 'IOS_WIDGET_PROFILE_BASE64': 'widget.mobileprovision', 'ASC_PRIVATE_KEY_BASE64': 'AuthKey.p8'}.items():
+              if not os.environ[key]: raise SystemExit('Missing secret ' + key)
+              (root / name).write_bytes(base64.b64decode(os.environ[key], validate=True))
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write(f'IOS_P12_PATH={root / "distribution.p12"}\nIOS_PROFILE_PATH={root / "profile.mobileprovision"}\nIOS_WIDGET_PROFILE_PATH={root / "widget.mobileprovision"}\nASC_PRIVATE_KEY_PATH={root / "AuthKey.p8"}\n')
+          PY
+      - name: Validate release tools
+        run: python3 -m unittest discover -s scripts/mobile-release -p 'test_*.py'
+      - name: Build App Store IPA
+        env:
+          IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+        run: |
+          python3 scripts/mobile-release/build_ios.py
+      - name: Preserve Xcode diagnostics even when archive fails
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: preview-ios-build-logs-${{ github.run_attempt }}
+          path: .source/apps/mobile/build/release/*.log
+          retention-days: 30
+          include-hidden-files: true
+          if-no-files-found: ignore
+      - name: Preserve signed IPA and symbols for recovery
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: preview-ios-${{ inputs.version }}-${{ inputs.number }}
+          path: |
+            .source/apps/mobile/build/release/ios/*.ipa
+            .source/apps/mobile/build/release/YourTJ.xcarchive/dSYMs/
+            .source/apps/mobile/build/release/*.log
+          retention-days: 30
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Distribute to the internal QA group only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE_TESTFLIGHT_GROUP_ID: ${{ vars.PRERELEASE_TESTFLIGHT_GROUP_ID }}
+          IOS_IPA_PATH: .source/apps/mobile/build/release/ios/forum_app.ipa
+        run: |
+          python3 scripts/release/cycle_control.py check-build
+          python3 scripts/mobile-release/publish_preview_ios.py
+      - name: Preserve Apple processing and availability facts
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: preview-apple-status-${{ github.run_attempt }}
+          path: .preview-ios.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+      - name: Remove Apple and signing authentication
+        if: always()
+        run: |
+          rm -rf .asc "$RUNNER_TEMP/release-asc" "$RUNNER_TEMP/yourtj-ios-secrets"
+          rm -f .source/apps/mobile/packages/forum_app/ios/Flutter/ReleaseSigning.xcconfig

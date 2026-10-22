@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../theme/gf_theme.dart';
 import '../gf_symbol.dart';
+import '../gf_network_svg.dart';
 import '../gf_media_image.dart';
 
 /// Circular user avatar matching the web app's avatar usage
@@ -169,61 +170,91 @@ class GfAvatarFrame extends StatelessWidget {
   final double assetScale;
   @override
   Widget build(BuildContext context) {
-    final fallback = colors.length < 2
-        ? child
-        : Container(
-            width: size,
-            height: size,
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(colors: colors),
-            ),
-            child: ClipOval(child: child),
-          );
     final uri = Uri.tryParse(assetUrl);
-    if (uri == null ||
-        !RegExp(
-          r'^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp)$',
-        ).hasMatch(uri.path) ||
-        uri.hasQuery ||
-        uri.hasFragment ||
-        uri.userInfo.isNotEmpty ||
-        (uri.hasScheme && uri.scheme != 'https' && uri.scheme != 'http')) {
-      return fallback;
+    final hasFrameAsset =
+        uri != null &&
+        RegExp(
+          r'^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp|gif|svg)$',
+        ).hasMatch(uri.path) &&
+        !uri.hasQuery &&
+        !uri.hasFragment &&
+        uri.userInfo.isEmpty &&
+        (!uri.hasScheme || uri.scheme == 'https' || uri.scheme == 'http');
+    if (!hasFrameAsset) {
+      if (colors.length < 2) return child;
+      // Web `.gf-avatar-frame` 是 3px 环 + `inset: 7.5%`，即环画在头像盒子之外、
+      // 头像尺寸不变，且环厚随头像直径等比缩放（40px 头像 = 3px，20px = 1.5px，
+      // 96px = 7.2px）。固定 6px 外扩会让列表小头像上的环显得过粗、大头像上过细。
+      final double grow = size * 0.075;
+      return SizedBox(
+        width: size,
+        height: size,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            Positioned(
+              left: -grow,
+              top: -grow,
+              width: size + grow * 2,
+              height: size + grow * 2,
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  // CSS `linear-gradient(120deg, …)` runs toward
+                  // (sin 120°, -cos 120°) = (0.866, 0.5) — right and down — over
+                  // the corner-to-corner span (0.866 + 0.5) of a square box:
+                  // ±0.866*1.366 / ±0.5*1.366 in Flutter's -1..1 alignment.
+                  gradient: LinearGradient(
+                    begin: const Alignment(-1.183, -0.683),
+                    end: const Alignment(1.183, 0.683),
+                    colors: colors,
+                  ),
+                ),
+              ),
+            ),
+            child,
+          ],
+        ),
+      );
     }
     final scale = assetScale.isFinite && assetScale >= 0.5 && assetScale <= 2
         ? assetScale
         : 1.25;
     final edge = size * scale;
     final pixels = (edge * MediaQuery.devicePixelRatioOf(context)).ceil();
+    // A safe frame asset owns the frame: nothing gradient is built underneath,
+    // so loading, decode failure and load failure can never leak a colour ring.
     return SizedBox(
       width: size,
       height: size,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          fallback,
+          child,
           Positioned(
             left: -(edge - size) / 2,
             top: -(edge - size) / 2,
             width: edge,
             height: edge,
             child: IgnorePointer(
-              child: Image(
-                image: GfMediaScope.imageProvider(
-                  context,
-                  assetUrl,
-                  width: pixels,
-                  height: pixels,
-                  policy: ResizeImagePolicy.fit,
-                ),
-                fit: BoxFit.contain,
-                excludeFromSemantics: true,
-                frameBuilder: (_, child, frame, loaded) =>
-                    loaded || frame != null ? child : const SizedBox.shrink(),
-                errorBuilder: (_, _, _) => const SizedBox.shrink(),
-              ),
+              child: uri.path.endsWith('.svg')
+                  ? GfNetworkSvg(assetUrl, fallback: const SizedBox.shrink())
+                  : Image(
+                      image: GfMediaScope.imageProvider(
+                        context,
+                        assetUrl,
+                        width: pixels,
+                        height: pixels,
+                        policy: ResizeImagePolicy.fit,
+                      ),
+                      fit: BoxFit.contain,
+                      excludeFromSemantics: true,
+                      frameBuilder: (_, child, frame, loaded) =>
+                          loaded || frame != null
+                          ? child
+                          : const SizedBox.shrink(),
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    ),
             ),
           ),
         ],

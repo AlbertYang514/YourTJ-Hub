@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers, Security reviewer
 >
-> Last verified: 2026-10-13
+> Last verified: 2026-10-19
 
 ## Identity model
 
@@ -59,6 +59,10 @@ private binding and restricted audits indefinitely and prevents subsequent perso
   only through password registration, where the `allowedDomains` allowlist is enforced. Provider credential changes
   require a process restart; saving a new site callback URL in the admin console refreshes the
   providers immediately.
+- The Web login page derives GitHub and Google availability from the providers registered in the
+  running server. A missing provider is shown as a disabled, localized control without a login link;
+  a direct request to its OAuth start route returns the shared localized error page with HTTP 503.
+  Configured providers continue through the existing Goth state, callback and session flow.
 
 ### Tongji unified sign-in
 
@@ -524,6 +528,22 @@ for selection, administration, recovery and business-integration boundaries.
 
 ## Profile badge display
 
+`Current` — Site managers can upload SVG, PNG, WebP or GIF artwork from `/admin/badges`.
+Existing embedded `/static/badges/` paths and image links remain editable. Uploads create
+unique `/static/badges/normalized/<uuid>` paths through `/api/admin/badge-asset`; saving binds the asset to the badge, while
+unsaved previews expire after 24 hours and unreferenced replaced/deleted artwork is reclaimed.
+SVG is rendered to PNG using the same bounded, self-contained vector policy as avatar frames;
+New badge uploads are centered and uniformly scaled by visible alpha content to the system
+artwork's ink radius of 10/24. Transparent margins and rectangular source canvases do not
+shrink the visible logo. Static artwork is stored as a 512 px transparent PNG. GIFs use one
+shared viewport across all composited frames, retain frame delays and loop count, and render
+at up to 256 px subject to the composited-canvas pixel budget. This prevents per-frame scale or position
+jumps; GIF palette quantization reserves transparency for the normalized padding. Completely
+transparent badges are rejected. Badge artwork has no square or transparent-center requirement.
+The editor previews avatar wear and the profile badge on light and dark backgrounds; uploading
+blocks save/close and an upload failure preserves the existing draft for retry.
+
+
 `Current` — Users independently choose one avatar badge and zero to five public
 profile-card badges in an explicit order. Unconfigured profiles retain their first
 five earned badges; saving an empty selection hides the card badges. Only active,
@@ -534,10 +554,12 @@ remains available separately.
 Avatar badge chips use each badge's preset background in light and dark themes.
 System badge artwork is normalized to one optical size, and the icon area is a fixed
 share of the chip, so every system icon keeps the same even margin inside the circular
-chip at every avatar size instead of reaching its rim. Custom badges (any icon URL
-outside `/static/badges/`) keep their original framing: a 2px inset in the web chip
+chip at every avatar size instead of reaching its rim. Legacy custom badges (un-normalized UUID assets under `/static/badges/` and any icon URL
+outside that directory) keep their original framing: a 2px inset in the web chip
 and a 60% artwork box in the mobile medallion, since their artwork often fills its
-canvas edge to edge. Badge responses append an artwork version
+canvas edge to edge. New `normalized/` uploads carry the same optical margin as system artwork
+and use the same 88% Web avatar-chip area and 70% mobile medallion artwork box. Existing
+URLs are never overwritten; re-upload legacy artwork to apply normalization. Badge responses append an artwork version
 (`?v=<n>`) to built-in `/static/badges/` icon URLs, so redrawn artwork reaches
 users despite the long `/static` browser cache.
 

@@ -453,13 +453,21 @@ Principle: projections must be rebuildable from the fact source; never treat a p
 
 The AI-readable exports are public text representations, not JSON API operations in the controlled
 OpenAPI surface. Their visibility boundary is the existing forum publication and moderation state:
-draft, blocked, pending-review, soft-deleted, or first-post-blocked content is excluded. Wiki pages
-(`topics.topic_type = 1`) are excluded as well — the forum export covers forum topics, while wiki
-content is the read-only GitHub-synced projection served under `/wiki` (MADR-0005); the index and
-full-text exports never listed wiki pages, and the per-topic document
-(`GET /p/posts/{id}.md`) follows the same boundary. The index follows
+draft, blocked, pending-review, soft-deleted, or first-post-blocked content is excluded. The index and
+full-text exports cover forum topics only and never list wiki pages (`topics.topic_type = 1`), whose
+content is the read-only GitHub-synced projection served under `/wiki` (MADR-0005); content statistics
+also keep that boundary and never count wiki pages. The per-topic document (`GET /p/posts/{id}.md`)
+is the exception: it exports wiki pages again (issue #1166, restoring what #1160 turned into a 404),
+so a wiki page with a visible first post is served as Markdown, while the same publication,
+moderation and first-post conditions still apply. The index follows
 the llms.txt Markdown structure (site heading, optional description, and a `Topics` link list); full-text
-and per-topic documents preserve the stored Markdown source.
+and per-topic documents preserve the stored Markdown source. After the first post's content fence, full-text and
+per-topic documents list the topic gallery (`topics.image_urls`, or the legacy `first_image_url` when empty;
+at most nine) in an `Images` section at the same heading
+level as reply headings. Each entry is a `- ![image N](<absolute URL>)` line. Site-relative paths are joined to
+the configured site URL, absolute http(s) URLs are kept, and unsafe or unresolvable entries are skipped.
+It lists at most the first nine images, like the Agent API. The web topic page can show more for
+older topics or galleries extracted from the body. The section is counted in the output byte budget. When the first post is excluded, so is the gallery.
 
 ## Contract change discipline
 
@@ -758,3 +766,18 @@ and admin aggregate routes are covered in OpenAPI, route snapshots, TS and Dart 
 carry optional signed source headers; absent context remains unclassified or separately inferred.
 [Feed product](../product/feed-ranking.md) and [operations](../operations/feed-ranking.md) own the
 behavior and lifecycle; schema definitions remain in models/migrations.
+
+## Moderation appeal audit
+
+`Current`: one `moderation_appeals` row binds an explanation and terminal review to one immutable
+post revision. The database unique revision key prevents duplicate submissions. Owner history and
+moderator queue/action routes are covered by OpenAPI, generated Web types and Dart mirrors; responses
+omit internal author identity and are private. Publication and appeal resolution share the existing
+revision transaction, including lifecycle/version/scope fences, attachment promotion, search and
+notification tasks. A stale appeal never restores deleted content or publishes a later submission.
+My-content items expose `canAppeal` and the owner's `appeal` summary for the latest revision; queue
+items include the `originalReviewReason`. Failures use specific `content.appeal.*` and
+`moderation.appeal.*` message codes. Appeal receipts and outcomes keep the review event types and
+set `notifications.templates.appeal{Submitted,Approved,Rejected,Stale}` template keys.
+Audit records follow [governance retention](../decisions/0021-deletion-final-state-data-retention.md);
+product limits and tradeoffs live in [0098](../decisions/0098-moderation-appeals.md).

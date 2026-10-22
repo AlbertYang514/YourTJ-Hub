@@ -799,6 +799,16 @@ export function governAnonymousIdentity(request: import('@gooseforum/client').co
 
 export function getDecorations() { return getJson<import('@gooseforum/client').DecorationStyle[]>('/api/admin/decorations', i18n.global.t('decoration.loadFailed')) }
 export function saveDecoration(style: import('@gooseforum/client').DecorationStyle) { return postJson<import('@gooseforum/client').DecorationStyle>('/api/admin/decoration-save', style) }
+export function uploadDecorationAsset(file: File) {
+  const body = new FormData()
+  body.append('file', file)
+  return postForm<{ url: string }>('/api/admin/decoration-asset', body, i18n.global.t('decoration.uploadFailed'))
+}
+export function uploadBadgeAsset(file: File) {
+  const body = new FormData()
+  body.append('file', file)
+  return postForm<{ url: string }>('/api/admin/badge-asset', body, i18n.global.t('badgeAdmin.uploadFailed'))
+}
 export function getUserDecorations(userId: number) { return getJson<import('@gooseforum/client').DecorationState>(`/api/admin/user-decorations?userId=${encodeURIComponent(userId)}`, i18n.global.t('decoration.loadFailed')) }
 export function changeUserDecoration(action: 'grant' | 'revoke', body: { userId: number; code: string; reason: string; requestKey: string }) { return postJson<import('@gooseforum/client').DecorationState>(`/api/admin/decoration-${action}`, body) }
 

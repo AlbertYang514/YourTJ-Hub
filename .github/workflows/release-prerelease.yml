@@ -1,0 +1,202 @@
+name: Release / Prerelease
+on:
+  workflow_dispatch:
+    inputs:
+      cycle: {description: 'Existing cycle ID; empty starts a new dev freeze', type: string}
+      source: {description: 'Full current dev SHA for a new cycle', type: string}
+      issue: {description: 'Release tracking issue for a new cycle', type: string}
+      channels: {description: 'Production scope for a new cycle', type: string, default: 'web,android,ios-testflight,ios-app-store'}
+      artifacts: {description: 'Preview artifacts: web,android,ios; empty = all for purpose. Production rehearsal: android,ios only.', type: string}
+      source_review_bypass_reason: {description: 'Optional admin-only source-review exception for this dev preview run; audited with source SHA and actor', type: string}
+      purpose:
+        description: 'Dev candidate or same-source production-configuration rehearsal'
+        type: choice
+        options: [dev, production]
+        default: dev
+permissions:
+  contents: read
+  actions: read
+  deployments: read
+  pull-requests: read
+  issues: read
+  checks: read
+jobs:
+  begin:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # `cycle_control.py checks` re-runs release-freeze workflow runs, which needs actions: write.
+    permissions:
+      contents: write
+      actions: write
+      deployments: write
+      pull-requests: read
+      issues: read
+      checks: write
+    concurrency:
+      group: instance-mutate-dev
+      cancel-in-progress: false
+      queue: max
+    outputs:
+      source: ${{ steps.begin.outputs.source }}
+      cycle: ${{ steps.begin.outputs.cycle }}
+      artifacts: ${{ steps.begin.outputs.artifacts }}
+      mobile_artifacts: ${{ steps.begin.outputs.mobile_artifacts }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: begin
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CYCLE_ID: ${{ inputs.cycle }}
+          SOURCE_SHA: ${{ inputs.source }}
+          ISSUE: ${{ inputs.issue }}
+          CHANNELS: ${{ inputs.channels }}
+          PURPOSE: ${{ inputs.purpose }}
+          ARTIFACTS: ${{ inputs.artifacts }}
+          SOURCE_REVIEW_BYPASS_REASON: ${{ inputs.source_review_bypass_reason }}
+        run: python3 scripts/release/cycle_control.py begin-build
+      - name: Seal release state
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: release-state-${{ github.run_attempt }}
+          path: .release-state/state.json
+          include-hidden-files: true
+          retention-days: 90
+          if-no-files-found: error
+      - name: Invalidate old green freeze checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release/cycle_control.py checks
+      - name: Refresh the public candidate notice
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: python3 scripts/release/preview_status.py
+  backend:
+    needs: begin
+    uses: ./.github/workflows/ci-backend.yml
+    with: {source: '${{ needs.begin.outputs.source }}', postgres: true}
+  frontend:
+    needs: begin
+    uses: ./.github/workflows/ci-frontend.yml
+    with: {source: '${{ needs.begin.outputs.source }}'}
+  contract:
+    needs: begin
+    uses: ./.github/workflows/ci-contract.yml
+    with: {source: '${{ needs.begin.outputs.source }}'}
+  govulncheck:
+    needs: begin
+    uses: ./.github/workflows/ci-govulncheck.yml
+    with: {source: '${{ needs.begin.outputs.source }}'}
+  mobile:
+    needs: begin
+    if: contains(fromJSON(needs.begin.outputs.artifacts), 'android') || contains(fromJSON(needs.begin.outputs.artifacts), 'ios')
+    uses: ./.github/workflows/ci-mobile.yml
+    with: {source: '${{ needs.begin.outputs.source }}'}
+  native:
+    needs: begin
+    if: contains(fromJSON(needs.begin.outputs.artifacts), 'android') || contains(fromJSON(needs.begin.outputs.artifacts), 'ios')
+    uses: ./.github/workflows/ci-mobile-native.yml
+    with:
+      source: ${{ needs.begin.outputs.source }}
+      platforms: ${{ needs.begin.outputs.mobile_artifacts }}
+  validated:
+    needs: [begin, backend, frontend, contract, govulncheck, mobile, native]
+    if: always() && needs.begin.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {persist-credentials: false}
+      - env:
+          ARTIFACTS: ${{ needs.begin.outputs.artifacts }}
+          RESULTS: ${{ toJSON(needs) }}
+        run: python3 scripts/release/preview_checks.py source
+  identity:
+    needs: [begin, validated]
+    if: ${{ !cancelled() && needs.validated.result == 'success' && (contains(fromJSON(needs.begin.outputs.artifacts), 'android') || contains(fromJSON(needs.begin.outputs.artifacts), 'ios')) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+      deployments: read
+      pull-requests: read
+    concurrency:
+      group: release-mobile-identities
+      cancel-in-progress: false
+      queue: max
+    outputs:
+      version: ${{ steps.identity.outputs.version }}
+      number: ${{ steps.identity.outputs.number }}
+      tag: ${{ steps.identity.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CYCLE_ID: ${{ needs.begin.outputs.cycle }}
+          PURPOSE: ${{ inputs.purpose }}
+        run: python3 scripts/release/preview.py
+  dev:
+    needs: [begin, validated]
+    if: ${{ !cancelled() && needs.validated.result == 'success' && contains(fromJSON(needs.begin.outputs.artifacts), 'web') }}
+    uses: ./.github/workflows/deploy-dev.yml
+    with:
+      source: ${{ needs.begin.outputs.source }}
+      cycle: ${{ needs.begin.outputs.cycle }}
+    secrets: inherit
+    permissions:
+      contents: read
+      actions: read
+      deployments: read
+      packages: write
+  android:
+    needs: [begin, identity]
+    if: ${{ !cancelled() && needs.identity.result == 'success' && contains(fromJSON(needs.begin.outputs.artifacts), 'android') }}
+    uses: ./.github/workflows/release-preview-android.yml
+    with:
+      cycle: ${{ needs.begin.outputs.cycle }}
+      source: ${{ needs.begin.outputs.source }}
+      purpose: ${{ inputs.purpose }}
+      version: ${{ needs.identity.outputs.version }}
+      number: ${{ needs.identity.outputs.number }}
+      tag: ${{ needs.identity.outputs.tag }}
+    secrets: inherit
+    permissions: {contents: write, actions: read, deployments: read, pull-requests: read}
+  ios:
+    needs: [begin, identity]
+    if: ${{ !cancelled() && needs.identity.result == 'success' && contains(fromJSON(needs.begin.outputs.artifacts), 'ios') }}
+    uses: ./.github/workflows/release-preview-ios.yml
+    with:
+      cycle: ${{ needs.begin.outputs.cycle }}
+      source: ${{ needs.begin.outputs.source }}
+      purpose: ${{ inputs.purpose }}
+      version: ${{ needs.identity.outputs.version }}
+      number: ${{ needs.identity.outputs.number }}
+    secrets: inherit
+  ready:
+    needs: [begin, validated, identity, dev, android, ios]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {persist-credentials: false}
+      - env:
+          ARTIFACTS: ${{ needs.begin.outputs.artifacts }}
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 scripts/release/preview_checks.py distribution
+          echo 'Selected artifacts are ready for QA. Record the tested scope before promotion.' >> "$GITHUB_STEP_SUMMARY"
+  notice:
+    needs: [begin, ready]
+    if: always() && needs.begin.result == 'success'
+    runs-on: ubuntu-latest
+    permissions: {contents: write, actions: read, deployments: read}
+    concurrency: {group: instance-mutate-dev, cancel-in-progress: false, queue: max}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {persist-credentials: false}
+      - env: {GH_TOKEN: '${{ github.token }}'}
+        run: python3 scripts/release/preview_status.py

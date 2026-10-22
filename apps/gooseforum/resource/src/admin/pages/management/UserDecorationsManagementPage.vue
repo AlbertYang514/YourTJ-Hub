@@ -3,7 +3,8 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CheckCircle2, Loader2, Package, RefreshCw, Search, UserRound } from '@lucide/vue'
 import type { DecorationState } from '@gooseforum/client'
-import { getUserDecorations, changeUserDecoration } from '@/admin/runtime/api'
+import { getUserDecorations, changeUserDecoration, getUserList } from '@/admin/runtime/api'
+import type { AdminUser } from '@/admin/types'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Button } from '@/admin/components/ui/button'
 import { Input } from '@/admin/components/ui/input'
@@ -25,6 +26,12 @@ const error = ref('')
 const success = ref('')
 const loading = ref(false)
 const saving = ref(false)
+// 按用户名/昵称/邮箱搜索用户，选中后回填数字 ID；授予/撤销接口仍只收数字 ID。
+const userQuery = ref('')
+const userResults = ref<AdminUser[]>([])
+const searching = ref(false)
+const searched = ref(false)
+let searchTimer: ReturnType<typeof setTimeout> | undefined
 const confirmingRevoke = ref(false)
 const busy = computed(() => loading.value || saving.value)
 const validUserId = computed(() => Number.isSafeInteger(Number(userId.value)) && Number(userId.value) > 0)
@@ -43,6 +50,42 @@ const auditColumns = computed(() => [t('decoration.time'), t('decoration.item'),
 // Keep the operation key across ambiguous network failures so retry cannot duplicate a grant.
 let pending: { action: 'grant' | 'revoke'; userId: number; code: string; reason: string; requestKey: string } | undefined
 watch([userId, code, reason], () => { confirmingRevoke.value = false })
+
+async function searchUsers(text: string) {
+  searching.value = true
+  try {
+    // 服务端按字段分别过滤（username / email 为 LIKE，userId 为精确匹配，多字段为 AND），
+    // 不支持昵称搜索，因此按输入形态只填一个字段；纯数字可能是 userId 也可能是学号类用户名，两路都查再合并。
+    const base = { page: 1, pageSize: 8 }
+    const pages = /^\d+$/.test(text)
+      ? await Promise.all([getUserList({ ...base, userId: Number(text) }), getUserList({ ...base, username: text })])
+      : [await getUserList(text.includes('@') ? { ...base, email: text } : { ...base, username: text })]
+    // 丢弃过时响应：用户可能已经改了关键词或已选中结果。
+    if (userQuery.value.trim() !== text) return
+    const seen = new Set<number>()
+    userResults.value = pages.flatMap(page => page.list ?? []).filter(user => !seen.has(user.userId) && !!seen.add(user.userId)).slice(0, base.pageSize)
+    searched.value = true
+  } catch (thrown) {
+    userResults.value = []
+    searched.value = true
+    if (!error.value) error.value = thrown instanceof Error ? thrown.message : t('decoration.loadFailed')
+  } finally {
+    searching.value = false
+  }
+}
+function pickUser(candidate: AdminUser) {
+  userId.value = candidate.userId
+  userQuery.value = ''
+  userResults.value = []
+  searched.value = false
+}
+watch(userQuery, value => {
+  if (searchTimer) clearTimeout(searchTimer)
+  const text = value.trim()
+  searched.value = false
+  if (!text) { userResults.value = []; return }
+  searchTimer = setTimeout(() => { void searchUsers(text) }, 250)
+})
 
 async function load() {
   if (!validUserId.value || busy.value) return
@@ -122,6 +165,23 @@ function formatTime(value: string) {
         <CardDescription>{{ t('decoration.grantsAdmin.accountHint') }}</CardDescription>
       </CardHeader>
       <CardContent>
+        <div class="mb-4 grid gap-2">
+          <label for="decoration-user-search" class="text-sm font-medium">{{ t('decoration.grantsAdmin.userSearch') }}</label>
+          <div class="flex items-center gap-2">
+            <Input id="decoration-user-search" v-model="userQuery" :disabled="busy" :placeholder="t('decoration.grantsAdmin.userSearchPlaceholder')" autocomplete="off" class="sm:max-w-sm" />
+            <Loader2 v-if="searching" class="size-4 shrink-0 animate-spin text-muted-foreground" />
+          </div>
+          <ul v-if="userResults.length" class="max-h-56 overflow-auto rounded-md border bg-popover p-1 text-sm shadow-sm sm:max-w-sm">
+            <li v-for="candidate in userResults" :key="candidate.userId">
+              <button type="button" class="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left hover:bg-accent" :disabled="busy" @click="pickUser(candidate)">
+                <span class="font-medium">{{ candidate.nickname || candidate.username }}</span>
+                <span class="shrink-0 text-xs text-muted-foreground">@{{ candidate.username }} · #{{ candidate.userId }}</span>
+              </button>
+            </li>
+          </ul>
+          <p v-else-if="searched && !searching" role="status" class="text-xs text-muted-foreground">{{ t('decoration.grantsAdmin.userSearchEmpty') }}</p>
+          <p v-else class="text-xs text-muted-foreground">{{ t('decoration.grantsAdmin.userSearchHint') }}</p>
+        </div>
         <form class="flex flex-col gap-3 sm:flex-row sm:items-end" @submit.prevent="load">
           <div class="grid w-full gap-2 sm:max-w-xs">
             <label for="decoration-user-id" class="text-sm font-medium">{{ t('decoration.userId') }}</label>

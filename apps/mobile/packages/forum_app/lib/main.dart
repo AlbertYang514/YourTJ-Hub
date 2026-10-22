@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'src/app.dart';
 import 'src/startup_metrics.dart';
+import 'src/app_config.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  AppConfig.validate();
+  if (AppConfig.isDev) SharedPreferences.setPrefix('flutter.dev.');
   initializeStartupMetrics();
   final binding = SchedulerBinding.instance;
   late TimingsCallback callback;

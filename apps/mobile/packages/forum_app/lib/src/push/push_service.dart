@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../current_user.dart';
+import '../app_config.dart';
 import '../providers.dart';
 import '../router.dart';
 import '../navigation/route_visibility.dart';
@@ -196,6 +197,11 @@ class PushController extends Notifier<PushChannelStatus>
 
   Future<void> _connect({required bool request}) async {
     if (_disposed) return;
+    if (AppConfig.isDev) {
+      state = PushChannelStatus.serverDisabled;
+      await _driver.stop();
+      return;
+    }
     if (_busy || _stopping != null) {
       if (request) {
         _pendingEnable ??= Completer<void>();
@@ -446,6 +452,7 @@ class PushController extends Notifier<PushChannelStatus>
   }
 
   void _open(String? value) {
+    if (AppConfig.isDev) return;
     if (_disposed || _sessionEpoch != ref.read(offlineCacheEpochProvider)) {
       return;
     }

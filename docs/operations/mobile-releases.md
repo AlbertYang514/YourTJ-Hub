@@ -15,6 +15,8 @@ links are maintained in [Distribution and updates](../product/mobile-experience.
 Each new candidate still requires the reviewed release workflow on `main`, configured
 `mobile-release` environment secrets and successful platform execution. Apple review and the Android
 system installer remain independent gates; a completed upload does not mean distribution approval.
+The [release-cycle runbook](release-cycles.md) defines selectable preview platforms, fixed-source
+rebuilds, old-candidate notices, admin ownership changes and failed-publication exit.
 GPL source/license delivery and iOS distribution checks follow the
 [licensing guide](../development/licensing.md#许可兼容与分发), including the confirmed standard EULA
 configuration and the remaining GPL compatibility verification.
@@ -22,6 +24,11 @@ configuration and the remaining GPL compatibility verification.
 public availability does not establish the full physical-device acceptance matrix.
 
 ## Version and activation
+
+Dev-connected TestFlight/Android previews and production configuration rehearsals follow the
+[release-cycle runbook](release-cycles.md). They have environment/SHA badges, isolated dev storage,
+and no stable update/catalog publication. Their dedicated internal TestFlight group does not replace
+the formal production TestFlight group. Source QA and production configuration QA precede Prepare.
 
 Use [Release / Prepare and the portable release CLI](releases.md). Source must already be in main;
 release preparation does not promote dev. Choose Android, iOS or both. iOS defaults to TestFlight;
@@ -286,7 +293,6 @@ lock screen, Focus/Do Not Disturb, denied permission and account-switch scenario
 preserves REST/SSE history, a replay/rolled-back forward has no extra notification, and tray clicks open
 only the current owner's object. Android v2 channels retain the legacy channel rather than overwrite
 its immutable OS settings. A provider HTTP success or simulator build alone cannot fill a device cell.
-
 
 iOS uses APNs directly; no Firebase project or Firebase Dart defines are required. Enable **Push
 Notifications** on Apple Developer's `tj.yourtj.forumApp` App ID. Create an APNs authentication key

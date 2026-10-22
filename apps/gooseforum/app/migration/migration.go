@@ -32,6 +32,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/inboxmail"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/migrationMapping"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationAppeals"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
@@ -736,6 +737,7 @@ func SchemaModels() []any {
 		&fileUsage.Entity{},
 		&moderationLog.Entity{},
 		&moderationDecision.Entity{},
+		&moderationAppeals.Entity{},
 		&migrationMapping.Entity{},
 		&moderators.Entity{},
 		&optRecord.Entity{},

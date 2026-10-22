@@ -27,9 +27,8 @@ const frameLayout = computed(() => {
 const hasFrame = computed(() => Object.keys(frameVariables.value).length > 0)
 
 const frameImageFailed = ref(false)
-const frameImageLoaded = ref(false)
 const frameAsset = computed(() => hasFrame.value && isSafeDecorationAssetUrl(props.frame?.assetUrl) ? props.frame.assetUrl : '')
-watch(frameAsset, () => { frameImageFailed.value = false; frameImageLoaded.value = false })
+watch(frameAsset, () => { frameImageFailed.value = false })
 
 const systemArtwork = computed(() => !!props.badge && isSystemBadgeArtwork(props.badge))
 
@@ -69,9 +68,10 @@ function formatAvatarUrl(src: string, url: URL): string {
 
 <template>
   <span v-if="badge || hasFrame" v-bind="$attrs" class="group/avatar relative inline-block shrink-0" :style="frameLayout">
-    <span v-if="hasFrame && (!frameAsset || !frameImageLoaded || frameImageFailed)" class="gf-avatar-frame" aria-hidden="true" />
+    <!-- 图片框与颜色框互斥：有合法图片时只画图片，加载中/失败都不回退配色边框（#1246） -->
+    <span v-if="hasFrame && !frameAsset" class="gf-avatar-frame" aria-hidden="true" />
     <img :src="resolvedSrc" :alt="alt" width="96" height="96" decoding="async" class="h-full w-full rounded-[inherit] object-cover" :class="imgClass">
-    <img v-if="frameAsset && !frameImageFailed" :src="frameAsset" alt="" aria-hidden="true" class="gf-avatar-frame-image" decoding="async" @load="frameImageLoaded = true" @error="frameImageFailed = true" />
+    <img v-if="frameAsset && !frameImageFailed" :src="frameAsset" alt="" aria-hidden="true" class="gf-avatar-frame-image" decoding="async" @error="frameImageFailed = true" />
     <span
       v-if="badge"
       :class="['absolute -bottom-1.5 -right-1.5 z-10 flex h-[30%] min-h-3.5 w-[30%] min-w-3.5 items-center justify-center rounded-full shadow-md shadow-black/10 ring-2 transition-transform duration-150 ease-out hover:scale-110', badgeClass(badge.color, badge.level), { 'p-[2px]': !systemArtwork }]"
@@ -98,8 +98,11 @@ function formatAvatarUrl(src: string, url: URL): string {
 }
 .gf-avatar-frame {
   position: absolute;
-  inset: -3px;
-  border: 3px solid transparent;
+  /* 环厚按头像直径的 7.5% 等比缩放（40px 头像正好 3px）：
+     固定 3px 会在列表小头像上显得过粗（20px 头像=15%）、在大头像上细到看不见（108px=2.8%）。
+     padding 百分比按包含块宽度解析，配合 mask 的 padding-box ⊕ border-box 只留环带。 */
+  inset: -7.5%;
+  padding: 7.5%;
   border-radius: inherit;
   background: var(--decoration-light) border-box;
   mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
@@ -108,7 +111,7 @@ function formatAvatarUrl(src: string, url: URL): string {
 }
 :global([data-theme="gf-dark"] .gf-avatar-frame) { background-image: var(--decoration-dark); }
 @media (forced-colors: active) {
-  .gf-avatar-frame-image { display: none; }
-  .gf-avatar-frame { background: none; border-color: CanvasText; mask: none; }
+  /* 强制色彩下图片框仍显示图片；纯色框退化为固定 3px 系统色描边（高对比度下不追求等比） */
+  .gf-avatar-frame { background: none; border: 3px solid CanvasText; padding: 0; mask: none; }
 }
 </style>

@@ -26,8 +26,8 @@ func TestVersionedMigrationRunsPublicationAdoptionFrom30(t *testing.T) {
 	if err := runVersionedDataMigrations(); err != nil {
 		t.Fatal(err)
 	}
-	if got := pageConfig.GetMigrationVersion(); got != 33 {
-		t.Fatalf("migration stopped at %d; expected initial XP rules at version 33", got)
+	if got := pageConfig.GetMigrationVersion(); got != 34 {
+		t.Fatalf("migration stopped at %d; expected initial XP rules at version 34", got)
 	}
 	var dailyRule xpmodel.RewardRule
 	if err := conn.Where("rule_set_version = ? AND rule_key = ?", 1, "daily_base").Take(&dailyRule).Error; err != nil {
@@ -35,6 +35,31 @@ func TestVersionedMigrationRunsPublicationAdoptionFrom30(t *testing.T) {
 	}
 	if dailyRule.RewardXP != 5 || dailyRule.DailyCountLimit == nil || *dailyRule.DailyCountLimit != 1 {
 		t.Fatalf("initial daily XP rule = %+v; want confirmed +5 XP once per day", dailyRule)
+	}
+}
+
+func TestVersionedMigrationFrom33SeedsInitialXPRule(t *testing.T) {
+	conn := dbconnect.Connect()
+	models := []any{&pageConfig.Entity{}}
+	models = append(models, xpmodel.Models()...)
+	if err := conn.AutoMigrate(models...); err != nil {
+		t.Fatal(err)
+	}
+	if err := pageConfig.SyncMigrationVersion(33); err != nil {
+		t.Fatal(err)
+	}
+	if err := runVersionedDataMigrations(); err != nil {
+		t.Fatal(err)
+	}
+	if got := pageConfig.GetMigrationVersion(); got != 34 {
+		t.Fatalf("migration from v33 stopped at %d; want v34", got)
+	}
+	var dailyRule xpmodel.RewardRule
+	if err := conn.Where("rule_set_version = ? AND rule_key = ?", 1, "daily_base").Take(&dailyRule).Error; err != nil {
+		t.Fatalf("initial daily XP rule missing after v33 upgrade: %v", err)
+	}
+	if dailyRule.RewardXP != 5 {
+		t.Fatalf("initial daily XP rule grants %d; want confirmed +5 XP", dailyRule.RewardXP)
 	}
 }
 
@@ -51,8 +76,8 @@ func TestVersionedMigrationFrom31RunsRobotBadgesThenXPAndIsIdempotent(t *testing
 	if err := runVersionedDataMigrations(); err != nil {
 		t.Fatal(err)
 	}
-	if got := pageConfig.GetMigrationVersion(); got != 33 {
-		t.Fatalf("migration from v31 stopped at %d; want v33", got)
+	if got := pageConfig.GetMigrationVersion(); got != 34 {
+		t.Fatalf("migration from v31 stopped at %d; want v34", got)
 	}
 	var ruleCount int64
 	if err := conn.Model(&xpmodel.RewardRule{}).Where("rule_set_version = ? AND rule_key = ?", 1, "daily_base").Count(&ruleCount).Error; err != nil || ruleCount != 1 {

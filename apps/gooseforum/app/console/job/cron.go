@@ -22,6 +22,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/contentdeleteservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/decorationassetservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/httpnotifyservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/nativepushservice"
@@ -173,6 +174,13 @@ func registerJobs() {
 		}
 	}))
 	slog.Info("reg pending upload cleanup", "entryID", entryID, "err", err)
+	entryID, err = scheduler.AddFunc("23 * * * *", upCmd(func() {
+		removed, cleanupErr := decorationassetservice.CleanupAssets(context.Background(), time.Now(), 500)
+		if cleanupErr != nil || removed > 0 {
+			slog.Info("cleanup decoration assets", "removed", removed, "err", cleanupErr)
+		}
+	}))
+	slog.Info("reg decoration asset cleanup", "entryID", entryID, "err", err)
 	// wiki GitHub 同步：默认每日 03:00（可配 [wiki.git].schedule 覆盖）；
 	// 未配置 [wiki.git].repo 时 Sync 直接报错跳过（幂等，配置后重启即生效）。
 	wikiSpec := preferences.GetString("wiki.git.schedule", "0 3 * * *")

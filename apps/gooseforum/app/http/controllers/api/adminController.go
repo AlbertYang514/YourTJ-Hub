@@ -19,6 +19,7 @@ import (
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/domainpolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/headmarkup"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/llmprovider"
@@ -93,6 +94,8 @@ func GetTrafficOverview(req component.BetterRequest[TrafficOverviewReq]) compone
 	endDate := req.Params.EndDate
 
 	if startDate == "" {
+		// 保留既有的 8 个自然日缺省（今天 + 前 7 天）：内容贡献统计用 7 天，两者差异是
+		// 有意的（issue #1166），不改动这个既有对外操作的缺省行为。
 		startDate = time.Now().AddDate(0, 0, -7).Format("2006-01-02")
 	}
 	if endDate == "" {
@@ -302,7 +305,7 @@ func SaveBadge(req component.BetterRequest[BadgeSaveReq]) component.Response {
 	entity.IsEnabled = params.IsEnabled
 	entity.IsWearable = params.IsWearable
 	entity.SortOrder = params.SortOrder
-	if err := badges.Save(&entity); err != nil {
+	if err := badgeservice.SaveDefinition(req.GinContext.Request.Context(), &entity); err != nil {
 		return component.FailResponseCode(component.MessageAdminBadgeSaveFailed, nil)
 	}
 	badgeservice.InvalidateDefinitions()
@@ -323,7 +326,7 @@ func DeleteBadge(req component.BetterRequest[BadgeDeleteReq]) component.Response
 	if badge.Type == badges.TypeSystem {
 		return component.FailResponseCode(component.MessageAdminBadgeSystemDeleteBlock, nil)
 	}
-	if err := badges.DeleteByCode(code); err != nil {
+	if err := badgeservice.DeleteDefinition(req.GinContext.Request.Context(), code); err != nil {
 		return component.FailResponseCode(component.MessageAdminBadgeDeleteFailed, nil)
 	}
 	badgeservice.InvalidateDefinitions()
@@ -1347,7 +1350,8 @@ type SaveSiteSettingsReq struct {
 
 // SaveSiteSettings 保存站点设置：站点 URL 与 logo URL 经字段策略校验后落库；
 // 外链免确认白名单经 domainpolicy 归一化（小写、去重、去空行），含非法条目
-// 时整单拒绝、绝不落库（issue #1200）。
+// 时整单拒绝、绝不落库（issue #1200）；自定义 head 片段经 headmarkup 净化，
+// 只保留可进 <head> 的元素，结构标签与外壳自有标签（issue #1244）落库即被剥离。
 func SaveSiteSettings(req component.BetterRequest[SaveSiteSettingsReq]) component.Response {
 	settings := req.Params.Settings
 	if field := validateSiteSettingsURLs(&settings); field != "" {
@@ -1364,6 +1368,7 @@ func SaveSiteSettings(req component.BetterRequest[SaveSiteSettingsReq]) componen
 		return component.FailResponseCode(component.MessageAdminExternalDomainInvalid, component.MessageParams{"domain": strings.TrimSpace(dropped[0])})
 	}
 	settings.TrustedExternalDomains = kept
+	settings.ExternalLinks = headmarkup.Sanitize(settings.ExternalLinks)
 	return savePageConfig(pageConfig.SiteSettings, settings, func() {
 		hotdataserve.ClearSiteSettingsConfigCache()
 		oauthservice.RefreshOAuthProviders()

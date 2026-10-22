@@ -16,11 +16,15 @@ const DefaultAssetScale = 1.25
 const AvatarFrame = "avatarFrame"
 const NicknameStyle = "nicknameStyle"
 
+// NicknameContrastMin is WCAG's large-text floor (3:1), not the 4.5:1 ordinary-text one.
+// Web (NICKNAME_CONTRAST_MIN) and Flutter (nicknameContrastMin) mirror this value.
+const NicknameContrastMin = 3.0
+
 type Style = decoration.Definition
 
 var codePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
 var colorPattern = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
-var decorationAssetPattern = regexp.MustCompile(`^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp)$`)
+var decorationAssetPattern = regexp.MustCompile(`^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp|gif|svg)$`)
 
 func ValidateStyle(style Style) error {
 	if math.IsNaN(style.AssetScale) || math.IsInf(style.AssetScale, 0) || (style.AssetScale != 0 && (style.AssetScale < 0.5 || style.AssetScale > 2)) {
@@ -63,14 +67,14 @@ func luminance(c [3]float64) float64 {
 	}
 	return c[0]*0.2126 + c[1]*0.7152 + c[2]*0.0722
 }
+
+// readable grades the gradient's endpoint stops only; the ramp between them is not sampled (#1312).
 func readable(colors, backgrounds []string) bool {
-	a, b := rgb(colors[0]), rgb(colors[len(colors)-1])
-	for step := 0; step <= 32; step++ {
-		t := float64(step) / 32
-		fg := luminance([3]float64{a[0]*(1-t) + b[0]*t, a[1]*(1-t) + b[1]*t, a[2]*(1-t) + b[2]*t})
+	for _, color := range []string{colors[0], colors[len(colors)-1]} {
+		fg := luminance(rgb(color))
 		for _, background := range backgrounds {
 			bg := luminance(rgb(background))
-			if (math.Max(fg, bg)+0.05)/(math.Min(fg, bg)+0.05) < 4.5 {
+			if (math.Max(fg, bg)+0.05)/(math.Min(fg, bg)+0.05) < NicknameContrastMin {
 				return false
 			}
 		}

@@ -119,6 +119,7 @@
   "serverMessages.permission.emailRequired": "Bitte verifiziere zuerst deine E-Mail, bevor du fortfährst.",
   "serverMessages.common.operation.failed": "Vorgang fehlgeschlagen. Bitte versuche es später erneut.",
   "serverMessages.oauth.callback.failed": "OAuth-Callback fehlgeschlagen. Bitte versuche es später erneut.",
+  "serverMessages.oauth.provider.unavailable": "Diese Anmeldemethode ist derzeit nicht verfügbar. Bitte wähle eine andere Methode.",
   "serverMessages.oauth.process.failed": "OAuth-Anmeldung fehlgeschlagen. Bitte versuche es später erneut.",
   "serverMessages.oauth.activation.updateFailed": "Aktualisierung des Aktivierungsstatus des Kontos fehlgeschlagen. Bitte versuche es später erneut.",
   "serverMessages.oauth.token.failed": "Erstellung der Anmeldeinformationen fehlgeschlagen. Bitte versuche es später erneut.",

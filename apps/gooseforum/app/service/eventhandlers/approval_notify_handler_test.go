@@ -14,6 +14,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationAppeals"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -26,6 +27,51 @@ import (
 type approvalEnvelope struct {
 	Event string                            `json:"event"`
 	Data  httpnotifyservice.ApprovalPayload `json:"data"`
+}
+
+func TestAppealHttpNotificationContainsOnlySafeReference(t *testing.T) {
+	withApprovalSigningKey(t)
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&topics.Entity{}, &posts.Entity{}, &moderationAppeals.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	topic := topics.Entity{UserId: 9999, Title: "private rejected title", Status: 1}
+	if err := conn.Create(&topic).Error; err != nil {
+		t.Fatal(err)
+	}
+	post := posts.Entity{TopicId: topic.Id, PostNo: 1, UserId: 9999, LatestRevisionId: 987654}
+	if err := conn.Create(&post).Error; err != nil {
+		t.Fatal(err)
+	}
+	appeal := moderationAppeals.Entity{PostId: post.Id, RevisionId: post.LatestRevisionId, Reason: "private appeal explanation", Status: moderationAppeals.Pending}
+	if err := conn.Create(&appeal).Error; err != nil {
+		t.Fatal(err)
+	}
+	received := captureHttpNotify(t, httpnotifyservice.EventAppealSubmitted)
+	for range 2 {
+		if err := handleHttpNotifyAppealSubmitted(context.Background(), &ModerationAppealSubmittedEvent{AppealID: appeal.Id}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	body := waitHttpNotify(t, received)
+	expectNoMoreHttpNotify(t, received)
+	a := decodeApproval(t, body).Data.Approval
+	if a.Kind != httpnotifyservice.ApprovalKindAppeal || a.ModerationURL != "/moderation?tab=appeals" || a.TargetID != topic.Id || a.AppealID != appeal.Id || a.Title != "" || a.Excerpt != "" || a.Author != nil {
+		t.Fatalf("appeal approval = %+v", a)
+	}
+	// 与待审、举报一致：通过/驳回按钮只打开确认页，令牌绑定这条申诉。
+	if len(a.Actions) != 2 || a.Actions[0].Action != httpnotifyservice.ApprovalActionApprove || a.Actions[1].Action != httpnotifyservice.ApprovalActionReject {
+		t.Fatalf("appeal actions = %+v", a.Actions)
+	}
+	for _, action := range a.Actions {
+		claims, err := tokenservice.ParseModerationAction(strings.TrimPrefix(action.URL, "/moderation/action?token="), time.Now())
+		if err != nil || claims.Subject != tokenservice.ModerationActionSubjectAppeal || claims.ID != appeal.Id || claims.Action != action.Action {
+			t.Fatalf("appeal action %+v claims %+v err %v", action, claims, err)
+		}
+	}
+	if strings.Contains(string(body), "private") || strings.Contains(string(body), "9999") {
+		t.Fatalf("private data leaked: %s", body)
+	}
 }
 
 func withApprovalSigningKey(t *testing.T) {

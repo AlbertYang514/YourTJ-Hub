@@ -38,6 +38,7 @@ void main() {
       for (final url in [
         '/static/badges/robot.svg?v=2',
         '/static/badges/robot.svg',
+        '/static/badges/normalized/12345678-1234-1234-1234-123456789abc.png',
         '',
       ]) {
         expect(
@@ -54,6 +55,7 @@ void main() {
       'https://f.yourtj.de/static/badges/robot.svg',
       'https://thesvg.org/icons/deepseek/default.svg',
       '/file/img/2026/10/badge.png',
+      '/static/badges/12345678-1234-1234-1234-123456789abc.gif',
     ]) {
       for (final size in [40.0, 80.0]) {
         expect(UserBadgeArtwork.medallion(badge(url), size).size, size * .60);

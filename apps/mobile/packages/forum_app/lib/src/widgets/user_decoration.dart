@@ -3,8 +3,18 @@ import 'package:ui_kit/ui_kit.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
+// WCAG large-text floor; the Go authority (NicknameContrastMin) and Web mirror it.
+const nicknameContrastMin = 3.0;
+
 List<Color> decorationColors(BuildContext context, DecorationStyle? style) {
   if (style == null || !style.isEnabled) return const [];
+  // Colour and image frames are two separate kinds: an image frame never paints
+  // a gradient ring, so a loading or failed asset cannot leak the fallback
+  // colours underneath the artwork (web UserAvatar.vue keeps them exclusive).
+  if (style.kind == 'avatarFrame' &&
+      decorationFrameAssetUrl(style).isNotEmpty) {
+    return const [];
+  }
   final values = Theme.of(context).brightness == Brightness.dark
       ? style.darkColors
       : style.lightColors;
@@ -23,7 +33,7 @@ List<Color> decorationColors(BuildContext context, DecorationStyle? style) {
       return (luminance > background
               ? (luminance + .05) / (background + .05)
               : (background + .05) / (luminance + .05)) <
-          4.5;
+          nicknameContrastMin;
     })) {
       return const [];
     }
@@ -37,7 +47,7 @@ String decorationFrameAssetUrl(DecorationStyle? style) =>
         style?.kind == 'avatarFrame' &&
         style?.assetUrl != null &&
         RegExp(
-          r'^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp)$',
+          r'^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp|gif|svg)$',
         ).hasMatch(style!.assetUrl!)
     ? resolveApiAssetUrl(style.assetUrl!)
     : '';

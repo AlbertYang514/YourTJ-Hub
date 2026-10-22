@@ -833,6 +833,12 @@ AgentTopicItem:
       type: string
     excerpt:
       type: string
+    images:
+      type: array
+      maxItems: 9
+      items:
+        type: string
+      description: Topic gallery image URLs (topics.image_urls, falling back to the legacy firstImageUrl when empty, like the web topic list; usually site-relative `/file/img/...`), at most nine. The list only contains topics whose first post is visible, so this never exposes the gallery of a hidden, author-deleted or moderator-removed first post. Empty when the topic has no image. Older servers omit this field.
     categoryIds:
       type: array
       items:
@@ -1164,6 +1170,12 @@ PostPayload:
     isAnswer:
       type: boolean
       description: True only when the topic is a Question (contentType=1), the post is not the first post, and it replies to the question itself.
+    images:
+      type: array
+      maxItems: 9
+      items:
+        type: string
+      description: Topic gallery image URLs (topics.image_urls, falling back to the legacy firstImageUrl when empty, like the web topic list; at most nine; usually site-relative `/file/img/...`, absolute when the storage public URL prefix is set). Present only on the first post (postNo 1) when it is visible; omitted for replies and when the first post is hidden, author-deleted or moderator-removed. Older servers omit this field.
   additionalProperties: false
 
 ReplyTargetPayload:
@@ -5407,7 +5419,7 @@ NotificationMarkAllReadResponse:
 
 PushConfigResult:
   type: object
-  required: [configured, native]
+  required: [configured, native, viewerId]
   properties:
     configured:
       type: boolean
@@ -5418,6 +5430,11 @@ PushConfigResult:
     native:
       $ref: '#/NativePushChannels'
       description: Native (mobile APNs/FCM) channel states; always present.
+    viewerId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: The caller's own numeric user id. The service worker compares it with the push payload recipient before showing a notification, so a recipient check never renders the /messages page.
   additionalProperties: false
 
 NativePushChannels:
@@ -6868,7 +6885,7 @@ AdminTrafficOverviewRequest:
     startDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'
-      description: Inclusive range start (YYYY-MM-DD); empty defaults to 7 days ago.
+      description: Inclusive range start (YYYY-MM-DD); empty defaults to 7 days ago (8-day inclusive window ending today).
     endDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'
@@ -7871,6 +7888,22 @@ AdminSiteSettingsConfig:
       type: string
     externalLinks:
       type: string
+      description: |
+        Custom head markup: only elements that may live inside `<head>` are
+        accepted. The same normalization runs when the value is stored and when
+        it is rendered: document structure tags (`<!DOCTYPE>`/`<html>`/`<head>`/
+        `<body>`), body content and loose text are dropped, together with the
+        document metadata the shell emits for the page — the `<title>`, the
+        charset (including `http-equiv="content-type"`) / viewport / description /
+        robots / color-scheme / theme-color metas, metas whose `name` or
+        `property` starts with `og:`, `twitter:` or `article:`, and links whose
+        `rel` token set includes `canonical`, `prev`, `next`, `manifest`, `icon`
+        or `apple-touch-icon` — so dirty values are cleaned on the next save
+        (issue #1244). Other custom meta/link/script/style/noscript elements are
+        kept; `description` and `robots` are rendered by a page only when that
+        page has its own value.
+        No URL or script whitelist is applied — trusted administrator content,
+        bounded by the page CSP.
     trustedExternalDomains:
       type: array
       items:
@@ -7917,7 +7950,9 @@ AdminSaveSiteSettingsRequest:
     request fails with HTTP 200 `code: 1`, messageCode `admin.url.invalid`
     and params `field` naming the first offending field; nothing is
     persisted. A missing/malformed body binds to zero values (empty URL
-    fields, hence valid) and is saved as-is.
+    fields, hence valid) and is saved as-is, except `externalLinks`, which is
+    normalized before persistence (see the field description in
+    `AdminSiteSettingsConfig`).
     `trustedExternalDomains` entries are normalized before persistence
     (trimmed, lower-cased, IDN converted to punycode, de-duplicated, blank
     entries dropped) under the trusted-domain policy (issue #1200): entries
@@ -8667,6 +8702,13 @@ ModerationApprovalActionRequest:
       type: string
       maxLength: 2048
       description: Signed quick-action token from the `token` query parameter of a notification button link (`/moderation/action?token=…`).
+    reason:
+      type: string
+      maxLength: 2048
+      description: |
+        Appeal decisions only (`subject=appeal`): the reviewer's explanation shown to the author,
+        at most 512 characters. Required to reject an appeal; optional when approving; ignored for
+        other subjects and by the preview.
   additionalProperties: false
 
 ModerationApprovalActionView:
@@ -8675,7 +8717,8 @@ ModerationApprovalActionView:
   description: |
     Quick-action confirmation view (issue #1049). Target content (`title`, `excerpt`, `targetUrl`)
     is only present when the signed-in caller may moderate the target; anonymous targets only
-    expose the `anonymous` marker, never the author.
+    expose the `anonymous` marker, never the author. Appeals (`subject=appeal`) describe the
+    rejected revision plus `originalReason` and `appealReason`, never the author's identity.
   properties:
     state:
       type: string
@@ -8689,7 +8732,7 @@ ModerationApprovalActionView:
         applied.
     subject:
       type: string
-      enum: [review.topic, review.post, report]
+      enum: [review.topic, review.post, report, appeal]
     action:
       type: string
       enum: [approve, reject, ban, hide, dismiss]
@@ -8717,6 +8760,12 @@ ModerationApprovalActionView:
       type: string
       format: date-time
       description: Link expiry (UTC, RFC 3339).
+    originalReason:
+      type: string
+      description: Appeals only — the rejection being appealed. Shown on the confirmation page, never in external notifications.
+    appealReason:
+      type: string
+      description: Appeals only — the author's explanation. Shown on the confirmation page, never in external notifications.
   additionalProperties: false
 
 ModerationApprovalActionResponse:
@@ -9645,6 +9694,46 @@ AdminImgUploadResponse:
               const: upload.success
     - $ref: '#/ApiFailure'
 
+DecorationAssetUploadResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result, messageCode]
+          properties:
+            result:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  pattern: '^/static/decorations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[.](png|webp|gif)$'
+              additionalProperties: false
+            messageCode:
+              type: string
+              const: upload.success
+    - $ref: '#/ApiFailure'
+
+BadgeAssetUploadResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result, messageCode]
+          properties:
+            result:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  pattern: '^/static/badges/(normalized/)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[.](png|webp|gif)$'
+              additionalProperties: false
+            messageCode:
+              type: string
+              const: upload.success
+    - $ref: '#/ApiFailure'
+
 AdminCreateExportTaskRequest:
   type: object
   required: [tables, format]
@@ -9965,6 +10054,14 @@ MyContentItem:
     hasPublishedVersion:
       type: boolean
       description: An approved version remains publicly readable while the submitted edit is pending or rejected.
+    canAppeal:
+      type: boolean
+      description: True when the latest rejected revision can still be appealed by this author (same rules as submitContentAppeal).
+    appeal:
+      description: Appeal filed for the latest revision, or null. Pending appeals whose target changed are reported as stale.
+      oneOf:
+        - $ref: '#/ModerationAppealOwnerSummary'
+        - type: 'null'
     content:
       type: string
       description: Complete latest submitted Markdown for the authenticated author, including rejected content.
@@ -11983,7 +12080,7 @@ DecorationStyle:
       description: Frame artwork diameter relative to the avatar, centered without changing layout; omitted values use 1.25.
     assetUrl:
       type: string
-      pattern: ^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp)$
+      pattern: ^/static/decorations/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|webp|gif|svg)$
       description: Optional same-origin PNG or WebP frame artwork installed under resource/static/decorations. External URLs are rejected.
     code:
       type: string
@@ -12211,7 +12308,7 @@ AdminStatsCategorySummaryRequest:
     startDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'
-      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago.
+      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 6 days ago (7-day inclusive window ending today).
     endDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'
@@ -12225,7 +12322,7 @@ AdminStatsCategoryTrendRequest:
     startDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'
-      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago.
+      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 6 days ago (7-day inclusive window ending today).
     endDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'
@@ -12243,7 +12340,7 @@ AdminStatsUserRankingRequest:
     startDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'
-      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago.
+      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 6 days ago (7-day inclusive window ending today).
     endDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'
@@ -12283,7 +12380,7 @@ AdminStatsUserDetailRequest:
     startDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'
-      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago.
+      description: Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 6 days ago (7-day inclusive window ending today).
     endDate:
       type: string
       pattern: '^\d{4}-\d{2}-\d{2}$'
@@ -12603,4 +12700,182 @@ AdminStatsUserDetailResponse:
           properties:
             result:
               $ref: '#/AdminStatsUserDetailResult'
+    - $ref: '#/ApiFailure'
+
+
+ModerationAppealItem:
+  type: object
+  required: [id, kind, targetId, revisionId, topicId, postNo, title, content, images, reason, originalReviewReason, status, reviewReason, createdAt, reviewedAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    kind:
+      type: string
+      enum: [topic, post]
+    targetId:
+      type: integer
+      format: uint64
+    revisionId:
+      type: integer
+      format: uint64
+    topicId:
+      type: integer
+      format: uint64
+    postNo:
+      type: integer
+    title:
+      type: string
+    content:
+      type: string
+    images:
+      type: array
+      items:
+        type: string
+    reason:
+      type: string
+    originalReviewReason:
+      type: string
+      description: The rejection reason being appealed.
+    status:
+      type: string
+      enum: [pending, approved, rejected, stale]
+    reviewReason:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+    reviewedAt:
+      type: [string, 'null']
+      format: date-time
+  additionalProperties: false
+
+ModerationAppealOwnerSummary:
+  type: object
+  required: [status, reason, reviewReason, createdAt, reviewedAt]
+  properties:
+    status:
+      type: string
+      enum: [pending, approved, rejected, stale]
+    reason:
+      type: string
+    reviewReason:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+    reviewedAt:
+      type: [string, 'null']
+      format: date-time
+  additionalProperties: false
+
+ModerationAppealSubmitRequest:
+  type: object
+  required: [kind, id, revisionId, reason]
+  properties:
+    kind:
+      type: string
+      enum: [topic, post]
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    revisionId:
+      type: integer
+      format: uint64
+      minimum: 1
+    reason:
+      type: string
+      minLength: 1
+      maxLength: 512
+      description: Required explanation; whitespace-only text is rejected.
+  additionalProperties: false
+
+ModerationAppealActionRequest:
+  type: object
+  required: [id, approve]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    approve:
+      type: boolean
+    reason:
+      type: string
+      maxLength: 512
+      description: A nonblank reason is required when rejecting an appeal.
+  additionalProperties: false
+
+ModerationAppealQueueRequest:
+  type: object
+  properties:
+    page:
+      type: integer
+    pageSize:
+      type: integer
+    status:
+      type: string
+      enum: [pending, approved, rejected, stale]
+      default: pending
+  additionalProperties: false
+
+ModerationAppealHistoryResult:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ModerationAppealItem'
+  additionalProperties: false
+
+ModerationAppealQueueResult:
+  type: object
+  required: [items, total, page, pageSize]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ModerationAppealItem'
+    total:
+      type: integer
+      format: int64
+    page:
+      type: integer
+    pageSize:
+      type: integer
+  additionalProperties: false
+
+ModerationAppealSubmitResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/ModerationAppealItem'
+    - $ref: '#/ApiFailure'
+
+ModerationAppealHistoryResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/ModerationAppealHistoryResult'
+    - $ref: '#/ApiFailure'
+
+ModerationAppealQueueResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/ModerationAppealQueueResult'
     - $ref: '#/ApiFailure'

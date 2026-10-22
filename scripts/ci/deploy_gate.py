@@ -7,6 +7,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'release'))
 from github import GitHub
 from model import require
+from cycle_store import load
 
 
 def admitted(run, repository, current_sha):
@@ -21,7 +22,7 @@ def main():
     event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())
     run = github.api(f"actions/runs/{event['workflow_run']['id']}")
     current = github.api('git/ref/heads/dev')['object']['sha']
-    eligible = admitted(run, github.repository, current)
+    eligible = admitted(run, github.repository, current) and load(github)['active'] is None
     if os.environ.get('GITHUB_OUTPUT'):
         with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
             out.write(f"eligible={str(eligible).lower()}\nsha={run['head_sha']}\n")

@@ -23,6 +23,10 @@ func ProviderLogin(c *gin.Context) {
 		TongjiLoginStart(c)
 		return
 	}
+	if !oauthservice.IsOAuthProviderReady(c.Param("provider")) {
+		forum.RenderOAuthErrorPage(c, http.StatusServiceUnavailable, component.MessageOAuthProviderUnavailable)
+		return
+	}
 	q := c.Request.URL.Query()
 	q.Set("provider", c.Param("provider"))
 	c.Request.URL.RawQuery = q.Encode()
@@ -33,7 +37,16 @@ func ProviderLogin(c *gin.Context) {
 		c.Request.URL.RawQuery = q.Encode()
 	}
 	// 开始 OAuth 流程
-	oauthservice.BeginOAuthAuthHandler(c.Writer, c.Request)
+	if err := oauthservice.BeginOAuthAuthHandler(c.Writer, c.Request); err != nil {
+		if errors.Is(err, oauthservice.ErrOAuthProviderUnavailable) {
+			// Provider may be refreshed between the page-state check and this request.
+			// Keep the final check under the provider-registry lock and use the site error page.
+			forum.RenderOAuthErrorPage(c, http.StatusServiceUnavailable, component.MessageOAuthProviderUnavailable)
+			return
+		}
+		slog.Error("OAuth provider login failed", "error", err)
+		forum.RenderInternalOAuthErrorPage(c, component.MessageOAuthProcessFailed)
+	}
 }
 
 // ProviderCallback 处理OAuth登录/绑定回调（根据登录状态自动判断）
@@ -54,7 +67,8 @@ func ProviderCallback(c *gin.Context) {
 	currentUserInfo := component.GetLoginUser(c)
 	currentUserId := currentUserInfo.UserId
 
-	// A signed OIDC continuation was started as login, not account binding.
+	// A signed continuation (OIDC bridge or ordinary Web redirect) was started
+	// as login, not account binding.
 	if currentUserId > 0 && continuation == "" {
 		if user, ok := userservice.GetUserInfo(currentUserId); !ok || user.IsFrozen == users.StatusFrozen || user.ActorType == users.ActorTypeBot {
 			forum.RenderOAuthErrorPage(c, http.StatusForbidden, component.MessagePermissionUserFrozen)
@@ -85,9 +99,10 @@ func ProviderCallback(c *gin.Context) {
 				// 纯新号（issue #531）：OAuth 回调不再建号，注册统一走
 				// /api/register（allowedDomains 白名单在注册单点把关）。
 				// 302 回注册页并携带提示参数。回跳目标优先级（PR #552 review P1）：
-				// ① OIDC 续跳 continuation——内置 OIDC 桥接用户的注册完成页必须
-				//   回到 /api/oauth/authorize/callback?id=…，移动端才能拿到授权码；
-				//   该值已由 oidcResumeTarget 校验为站内桥接回调单参数形态；
+				// ① 签名 cookie 恢复的 continuation——内置 OIDC 桥接用户的注册完成页
+				//   必须回到 /api/oauth/authorize/callback?id=…（oidcResumeTarget 校验），
+				//   移动端才能拿到授权码；普通 Web 登录从帖子页等进入时则是站内相对
+				//   路径（webRedirectTarget 校验，与 IsSafeRedirect 同规则并解码复查）；
 				// ② 普通 Web 登录透传回调查询串 redirect（IsSafeRedirect 校验，
 				//   不安全值静默丢弃，与登录页 props 同规则）。
 				target := urlconfig.Register() + "?register=true&oauthNotice=1"

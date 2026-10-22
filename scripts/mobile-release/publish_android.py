@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import time
 from approved_notes import read_notes
 
@@ -66,8 +67,12 @@ def main():
     version = os.environ["MOBILE_VERSION"]
     number = os.environ["MOBILE_BUILD_NUMBER"]
     tag = os.environ["RELEASE_TAG"]
-    if not re.fullmatch(r"\d+\.\d+\.\d+", version) or not re.fullmatch(r"[1-9]\d*", number) or tag != f"mobile-v{version}":
+    preview = os.environ.get('MOBILE_PREVIEW') == 'true'
+    expected_tag = bool(re.fullmatch(r'preview-\d+-\d+-\d+-(dev|production)', tag)) if preview else tag == f'mobile-v{version}'
+    if not re.fullmatch(r"\d+\.\d+\.\d+", version) or not re.fullmatch(r"[1-9]\d*", number) or not expected_tag:
         raise ValueError("Invalid mobile release identity")
+    if not preview and os.environ.get('MOBILE_ENVIRONMENT', 'production') != 'production':
+        raise ValueError('Dev APKs cannot enter production distribution')
     config = json.loads((ROOT / "apps/mobile/release-config.json").read_text(encoding='utf-8'))
     tools = Path(os.environ.get("ANDROID_HOME") or os.environ["ANDROID_SDK_ROOT"]) / "build-tools"
     versions = [p for p in tools.iterdir() if re.fullmatch(r"\d+(\.\d+)*", p.name)]
@@ -95,18 +100,30 @@ def main():
         print("Verified three signed APKs and wrote SHA256SUMS.txt")
         return
 
-    approved_notes = read_notes("ANDROID_NOTES_PATH")
+    if preview:
+        from build_environment import dart_defines
+        dart_defines()  # Validate the allowlisted environment and full SHA.
+        approved_notes = (f"{os.environ['MOBILE_ENVIRONMENT'].upper()} testing only. "
+                          f"Source: {os.environ['SOURCE_SHA']}. Replaces the installed app; "
+                          "this preview never updates the stable download links. "
+                          "Before testing, check the current candidate and return-to-production instructions: "
+                          "https://github.com/YourTongji/YourTJ-Hub/releases/tag/preview-status")
+    else:
+        approved_notes = read_notes("ANDROID_NOTES_PATH")
     release = find_release(tag)
     if release is None:
         notes = output / "notes.md"
         notes.write_text(approved_notes + "\n", encoding='utf-8')
         gh("release", "create", tag, "--repo", REPOSITORY, "--verify-tag", "--draft", "--latest=false",
-           "--title", f"YourTJ {version}", "--notes-file", str(notes))
+           *(['--prerelease'] if preview else []),
+           "--title", f"YourTJ {'PREVIEW ' if preview else ''}{version}", "--notes-file", str(notes))
         release = find_release(tag)
         if release is None:
             raise RuntimeError("Created release is not discoverable yet; retry to resume its draft")
     if (release.get("body") or "").strip() != approved_notes:
         raise ValueError("Existing release notes differ from reviewed Android notes; do not overwrite a published identity")
+    if bool(release.get('prerelease')) != preview:
+        raise ValueError('Release channel differs from the intended distribution')
     endpoint = f"repos/{REPOSITORY}/releases/{release['id']}"
     existing = {asset["name"]: asset for asset in release["assets"]}
     for path, digest in assets:
@@ -124,6 +141,9 @@ def main():
         if attempt == 11:
             raise ValueError("GitHub asset digest verification failed; release remains a draft")
         time.sleep(5)
+    if preview:
+        subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / 'release/cycle_control.py'),
+                        'check-build'], check=True)
     gh("release", "edit", tag, "--repo", REPOSITORY, "--draft=false", "--latest=false")
     if os.environ.get("RELEASE_RESULT_PATH"):
         Path(os.environ["RELEASE_RESULT_PATH"]).write_text(json.dumps({"android": {"availability": "available", "assets": {p.name: d for p, d in assets}}}), encoding='utf-8')

@@ -49,6 +49,11 @@ def next_identity(product, bump, reservations, floor="1.0.0", floor_build=1):
     prefix = "v" if product == "web" else "mobile-v"
     versions, numbers = [(0, 0, 0) if product == "web" else tuple(map(int, floor.split(".")))], [floor_build]
     for item in reservations:
+        if product == 'mobile' and re.fullmatch(r'mobile-build-[1-9]\d*', item['tag']):
+            require(type(item.get('buildNumber')) is int and 0 < item['buildNumber'] <= MAX_BUILD,
+                    'Invalid automatic build reservation')
+            numbers.append(item['buildNumber'])
+            continue
         if not item["tag"].startswith(prefix):
             continue
         version = item["tag"][len(prefix):]

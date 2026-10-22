@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Check, Edit3, Loader2, Palette, Plus, RefreshCw, Search, X } from '@lucide/vue'
 import type { DecorationStyle } from '@gooseforum/client'
-import { getDecorations, saveDecoration } from '@/admin/runtime/api'
+import { getDecorations, saveDecoration, uploadDecorationAsset } from '@/admin/runtime/api'
 import { BasicPage } from '@/admin/components/global-layout'
 import AdminSelect from '@/admin/components/AdminSelect.vue'
 import DecorationStylePreview from '@/admin/components/DecorationStylePreview.vue'
@@ -11,9 +11,9 @@ import { Button } from '@/admin/components/ui/button'
 import { Input } from '@/admin/components/ui/input'
 import { Badge } from '@/admin/components/ui/badge'
 import { Switch } from '@/admin/components/ui/switch'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/admin/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/admin/components/ui/dialog'
 import ManagementTable from './ManagementTable.vue'
-import { decorationAssetScale, hasNicknameContrast, isSafeDecorationAssetUrl } from '@/site/utils/decoration-style'
+import { NICKNAME_CONTRAST_MIN, decorationAssetScale, isSafeDecorationAssetUrl, nicknameContrastFloor } from '@/site/utils/decoration-style'
 
 const { t } = useI18n()
 const items = ref<DecorationStyle[]>([])
@@ -22,6 +22,8 @@ const loaded = ref(false)
 const loadError = ref('')
 const saveError = ref('')
 const saving = ref(false)
+const uploading = ref(false)
+const uploadError = ref('')
 const saved = ref(false)
 const open = ref(false)
 const editing = ref(false)
@@ -31,15 +33,31 @@ const kindFilter = ref('all')
 const statusFilter = ref('all')
 const fresh = (): DecorationStyle => ({ code: '', name: '', kind: 'avatarFrame', lightColors: ['#166534', '#0D9488'], darkColors: ['#86EFAC', '#2DD4BF'], assetUrl: '', assetScale: 1.25, isEnabled: true, sortOrder: 100 })
 const form = reactive(fresh())
+// 头像框二选一：纯色边框只用配色，图片头像框只用图片。服务端契约仍要求 lightColors/darkColors 为 1–2 个合法
+// 颜色，所以图片模式隐藏配色字段但继续提交表单中的默认值（#1246）。
+const frameMode = ref('solid')
+const paletteVisible = computed(() => form.kind === 'nicknameStyle' || frameMode.value === 'solid')
 const scalePercent = computed({
   get: () => Number(form.assetScale ?? 1.25) * 100,
   set: (percent: number) => { form.assetScale = percent / 100 },
 })
 const palettes = ['lightColors', 'darkColors'] as const
+// Theme surface pairs the nickname sits on; the save gate and the live readout must measure the same backgrounds.
+const nicknameBackgrounds = { lightColors: [[255, 255, 255], [243, 244, 246]], darkColors: [[17, 24, 39], [31, 41, 55]] } as const
+const contrastFloors = computed(() => form.kind === 'nicknameStyle'
+  ? { light: nicknameContrastFloor(form.lightColors, nicknameBackgrounds.lightColors), dark: nicknameContrastFloor(form.darkColors, nicknameBackgrounds.darkColors) }
+  : null)
 const kindOptions = computed(() => [
   { value: 'avatarFrame', label: t('decoration.avatarFrame') },
   { value: 'nicknameStyle', label: t('decoration.nicknameStyle') },
 ])
+const frameModeOptions = computed(() => [
+  { value: 'solid', label: t('decoration.configAdmin.frameModeSolid') },
+  { value: 'image', label: t('decoration.configAdmin.frameModeImage') },
+])
+// GIF 在早于格式扩展的客户端上会被整条定义丢弃（图片框无配色回退 → 表现为不显示边框），
+// 因此选中 .gif 时在保存前给出明确提示。
+const gifFrameWarning = computed(() => form.kind === 'avatarFrame' && frameMode.value === 'image' && /\.gif$/i.test(form.assetUrl ?? ''))
 const filtered = computed(() => items.value.filter(item => {
   const query = search.value.trim().toLowerCase()
   return (!query || `${item.name} ${item.code}`.toLowerCase().includes(query))
@@ -50,31 +68,48 @@ const errors = computed(() => {
   const result: Record<string, string> = {}
   if (!/^[a-z][a-z0-9_-]{0,63}$/.test(form.code)) result.code = t('decoration.configAdmin.codeHint')
   if (!form.name.trim() || Array.from(form.name.trim()).length > 80) result.name = t('decoration.configAdmin.nameInvalid')
-  for (const palette of palettes) {
+  for (const palette of paletteVisible.value ? palettes : []) {
     const colors = form[palette]
     if (colors.length < 1 || colors.length > 2 || colors.some(color => !/^#[0-9a-f]{6}$/i.test(color))) result[palette] = t('decoration.configAdmin.colorInvalid')
     else if (form.kind === 'nicknameStyle') {
-      const backgrounds = palette === 'lightColors' ? [[255, 255, 255], [243, 244, 246]] : [[17, 24, 39], [31, 41, 55]]
-      if (backgrounds.some(background => !hasNicknameContrast(colors, background))) result[palette] = t('decoration.configAdmin.contrastInvalid')
+      const floor = nicknameContrastFloor(colors, nicknameBackgrounds[palette])
+      if (floor < NICKNAME_CONTRAST_MIN) result[palette] = t('decoration.configAdmin.contrastInvalid', { ratio: floor.toFixed(2), minimum: NICKNAME_CONTRAST_MIN })
     }
   }
-  if (!Number.isFinite(form.assetScale) || Number(form.assetScale) < 0.5 || Number(form.assetScale) > 2) result.assetScale = t('decoration.configAdmin.scaleHint')
-  if (form.assetUrl && !isSafeDecorationAssetUrl(form.assetUrl)) result.assetUrl = t('decoration.configAdmin.assetInvalid')
+  const imageFrame = form.kind === 'avatarFrame' && frameMode.value === 'image'
+  if (imageFrame && (!Number.isFinite(Number(form.assetScale)) || Number(form.assetScale) < 0.5 || Number(form.assetScale) > 2)) result.assetScale = t('decoration.configAdmin.scaleHint')
+  if (imageFrame && !form.assetUrl) result.assetUrl = t('decoration.configAdmin.assetRequired')
+  else if (form.assetUrl && !isSafeDecorationAssetUrl(form.assetUrl)) result.assetUrl = t('decoration.configAdmin.assetInvalid')
   if (!Number.isInteger(Number(form.sortOrder)) || Number(form.sortOrder) < 0 || Number(form.sortOrder) > 100000) result.sortOrder = t('decoration.configAdmin.orderHint')
   return result
 })
 watch(() => form.kind, kind => { if (kind === 'nicknameStyle') { form.assetUrl = ''; form.assetScale = 1.25 } })
+watch(frameMode, mode => { if (mode === 'solid') form.assetUrl = '' })
 function edit(item?: DecorationStyle) {
-  if (saving.value) return
+  if (saving.value || uploading.value) return
   const source = item ?? fresh()
   Object.assign(form, source, { lightColors: [...source.lightColors], darkColors: [...source.darkColors], assetUrl: source.assetUrl ?? '', assetScale: decorationAssetScale(source) })
+  frameMode.value = source.kind === 'avatarFrame' && source.assetUrl ? 'image' : 'solid'
   editing.value = !!item
   submitted.value = false
   saved.value = false
   saveError.value = ''
+  uploadError.value = ''
   open.value = true
 }
-function close(value: boolean) { if (!saving.value) open.value = value }
+function close(value: boolean) { if (!saving.value && !uploading.value) open.value = value }
+async function uploadAsset(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file || uploading.value) return
+  uploading.value = true
+  uploadError.value = ''
+  try {
+    const result = await uploadDecorationAsset(file)
+    form.assetUrl = result.url
+  } catch (error) { uploadError.value = error instanceof Error ? error.message : t('decoration.uploadFailed') }
+  finally { uploading.value = false; input.value = '' }
+}
 async function load() {
   if (loading.value) return
   loading.value = true
@@ -84,7 +119,7 @@ async function load() {
   finally { loading.value = false }
 }
 async function save() {
-  if (saving.value) return
+  if (saving.value || uploading.value) return
   submitted.value = true
   saveError.value = ''
   if (Object.keys(errors.value).length) return
@@ -141,7 +176,6 @@ onMounted(load)
       <DialogContent class="flex max-h-[90dvh] flex-col overflow-hidden sm:max-w-4xl" :show-close-button="!saving" @escape-key-down="saving && $event.preventDefault()" @interact-outside="saving && $event.preventDefault()">
         <DialogHeader>
           <DialogTitle>{{ editing ? t('decoration.configAdmin.edit') : t('decoration.new') }}</DialogTitle>
-          <DialogDescription>{{ t('decoration.configAdmin.editorHint') }}</DialogDescription>
         </DialogHeader>
         <form class="flex min-h-0 flex-col gap-4" @submit.prevent="save">
           <div class="grid min-h-0 gap-6 overflow-y-auto pr-1 lg:grid-cols-[1fr_280px]">
@@ -154,9 +188,10 @@ onMounted(load)
                 </div>
                 <div class="space-y-2"><label for="decoration-kind" class="text-sm font-medium">{{ t('decoration.kind') }}</label><AdminSelect id="decoration-kind" v-model="form.kind" :options="kindOptions" :disabled="editing || saving" class="w-full" /></div>
               </section>
-              <section class="space-y-3 border-t pt-4">
-                <h3 class="text-sm font-semibold">{{ t('decoration.configAdmin.palette') }}</h3>
-                <p class="text-xs text-muted-foreground">{{ t('decoration.configAdmin.paletteHint') }}</p>
+              <section v-if="form.kind === 'avatarFrame'" class="space-y-2 border-t pt-4"><label for="decoration-frame-mode" class="text-sm font-medium">{{ t('decoration.configAdmin.frameMode') }}</label><AdminSelect id="decoration-frame-mode" v-model="frameMode" :options="frameModeOptions" :disabled="saving || uploading" class="w-full" /><p class="text-xs text-muted-foreground">{{ t('decoration.configAdmin.frameModeHint') }}</p></section>
+              <section v-if="paletteVisible" class="space-y-3 border-t pt-4">
+                <h3 class="text-sm font-semibold">{{ t(form.kind === 'avatarFrame' ? 'decoration.configAdmin.framePalette' : 'decoration.configAdmin.nicknamePalette') }}</h3>
+                <p class="text-xs text-muted-foreground">{{ t(form.kind === 'avatarFrame' ? 'decoration.configAdmin.framePaletteHint' : 'decoration.configAdmin.nicknamePaletteHint') }}</p>
                 <fieldset v-for="palette in palettes" :key="palette" :disabled="saving" class="space-y-2">
                   <legend class="mb-2 text-sm font-medium">{{ t(`decoration.${palette}`) }}</legend>
                   <div v-for="(_, index) in form[palette]" :key="index" class="flex items-center gap-2">
@@ -168,7 +203,7 @@ onMounted(load)
                   <p v-if="submitted && errors[palette]" :id="`error-${palette}`" class="text-xs text-destructive">{{ errors[palette] }}</p>
                 </fieldset>
               </section>
-              <section v-if="form.kind === 'avatarFrame'" class="space-y-2 border-t pt-4"><label for="decoration-asset" class="text-sm font-medium">{{ t('decoration.assetUrl') }}</label><Input id="decoration-asset" v-model="form.assetUrl" :disabled="saving" maxlength="160" placeholder="/static/decorations/tea-garden-v1.png" :aria-invalid="submitted && !!errors.assetUrl" aria-describedby="decoration-asset-hint" /><p id="decoration-asset-hint" class="text-xs leading-relaxed text-muted-foreground">{{ t('decoration.assetHint') }}</p><p v-if="submitted && errors.assetUrl" class="text-xs text-destructive">{{ errors.assetUrl }}</p>
+              <section v-if="form.kind === 'avatarFrame' && frameMode === 'image'" class="space-y-2 border-t pt-4"><label for="decoration-asset" class="text-sm font-medium">{{ t('decoration.assetUrl') }}</label><Input id="decoration-asset" v-model="form.assetUrl" :disabled="saving || uploading" maxlength="160" placeholder="/static/decorations/tea-garden-v1.png" :aria-invalid="submitted && !!errors.assetUrl" aria-describedby="decoration-asset-hint" /><div><label for="decoration-upload" class="inline-flex h-9 cursor-pointer items-center rounded-md border px-3 text-sm font-medium hover:bg-accent" :class="{ 'pointer-events-none opacity-50': saving || uploading }"><Loader2 v-if="uploading" class="mr-2 size-4 animate-spin" />{{ t(uploading ? 'decoration.uploading' : 'decoration.uploadAsset') }}</label><input id="decoration-upload" type="file" accept="image/svg+xml,image/png,image/webp,image/gif" class="sr-only" :disabled="saving || uploading" @change="uploadAsset" /></div><p id="decoration-asset-hint" class="text-xs leading-relaxed text-muted-foreground">{{ t('decoration.assetHint') }}</p><p v-if="gifFrameWarning" role="status" class="text-xs leading-relaxed text-amber-700 dark:text-amber-400">{{ t('decoration.configAdmin.gifReleaseWarning') }}</p><p v-if="uploadError" role="alert" class="text-xs text-destructive">{{ uploadError }}</p><p v-if="submitted && errors.assetUrl" class="text-xs text-destructive">{{ errors.assetUrl }}</p>
                 <div class="space-y-3 rounded-lg border bg-muted/20 p-3">
                   <div class="flex flex-wrap items-center justify-between gap-2"><label for="decoration-scale" class="text-sm font-medium">{{ t('decoration.configAdmin.scale') }}</label><Button type="button" variant="ghost" size="sm" :disabled="saving" @click="form.assetScale = 1.25">{{ t('decoration.configAdmin.resetScale') }}</Button></div>
                   <div class="flex items-center gap-3"><input id="decoration-scale" v-model.number="scalePercent" type="range" min="50" max="200" step="1" :disabled="saving" class="min-w-0 flex-1 accent-primary" aria-describedby="decoration-scale-hint" /><div class="flex w-24 items-center gap-2"><Input v-model.number="scalePercent" type="number" min="50" max="200" step="1" :disabled="saving" :aria-label="t('decoration.configAdmin.scale')" :aria-invalid="submitted && !!errors.assetScale" aria-describedby="decoration-scale-hint" /><span class="text-xs text-muted-foreground">%</span></div></div>
@@ -183,12 +218,16 @@ onMounted(load)
             <aside class="space-y-3 rounded-lg border bg-muted/20 p-4 lg:sticky lg:top-0 lg:self-start">
               <h3 class="text-sm font-semibold">{{ t('decoration.configAdmin.preview') }}</h3>
               <DecorationStylePreview :style="form" />
-              <p class="text-xs leading-relaxed text-muted-foreground">{{ t('decoration.configAdmin.previewHint') }}</p>
+              <div v-if="form.kind === 'nicknameStyle' && contrastFloors" class="space-y-1">
+                <p class="text-xs text-muted-foreground">{{ t('decoration.configAdmin.contrastLowest', { light: contrastFloors.light.toFixed(2), dark: contrastFloors.dark.toFixed(2) }) }}</p>
+                <p v-if="Math.min(contrastFloors.light, contrastFloors.dark) < NICKNAME_CONTRAST_MIN" role="alert" class="text-xs text-destructive">{{ t('decoration.configAdmin.contrastInvalid', { ratio: Math.min(contrastFloors.light, contrastFloors.dark).toFixed(2), minimum: NICKNAME_CONTRAST_MIN }) }}</p>
+              </div>
+              <p v-if="form.kind === 'avatarFrame'" class="text-xs leading-relaxed text-muted-foreground">{{ t('decoration.configAdmin.framePreviewHint') }}</p>
               <p v-if="!form.isEnabled" class="rounded-md border p-3 text-xs text-muted-foreground">{{ t('decoration.configAdmin.disabledHint') }}</p>
             </aside>
           </div>
           <div v-if="saveError || (submitted && Object.keys(errors).length)" role="alert" class="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{{ saveError || t('decoration.configAdmin.fixErrors') }}</div>
-          <DialogFooter class="border-t pt-4"><Button type="button" variant="outline" :disabled="saving" @click="close(false)">{{ t('decoration.configAdmin.cancel') }}</Button><Button type="submit" :disabled="saving"><Loader2 v-if="saving" class="size-4 animate-spin" />{{ t(saving ? 'decoration.configAdmin.saving' : 'decoration.save') }}</Button></DialogFooter>
+          <DialogFooter class="border-t pt-4"><Button type="button" variant="outline" :disabled="saving || uploading" @click="close(false)">{{ t('decoration.configAdmin.cancel') }}</Button><Button type="submit" :disabled="saving || uploading"><Loader2 v-if="saving" class="size-4 animate-spin" />{{ t(saving ? 'decoration.configAdmin.saving' : 'decoration.save') }}</Button></DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

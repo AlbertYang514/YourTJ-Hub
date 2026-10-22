@@ -45,8 +45,21 @@ route-aware fallback resumes when the launch surface leaves.
 
 `Current`: Home negotiates feed capability v2, keeps explicit Latest separate from the default root,
 restarts expired recommendation snapshots and reports foreground visible rows/detail dwell. Attribution
-traces stay in memory and are stripped from offline pages. Recommendation reasons use four localized
-labels. See [feed ranking and measurement](feed-ranking.md) for the shared behavior and retention.
+traces stay in memory and are stripped from offline pages. See [feed ranking and
+measurement](feed-ranking.md) for the shared behavior and retention.
+
+`Current`: a For You reason is part of the topic, not a caption above it. On cards the avatar column
+reads top to bottom as who wrote the topic and why it is shown: a hairline trail runs on the
+avatar's axis down to a ringed 28dp seal on the footer line. The seal fills otherwise empty space,
+so it adds no height, lands in the same place for every reason and stays clear of the trailing
+bookmark. Tapping it traces the trail from the avatar to the seal, then unrolls the reason beside
+the seal as a pill of the same fill, ring and height; both retract after two seconds, and reduced
+motion switches them instantly. List rows lead the title with the reason. Each reason uses one muted
+Outline glyph borrowed from where the app already means it: the following glyph for a followed
+author, the search categories glyph for a category the reader took part in, the reply glyph for new
+replies, whose seal, trace and reply count take the accent used for unseen content, and the time
+glyph for the `recent` fallback. Like Web, the app labels every reason the server sends, so no For
+You topic goes without one; feeds without a server reason stay unstamped.
 
 
 `Current`: root layout uses the available window width. Below 600 logical pixels it retains bottom
@@ -208,6 +221,9 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   returning preserves the selected destination.
   About links to native friend links, sponsors, terms and privacy pages using the site’s published
   configuration; disabled policies remain hidden.
+- `Current`: with the account drawer open, Android system Back (button or gesture) closes only
+  the drawer, preserving the current destination and reading position. Scrim taps and panel swipes
+  likewise close the drawer without navigating.
 - `Current`: Home cards retain both images for two-image topics. A portrait single image sits beside
   the text; a landscape image appears below the text with aspect-preserving fit. Portrait galleries
   show up to three columns; two landscape images share a row; larger landscape galleries overlap
@@ -278,7 +294,15 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   transparent animated YourTJ mark until its data is ready.
   Profile stream tabs, including the following/followers lists, use the same drag progress and the
   same one-sided stretch; the bar reveals selected tabs outside its viewport and honors
-  reduced-motion settings.
+  reduced-motion settings. When tabs overflow, a 32dp fade marks only the edge that still has tabs
+  to scroll to, and clears once that end is reached.
+- `Current`: the Notifications categories (All / @me / Replies / Likes / Following / System) and the
+  Unread toggle share one header row; the toggle stays at the trailing end because it combines with
+  every category. Only the selected category shows its Filled ReIcon glyph (`layers`, `at-sign`,
+  `chat`, `heart`, `user-check`, `bullhorn`). On a switch the outgoing glyph shrinks, blurs and moves
+  toward the incoming tab while the incoming one grows in from the outgoing side; a page drag scrubs
+  the same handoff, a tap that skips tabs never flashes the ones between, and with reduced motion a tap
+  swaps the glyph at once.
 - `Current`: root headers, filter rails and bottom navigation overlay the reading viewport and
   follow the finger: they move one-to-one with downward scroll across the header's own height, any
   upward scroll pulls them back, and a partial state settles within 180 ms once scrolling stops. The
@@ -642,15 +666,9 @@ labels grow with system text size; selected states expose semantics. Complex dia
 surface with 24-pixel corners, while inline alerts use a quiet 16-pixel surface. Avatars, loading,
 badges, dividers and selectors share the same semantic palette without third-party default skins.
 
-`Current`: iOS short menus, attachment and language choices, and dropdown fields use shared Cupertino
-actions. Windows narrower than 600 logical pixels present a bottom action sheet; wider windows use
-a scrollable menu up to 380 pixels wide near the initiating control, bounded by root safe areas and
-the keyboard. Cancellation leaves the current value unchanged; choices show the current selection,
-disabled actions cannot activate and destructive actions use the platform's destructive treatment.
-Simple confirmations use Cupertino alerts. Complex credential and editing forms retain their Gf
-surface, validation and failed-save recovery. Android retains Material presentation. Radio rows,
-switches and sliders also follow the platform; both palettes follow the selected light/dark theme.
-These are Flutter Cupertino components; native UIKit and Liquid Glass presentation are not claimed.
+`Current`: short menus, attachment and language choices, dropdown fields, radio rows, switches,
+sliders and simple confirmations use Material presentation on every platform, including iOS and
+iPad; see [0100](../decisions/0100-material-interaction-surfaces-on-ios.md).
 
 ## Publishing
 
@@ -713,8 +731,29 @@ identity survive this layout change. The header keeps a small outer margin for i
   Continue editing as full-width actions; dismissing it continues editing.
 
 - `Current`: reply composers use one rounded surface with a borderless, growing two-line input.
-  Image, hide-keyboard, collapse and send actions share the bottom row. The reply target is a
+  Image, sticker/keyboard, hide and send actions share the bottom row, and collapse sits in the input;
+  the row keeps the same actions in keyboard and sticker modes, with hide disabled while neither is
+  open. The switch shows the destination (emoji, or the plain keyboard to return to typing); hide uses
+  the hide-keyboard sign, a keyboard above a down chevron, and is named after the open surface
+  (hide keyboard or hide stickers), so neighbouring actions never share a symbol. The reply target is a
   lightweight text row; attachment previews and server-required captcha controls appear only when needed.
+  The publishing identity docks into the input's leading edge: a ring in the surface color carves a
+  socket around the avatar, centred over the image action, so it adds no height and never covers the
+  topic. As lines are added the avatar glides to the input's new centre and the socket slides along
+  the edge with it; both hold still once the input reaches its height limit and scrolls. A small swap
+  badge in the primary color (ReIcon Arrow Swap Horizontal) marks it as switchable, a switch scales the
+  new avatar in, and the name and kind stay in its tooltip and accessibility label. Choosing an identity
+  keeps the keyboard's space and returns focus to the input, so the composer does not jump. Draft save
+  state sits beside the send action as one muted line, so it never grows or clips the editor; a failed
+  local save turns it into a tappable retry in the warning color.
+- `Current`: the topic reply sticker panel replaces the software keyboard in the same slot below the
+  composer and matches the last settled keyboard height. Switching holds the outgoing surface until
+  the incoming one covers it, so the editor stays in place; without a keyboard the panel slides in and
+  out in one direction, instantly with reduced motion. The panel keeps its tab, scroll and search state
+  while the composer stays open. Searching stickers raises the keyboard below the panel and bounds the
+  editor to one line without changing its multiline input. Back closes the panel before leaving the
+  topic, and the topic stream keeps clearance above the keyboard. Platform IME timing still requires
+  physical-device verification.
   Typing `@` opens a user suggestion sheet above the software keyboard (reply target, topic author
   and participants first, then debounced server search) with Web-identical token and ranking
   semantics; selecting a candidate inserts plain `@username ` at the caret.
@@ -1376,6 +1415,17 @@ The approved permission/privacy/failure boundaries for optional analytics are re
   files are removed after sharing. The browser's cookies/storage/cache are cleared on exit.
 
 ## Distribution and updates
+
+- `Current`: controlled preview builds display `DEV <short SHA>` or `PROD TEST <short SHA>` and
+  suppress stable update prompts. Dev previews connect to `dev.yourtj.de`, with separate session,
+  preference and local database storage. They use the existing app IDs and replace installed apps.
+  Preview platforms can be selected per run. Installed previews warn when their source is no longer
+  the active candidate, their platform is no longer selected or the freeze expires; offline/missing
+  status is shown as unverified. A status link identifies the current candidate and normal production
+  download entries. Same-source rebuilds remain eligible. This notice never certifies QA, blocks app
+  use, switches sites or automatically installs a formal release.
+  `Partial`: signed installation and environment-switch behavior require candidate-specific device
+  checks through the [release-cycle checklist](../operations/release-cycles.md#freeze-fixes-and-qa).
 
 - `Current`: iPhone/iPad distribution is live on the
   [App Store](https://apps.apple.com/cn/app/yourtj/id6809457637), and Android has a public

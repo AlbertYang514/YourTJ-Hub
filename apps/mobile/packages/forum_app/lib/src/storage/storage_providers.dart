@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app_locale.dart';
+import '../app_config.dart';
 import '../current_user.dart';
 import '../messages/chat_drafts.dart';
 import '../local/writing_store.dart';
@@ -92,6 +93,11 @@ final storageResetStateProvider = StateProvider<AsyncValue<void>?>(
 /// A failed recovery remains visible in storage settings; suspended categories
 /// cannot serve or refill until their durable deletion intent has completed.
 final storageBootstrapProvider = FutureProvider<void>((ref) async {
+  await ref
+      .read(scheduleWidgetBridgeProvider)
+      .prepareEnvironment(
+        AppConfig.isDev ? 'https://dev.yourtj.de' : 'https://f.yourtj.de',
+      );
   final service = ref.read(deviceStorageProvider);
   final db = ref.read(offlineDatabaseProvider);
   if (await ref.read(resetJournalProvider).isPending() ||

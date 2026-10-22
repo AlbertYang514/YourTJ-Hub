@@ -529,11 +529,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
-  Future<void> _chooseAvatar(BuildContext anchor) async {
+  Future<void> _chooseAvatar() async {
     final l10n = AppLocalizations.of(context);
     final preset = await showGfActionSheet<bool>(
       context,
-      anchorContext: anchor,
       items: [
         GfPopupMenuItem(
           value: false,
@@ -651,7 +650,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Future<T?> _showAccountDialog<T>(int epoch, Widget child) =>
       showGfAlertDialog<T>(
         context,
-        adaptive: false,
         builder: (_) => _SettingsAccountDialog(epoch: epoch, child: child),
       );
 
@@ -1215,18 +1213,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   onTap: () => _openSection(_SettingsTab.widgets),
                 ),
                 const GfDivider(),
-                Builder(
-                  builder: (anchor) => _categoryRow(
-                    key: const ValueKey('settings-category-language'),
-                    symbol: 'languages',
-                    title: l10n.settingsAppLanguage,
-                    description:
-                        appLanguageNames[ref
-                            .watch(appLocaleProvider)
-                            ?.languageCode] ??
-                        l10n.settingsLanguageSystem,
-                    onTap: () => showAppLanguagePicker(anchor),
-                  ),
+                _categoryRow(
+                  key: const ValueKey('settings-category-language'),
+                  symbol: 'languages',
+                  title: l10n.settingsAppLanguage,
+                  description:
+                      appLanguageNames[ref
+                          .watch(appLocaleProvider)
+                          ?.languageCode] ??
+                      l10n.settingsLanguageSystem,
+                  onTap: () => showAppLanguagePicker(context),
                 ),
                 const GfDivider(),
                 _categoryRow(
@@ -1537,30 +1533,28 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       },
               ),
               const GfDivider(),
-              Builder(
-                builder: (anchor) => GfSettingRow(
-                  symbol: 'camera',
-                  title: l10n.settingsAvatar,
-                  description: _uploadingAvatar
-                      ? l10n.settingsAvatarUploading
-                      : null,
-                  leading: user == null
-                      ? null
-                      : GfAvatar(
-                          frameColors: decorationColors(
-                            context,
-                            user.decoration?.avatarFrame,
-                          ),
-                          frameAssetUrl: decorationFrameAssetUrl(
-                            user.decoration?.avatarFrame,
-                          ),
-                          frameScale:
-                              user.decoration?.avatarFrame?.assetScale ?? 1.25,
-                          src: resolveApiAssetUrl(user.avatarUrl),
-                          size: 32,
+              GfSettingRow(
+                symbol: 'camera',
+                title: l10n.settingsAvatar,
+                description: _uploadingAvatar
+                    ? l10n.settingsAvatarUploading
+                    : null,
+                leading: user == null
+                    ? null
+                    : GfAvatar(
+                        frameColors: decorationColors(
+                          context,
+                          user.decoration?.avatarFrame,
                         ),
-                  onTap: _uploadingAvatar ? null : () => _chooseAvatar(anchor),
-                ),
+                        frameAssetUrl: decorationFrameAssetUrl(
+                          user.decoration?.avatarFrame,
+                        ),
+                        frameScale:
+                            user.decoration?.avatarFrame?.assetScale ?? 1.25,
+                        src: resolveApiAssetUrl(user.avatarUrl),
+                        size: 32,
+                      ),
+                onTap: _uploadingAvatar ? null : _chooseAvatar,
               ),
               const GfDivider(),
               GfSettingRow(
@@ -2233,7 +2227,6 @@ class _SettingsCredentialDialogState<T>
     return PopScope(
       canPop: !_saving,
       child: GfAlertDialog(
-        adaptive: false,
         title: GfText(widget.title),
         content: AutofillGroup(
           onDisposeAction: AutofillContextAction.cancel,

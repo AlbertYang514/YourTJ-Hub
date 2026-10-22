@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/feedconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/headmarkup"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
@@ -135,6 +136,7 @@ type LoginPageProps struct {
 	InitialMode           string   `json:"initialMode"`
 	RedirectURL           string   `json:"redirectUrl"`
 	GitHubURL             string   `json:"githubUrl"`
+	GitHubReady           bool     `json:"githubReady"`
 	GoogleURL             string   `json:"googleUrl"`
 	AppleReady            bool     `json:"appleReady"`
 	GoogleReady           bool     `json:"googleReady"`
@@ -419,6 +421,25 @@ type PostPayload struct {
 	IsLiked            bool                      `json:"isLiked"`
 	IsBookmarked       bool                      `json:"isBookmarked"`
 	IsAnswer           bool                      `json:"isAnswer"`
+	// Images is the topic gallery (topics.Entity.PublicGallery), only on the visible first
+	// post (postNo 1) of a post window; omitted for replies and for a hidden,
+	// author-deleted or moderator-removed first post (issue #1228).
+	Images []string `json:"images,omitempty"`
+}
+
+// attachFirstPostGallery copies the topic gallery onto the first post of a
+// window, following the same visibility as the first post's content.
+func attachFirstPostGallery(items []PostPayload, gallery []string) {
+	if len(gallery) == 0 {
+		return
+	}
+	for i := range items {
+		item := &items[i]
+		if item.PostNo != 1 || item.IsHidden || item.IsAuthorDeleted || item.IsModeratorRemoved {
+			continue
+		}
+		item.Images = append([]string{}, gallery...)
+	}
 }
 
 type ReplyTargetPayload struct {
@@ -805,6 +826,8 @@ func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
 	brandText := chrome.BrandText
 	brandImage := urlutil.Clean(urlutil.Image, chrome.BrandImage)
 
+	// 渲染防线（issue #1244）：站点设置里的整段 <head> 与重复
+	// viewport/title/description 不进入 SSR 模板，也不进入客户端 payload。
 	return LayoutPayload{
 		UmamiEnabled: !viewer.IsAuthenticated && setting.IsProduction() && hotdataserve.GetPrivacyPolicyConfigCache().Enabled,
 		Site: SitePayload{
@@ -1046,22 +1069,10 @@ func buildTrackedTopicPayloadsContext(ctx context.Context, userID uint64, topics
 }
 
 // IsSafeRedirect 仅允许站内相对路径，拒绝 javascript:、//host、\host、/\host 等危险值。
-// 浏览器按 WHATWG URL 规范会把 \ 归一化为 /，因此路径中任何位置的反斜杠都要拦截。
+// 规则实现在 urlconfig.IsSafeRedirect，供 service 层（OAuth 续跳）复用同一份校验。
 // 导出供 api 层 OAuth 回调透传 redirect 复用（issue #531，与登录页 props 同规则）。
 func IsSafeRedirect(value string) bool {
-	if value == "" {
-		return false
-	}
-	if !strings.HasPrefix(value, "/") {
-		return false
-	}
-	if strings.Contains(value, `\`) {
-		return false
-	}
-	if len(value) > 1 && value[1] == '/' {
-		return false
-	}
-	return true
+	return urlconfig.IsSafeRedirect(value)
 }
 
 func buildLoginPageProps(c *gin.Context) LoginPageProps {
@@ -1073,8 +1084,16 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 	if !IsSafeRedirect(redirectURL) {
 		redirectURL = ""
 	}
-	githubURL := "/api/auth/github"
-	googleURL := "/api/auth/google"
+	githubReady := oauthservice.IsOAuthProviderReady(oauthservice.ProviderGitHub)
+	googleReady := oauthservice.IsOAuthProviderReady(oauthservice.ProviderGoogle)
+	githubURL := ""
+	googleURL := ""
+	if githubReady {
+		githubURL = "/api/auth/github"
+	}
+	if googleReady {
+		googleURL = "/api/auth/google"
+	}
 	tongjiURL := "/api/auth/tongji"
 	_, campusErr := campusservice.Configured()
 	tongjiNotice := c.Query("tongjiNotice")
@@ -1084,17 +1103,22 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 		tongjiNotice = ""
 	}
 	if redirectURL != "" {
-		githubURL += "?redirect=" + url.QueryEscape(redirectURL)
-		googleURL += "?redirect=" + url.QueryEscape(redirectURL)
+		if githubReady {
+			githubURL += "?redirect=" + url.QueryEscape(redirectURL)
+		}
+		if googleReady {
+			googleURL += "?redirect=" + url.QueryEscape(redirectURL)
+		}
 		tongjiURL += "?redirect=" + url.QueryEscape(redirectURL)
 	}
 	return LoginPageProps{
 		InitialMode:           mode,
 		RedirectURL:           redirectURL,
 		GitHubURL:             githubURL,
+		GitHubReady:           githubReady,
 		GoogleURL:             googleURL,
 		AppleReady:            appleauthservice.Ready(),
-		GoogleReady:           oauthservice.IsGoogleOAuthReady(),
+		GoogleReady:           googleReady,
 		TongjiReady:           campusErr == nil,
 		TongjiURL:             tongjiURL,
 		TongjiNotice:          tongjiNotice,
@@ -3066,7 +3090,7 @@ func buildSponsorsMeta(c *gin.Context) PageMeta {
 func buildNotificationsPageProps(c *gin.Context) NotificationsPageProps {
 	userID := component.LoginUserId(c)
 	category := c.Query("category")
-	if !eventNotification.ValidCategory(category) || category == "" {
+	if category == "" || !eventNotification.ValidCategory(category) {
 		category = "all"
 	}
 	filter := "all"
@@ -3543,12 +3567,15 @@ func previewTopicAuthor(topic *topics.Entity, authors map[uint64]*TopicAuthorPay
 }
 
 // Authenticated composers and settings contain private persona choices. Never
-// send them to analytics, session replay or administrator-injected scripts.
-func publicLayoutScripts(authenticated bool, scripts string) string {
+// send them to analytics, session replay or administrator-injected markup.
+// Anonymous shells get the administrator markup after headmarkup.Sanitize:
+// saving normalizes the stored value too, but a stale row must not reach the
+// page on its own (issue #1244).
+func publicLayoutScripts(authenticated bool, markup string) string {
 	if authenticated {
 		return ""
 	}
-	return scripts
+	return headmarkup.Sanitize(markup)
 }
 
 func dailyTabLabel(lang string) string {

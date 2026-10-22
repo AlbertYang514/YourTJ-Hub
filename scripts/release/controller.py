@@ -85,6 +85,7 @@ def plan(scope, bump, source, destination, github, apple=None):
     require(pending is None, f"An undecided {product} release request already exists: {pending}")
     sha = source_sha(source)
     tags = reservations()
+    identities = tags.copy()
     # Closed requests release the preparation slot but their version is not reused: a retained
     # branch may contain human edits or an uncertain attempt. Include all trusted identities.
     # REST head filtering requires an exact branch; a prefix query would miss reservations.
@@ -94,7 +95,7 @@ def plan(scope, bump, source, destination, github, apple=None):
         branch = pr["head"]["ref"]
         match = re.fullmatch(r"codex/release/(web|mobile)-(\d+\.\d+\.\d+)(?:-([1-9]\d*))?", branch)
         if match:
-            tags.append({"tag": ("v" if match[1] == "web" else "mobile-v") + match[2],
+            identities.append({"tag": ("v" if match[1] == "web" else "mobile-v") + match[2],
                          "buildNumber": int(match[3]) if match[3] else None})
     floor, floor_build = "1.0.0", 1
     if product == "mobile":
@@ -102,7 +103,7 @@ def plan(scope, bump, source, destination, github, apple=None):
         match = re.search(r"(?m)^version:\s*(\d+\.\d+\.\d+)\+([1-9]\d*)\s*$", pubspec)
         require(match, "Mobile pubspec must define the version/build floor")
         floor, floor_build = match[1], int(match[2])
-    version, number = next_identity(product, bump, tags, floor, floor_build)
+    version, number = next_identity(product, bump, identities, floor, floor_build)
     candidate_id = f"{product}-{version}" + (f"-{number}" if number else "")
     return {"schemaVersion": 2, "candidateId": candidate_id, "sourceSha": sha,
             "product": product, "version": version, "tag": ("v" if product == "web" else "mobile-v") + version,
@@ -149,7 +150,7 @@ def notes_banner(manifest, status):
             "CI and every publisher refuse a channel without reviewed notes.")
 
 
-def create_pr(manifest, folder, github, notes_status=None):
+def create_pr(manifest, folder, github, notes_status=None, cycle=None):
     candidate_id = manifest["candidateId"]
     pending = open_request(github, manifest["product"])
     if pending:
@@ -176,6 +177,10 @@ def create_pr(manifest, folder, github, notes_status=None):
             "A release maintainer must review the final head. For schema 2 mobile requests, edit changelog.json, attach evidence refs from evidence.json, then run `python3 scripts/release/workflow.py render-structured --candidate ID` to derive platform files; review TestFlight English separately. Verify platform scope, disclosures and server prerequisites, then approve and merge. Bots cannot approve. The publisher independently rechecks approval.\n\n"
             f"Baselines:\n```json\n{json.dumps(manifest['baselines'], indent=2)}\n```\n\n{previews}\n\n"
             "Evidence and uncertainties: `evidence.json`. Source, targets and note edits require fresh approval.")
+    if cycle:
+        body += (f"\n\nRelease tracking: #{cycle['issue']} · cycle `{cycle['id']}` · "
+                 f"owner at preparation: @{cycle['owner']}.\n"
+                 "The tracking issue owns device QA and channel follow-up; it is not release approval.")
     return github.api("pulls", method="POST", data={"title": f"chore: release {candidate_id}", "head": branch, "base": "main", "body": body})
 
 

@@ -134,7 +134,9 @@ void main() {
 
       final password = fieldByLabel(l10n.authPassword);
       expect(password, findsOneWidget);
-      expect(tester.widget<TextField>(password).obscureText, isTrue);
+      final field = tester.widget<TextField>(password);
+      expect(field.obscureText, isTrue);
+      expect(field.enableSuggestions, isFalse);
 
       final toggle = find.byKey(passwordToggleKey);
       expect(toggle, findsOneWidget);
@@ -174,7 +176,12 @@ void main() {
     await tester.tap(find.byKey(passwordToggleKey));
     await tester.pumpAndSettle();
 
-    expect(tester.widget<TextField>(password).obscureText, isFalse);
+    final revealedField = tester.widget<TextField>(password);
+    expect(revealedField.obscureText, isFalse);
+    // Revealing a password must not turn on IME suggestions: Flutter's
+    // Android engine still uses a password-class input type when obscuring is
+    // toggled off.
+    expect(revealedField.enableSuggestions, isFalse);
     expect(controller.text, 'correct horse battery staple');
     expect(controller.selection, selection);
     expect(focusNode.hasFocus, isTrue);
@@ -220,12 +227,15 @@ void main() {
     await tester.tap(find.byKey(passwordToggleKey));
     await tester.pumpAndSettle();
     expect(tester.widget<TextField>(password).obscureText, isFalse);
+    expect(tester.widget<TextField>(password).enableSuggestions, isFalse);
 
     await tester.tap(find.byKey(passwordToggleKey));
     await tester.pumpAndSettle();
 
-    expect(tester.widget<TextField>(password).obscureText, isTrue);
-    expect(tester.widget<TextField>(password).controller!.text, 'hunter2');
+    final field = tester.widget<TextField>(password);
+    expect(field.obscureText, isTrue);
+    expect(field.enableSuggestions, isFalse);
+    expect(field.controller!.text, 'hunter2');
     expect(find.byTooltip(l10n.authShowPassword), findsOneWidget);
   });
 
@@ -254,7 +264,9 @@ void main() {
     await tester.tap(find.byKey(confirmToggleKey));
     await tester.pumpAndSettle();
 
-    expect(tester.widget<TextField>(confirm).obscureText, isFalse);
-    expect(tester.widget<TextField>(confirm).controller!.text, 'second secret');
+    final revealedField = tester.widget<TextField>(confirm);
+    expect(revealedField.obscureText, isFalse);
+    expect(revealedField.enableSuggestions, isFalse);
+    expect(revealedField.controller!.text, 'second secret');
   });
 }

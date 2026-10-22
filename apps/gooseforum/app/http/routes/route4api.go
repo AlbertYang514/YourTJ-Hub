@@ -58,7 +58,7 @@ func assertRouter(ginApp *gin.Engine) {
 	}
 	staticMount := staticRoute.Group("/")
 	staticMount.Use(middleware.BrowserCache)
-	staticMount.StaticFS("static", http.FS(staticFS))
+	staticMount.StaticFS("static", http.FS(decorationStaticFS{embedded: staticFS}))
 }
 
 func viteDevServerURL() string {
@@ -462,6 +462,10 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("moderation/report-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationReportStatus))
 	forumLoginApi.POST("moderation/logs", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationLogList))
 	forumLoginApi.POST("moderation/view-deleted-content", middleware.CheckWritableAccount, UpButterReq(forum.ViewDeletedContent))
+	forumLoginApi.POST("content/appeals", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(8192, api.SubmitContentAppeal))
+	forumLoginApi.GET("content/appeals", middleware.NoUpdateUserActivity, UpQueryReq(api.ContentAppeals))
+	forumLoginApi.POST("moderation/appeals", middleware.NoUpdateUserActivity, UpLimitedJsonReq(8192, api.ModerationAppeals))
+	forumLoginApi.POST("moderation/appeal-action", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(8192, api.ModerationAppealAction))
 	forumLoginApi.POST("moderation/review-queue", middleware.NoUpdateUserActivity, UpButterReq(api.ModerationReviewQueue))
 	forumLoginApi.POST("moderation/review-action", middleware.CheckWritableAccount, UpButterReq(api.ModerationReviewAction))
 	// 通知卡片快捷审批确认页（issue #1049）：token 只防篡改，权限按当前会话复核。
@@ -493,6 +497,8 @@ func apiRoute(ginApp *gin.Engine) {
 
 	adminApi.GET("decorations", middleware.CheckPermission(permission.SiteManager), UpButterReq(api.DecorationList))
 	adminApi.POST("decoration-save", middleware.CheckPermission(permission.SiteManager), UpLimitedJsonReq(4096, api.SaveDecoration))
+	adminApi.POST("badge-asset", middleware.CheckPermission(permission.SiteManager), api.UploadBadgeAsset)
+	adminApi.POST("decoration-asset", middleware.CheckPermission(permission.SiteManager), api.UploadDecorationAsset)
 	adminApi.GET("user-decorations", middleware.CheckPermission(permission.UserManager), UpQueryReq(api.UserDecorations))
 	adminApi.POST("decoration-grant", middleware.CheckPermission(permission.UserManager), UpLimitedJsonReq(4096, api.GrantDecoration))
 	adminApi.POST("decoration-revoke", middleware.CheckPermission(permission.UserManager), UpLimitedJsonReq(4096, api.RevokeDecoration))

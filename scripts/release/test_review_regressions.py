@@ -18,6 +18,11 @@ def request(branch, repository=REPOSITORY):
 
 
 class ReviewRegressions(unittest.TestCase):
+    def setUp(self):
+        gate = patch('workflow.production_gate')
+        gate.start()
+        self.addCleanup(gate.stop)
+
     def test_open_slot_ignores_forks_and_deleted_repositories(self):
         for repository in ('attacker/YourTJ-Hub', None):
             remote = Mock(repository=REPOSITORY)
@@ -35,6 +40,27 @@ class ReviewRegressions(unittest.TestCase):
              patch('controller.git', return_value='version: 1.0.14+15'), patch('controller.baselines', return_value={}):
             manifest = controller.plan('android', 'patch', 'main', 'testflight', remote)
         self.assertEqual((manifest['version'], manifest['buildNumber']), ('1.0.21', 22))
+
+    def test_closed_requests_reserve_versions_without_replacing_published_baselines(self):
+        remote = Mock(repository=REPOSITORY)
+        published = {'tag': 'mobile-v1.0.16', 'sourceSha': 'b' * 40, 'buildNumber': 17}
+        tags = [published]
+        responses = {
+            'pulls?state=open&base=main': [],
+            'pulls?state=closed&base=main': [request('codex/release/mobile-1.0.16-17'),
+                                           request('codex/release/mobile-1.0.18-20')],
+            'releases': [{'tag_name': published['tag'], 'draft': False, 'prerelease': False,
+                          'assets': [{'name': f'{abi}.apk', 'digest': 'sha256:verified'}
+                                     for abi in ['arm64', 'armv7', 'x86_64']]}],
+        }
+        remote.pages.side_effect = lambda endpoint: responses[endpoint]
+        with patch('controller.source_sha', return_value='a' * 40), \
+             patch('controller.reservations', return_value=tags), \
+             patch('controller.git', return_value='version: 1.0.14+15'):
+            manifest = controller.plan('android', 'patch', 'main', 'testflight', remote)
+        self.assertEqual(manifest['baselines']['android'], {'tag': published['tag'], 'sourceSha': 'b' * 40})
+        self.assertEqual((manifest['version'], manifest['buildNumber']), ('1.0.19', 21))
+        self.assertEqual(tags, [published])
 
     def test_receipt_rejects_changed_binding_before_recording(self):
         manifest = candidate()

@@ -49,6 +49,7 @@ export interface LoginPageProps {
   initialMode: 'login' | 'register' | 'forgot'
   redirectUrl: string
   githubUrl: string
+  githubReady: boolean
   googleUrl: string
   tongjiReady?: boolean
   tongjiUrl?: string
@@ -474,6 +475,8 @@ export interface PostPayload {
   isLiked: boolean
   isBookmarked: boolean
   isAnswer: boolean
+  /** Topic gallery, only on the visible first post (issue #1228). */
+  images?: string[]
 }
 
 export interface ReplyTargetPayload {
@@ -639,7 +642,7 @@ export interface ModerationActionPageProps {
 /** 快捷审批确认页视图（issue #1049）：无权限、token 无效或过期时不含目标内容。 */
 export interface ModerationApprovalActionView {
   state: 'ready' | 'done' | 'processed' | 'changed' | 'expired' | 'invalid' | 'forbidden' | 'notFound' | 'failed'
-  subject?: 'review.topic' | 'review.post' | 'report'
+  subject?: 'review.topic' | 'review.post' | 'report' | 'appeal'
   action?: 'approve' | 'reject' | 'ban' | 'hide' | 'dismiss'
   targetType?: 'topic' | 'post' | 'chat_message' | 'course_review'
   targetId?: number
@@ -650,6 +653,9 @@ export interface ModerationApprovalActionView {
   targetUrl?: string
   workbenchUrl: string
   expiresAt?: string
+  /** 申诉复核：原审核理由与作者的申诉说明，只在站内确认页展示。 */
+  originalReason?: string
+  appealReason?: string
 }
 
 export interface ModerationDeletedContentView {
@@ -940,6 +946,11 @@ export type NotificationTemplateKey =
   | 'notifications.templates.reviewPending'
   | 'notifications.templates.reviewApproved'
   | 'notifications.templates.reviewRejected'
+  // 审核申诉（#1114）：沿用三种审核事件类型，仅模板不同。
+  | 'notifications.templates.appealSubmitted'
+  | 'notifications.templates.appealApproved'
+  | 'notifications.templates.appealRejected'
+  | 'notifications.templates.appealStale'
 
 export interface DraftsPageProps {
   total: number

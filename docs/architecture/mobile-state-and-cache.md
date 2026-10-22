@@ -147,6 +147,10 @@ On iOS, backup exclusion applies to the app-owned private directory and the widg
 `Library/Preferences` directory, including future UserDefaults rewrites. The system-owned App Group
 container root is never modified: physical devices reject its extended-attribute writes even when
 the simulator permits them. Genuine backup-configuration failures still propagate to startup recovery.
+The native storage bridge accepts only the exact `yourtj_private` (production) and
+`yourtj_private_dev` (dev preview) directories under Application Support. Both receive backup
+exclusion; opening the dev store preserves production files. Native CI runs the real dev-configured
+storage bootstrap, including its method channel, Keychain and encrypted database, on an iOS simulator.
 
 `Current`: [0052](../decisions/0052-campus-daily-entry-refresh.md) supersedes
 [0035](../decisions/0035-campus-device-snapshot-and-schedule-widgets.md) with daily entry refresh,

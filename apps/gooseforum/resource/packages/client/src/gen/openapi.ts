@@ -84,6 +84,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/badge-asset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload badge artwork (SiteManager)
+         * @description Accepts SVG, PNG, WebP or GIF up to 8 MB (administrator artwork cap; other upload paths keep the 4 MB hard limit).
+         *     Static images are normalized to PNG; GIF animation, delays and loop count are preserved.
+         *     Artwork is uniformly centered and scaled to the system-badge ink radius of 10/24, using
+         *     visible alpha bounds (one shared viewport across all GIF frames). No square or transparent-center requirement.
+         *     External SVG resources, scripts and text are rejected; convert text to paths.
+         *     Images are limited to 4096 px per side. GIF is limited to 300 frames and 16 million total composited canvas pixels.
+         *     Upload returns a new, never-reused /static/badges/normalized/<uuid> path that
+         *     works on existing clients. Unsaved previews expire after 24 hours;
+         *     saving a definition makes the asset durable. Replacing artwork requires
+         *     a new upload and definition save. Only SiteManager may call this endpoint.
+         */
+        post: operations["uploadBadgeAsset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/decoration-asset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload avatar-frame artwork (SiteManager)
+         * @description Accepts SVG, PNG, WebP or GIF up to 8 MB (administrator artwork cap; other upload paths keep the 4 MB hard limit).
+         *     The shorter decoded side must be at least 85% of the longer side. Every pixel inside the centered circular opening
+         *     (diameter 30% of the shorter side) must have at most 1/255 opacity in every composited frame.
+         *     SVG is rasterized to PNG; GIF bytes and animation are preserved. External SVG resources, scripts and text are rejected; convert text to paths.
+         *     Images are limited to 4096 px per side. GIF is limited to 300 frames and 48 million total composited canvas pixels.
+         *     Upload returns a new, never-reused /static/decorations/<uuid> path that
+         *     keeps the existing path shape; older clients accept only PNG/WebP definitions. Unsaved previews expire after 24 hours;
+         *     saving a definition makes the asset durable. Replacing artwork requires
+         *     a new upload and definition save. Only SiteManager may call this endpoint.
+         */
+        post: operations["uploadDecorationAsset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/user-decorations": {
         parameters: {
             query?: never;
@@ -2144,6 +2201,88 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/content/appeals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read appeal history for an owned topic or reply
+         * @description Owner-only history, including decision reasons. Frozen accounts may read.
+         *     No author identity is returned. Responses are private and must not be cached.
+         */
+        get: operations["listContentAppeals"];
+        put?: never;
+        /**
+         * Appeal the latest rejected topic or reply revision
+         * @description Requires a writable account and ownership. Only the latest rejected active forum
+         *     revision is eligible; pending, normal, deleted or superseded content is refused.
+         *     Wiki first posts are excluded. Each revision permits exactly one durable appeal.
+         *     The submission explanation and safe receipt commit together; duplicate requests fail.
+         *     Failures use content.appeal.reasonInvalid, content.appeal.duplicate, content.appeal.ineligible
+         *     (superseded, deleted, or the reply's topic is not public), content.appeal.frozen, or
+         *     content.appeal.notFound so clients can tell the author what to do next.
+         */
+        post: operations["submitContentAppeal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/appeals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Page through appeals within the moderator scope
+         * @description Admins and global moderators see eligible appeals. Category moderators must have
+         *     scope over both the current topic and candidate categories; filtering precedes
+         *     pagination and total. Candidate text is private and responses contain no author
+         *     identity fields. Callers without moderation access receive permission.denied.
+         */
+        post: operations["listModerationAppeals"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/appeal-action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve or reject a moderation appeal
+         * @description Requires a writable moderator account and current target/category authorization.
+         *     Rejection requires a reason. Approval publishes the exact appealed snapshot and
+         *     its images through the existing publication transaction; never a later revision.
+         *     The decision, receipt, search task and publication effects commit atomically.
+         *     Superseded or deleted targets cannot be restored by an appeal; stale appeals
+         *     are retained as audit records. Final decisions cannot be processed twice.
+         *     Failures use moderation.appeal.reasonRequired, moderation.appeal.stale (marked stale and
+         *     the author notified), moderation.appeal.authorFrozen, moderation.appeal.processed, or
+         *     moderation.appeal.notFound (missing or outside the reviewer's scope).
+         */
+        post: operations["moderationAppealAction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/moderation/review-queue": {
         parameters: {
             query?: never;
@@ -2220,7 +2359,9 @@ export interface paths {
          *     expired — it never grants authority. The caller's own session is re-authorized with the
          *     workbench permission model (category moderators, CourseManager, Admin), and the target's
          *     current state is re-checked. Unauthorized callers receive `state=forbidden` without any
-         *     target content; stale links for edited pending content return `state=changed`. Never
+         *     target content; stale links for edited pending content return `state=changed`. Appeal
+         *     links (`subject=appeal`) follow the appeal queue's scope rules: reviewers never see appeals
+         *     on their own content, and an appeal whose content changed returns `state=changed`. Never
          *     mutates state. The token travels in the POST body so it never enters access logs.
          */
         post: operations["moderationApprovalActionPreview"];
@@ -2249,7 +2390,10 @@ export interface paths {
          *     `hide` for course reviews, `dismiss`) and close the report with a compare-and-set, so a
          *     repeated or concurrent click never overwrites the first handler. `handler_id` and the
          *     moderation/operation logs record the real signed-in actor. Private-message reports
-         *     never receive quick actions. Requires a writable account.
+         *     never receive quick actions. Appeals reuse the workbench appeal decision: `approve`
+         *     publishes the appealed revision, `reject` requires `reason` (failure
+         *     `moderation.appeal.reasonRequired`; a frozen author yields
+         *     `moderation.appeal.authorFrozen`). Requires a writable account.
          */
         post: operations["moderationApprovalActionExecute"];
         delete?: never;
@@ -4957,10 +5101,13 @@ export interface paths {
          * @description Admin console operation gated by the `Admin` role permission; callers
          *     without it fail with HTTP 403 and `permission.denied`. Both dates are
          *     inclusive; empty startDate defaults to 7 days ago and empty endDate to
-         *     today. The result has one entry per in-range day, ascending, with zero
-         *     counts for days without stat rows. Stat-storage failures surface as
+         *     today, so the default window covers 8 calendar days — deliberately kept
+         *     unchanged when the content contribution stats moved to a 7-day default
+         *     (issue #1166). The result has one entry per in-range day, ascending, with
+         *     zero counts for days without stat rows. Stat-storage failures surface as
          *     `admin.stats.fetchFailed` (HTTP 200). JSON binding is lenient: a
-         *     malformed body binds to zero values and returns the default 7-day window.
+         *     malformed body binds to zero values and returns the default window (empty
+         *     `startDate` = 7 days ago).
          */
         post: operations["adminTrafficOverview"];
         delete?: never;
@@ -4983,10 +5130,12 @@ export interface paths {
          * @description Admin console operation gated by the `Admin` role permission; callers without it
          *     fail with HTTP 403 and `permission.denied`. Both dates are inclusive and sliced by
          *     server-local calendar day; `coverage.timezone` echoes the zone actually used. An
-         *     empty `startDate` defaults to 7 days before today and an empty `endDate` to today,
+         *     empty `startDate` defaults to 6 days before today and an empty `endDate` to today,
          *     each resolved independently of the other; both ends are inclusive, so the default
-         *     window covers 8 calendar days — the same convention as `adminTrafficOverview`,
-         *     while the console's "last 7 days" preset is a separate UI-level range.
+         *     window covers 7 calendar days (today plus the previous six) — the same range the
+         *     console's "last 7 days" preset requests explicitly. `adminTrafficOverview` keeps
+         *     its older 8-day default (empty `startDate` = 7 days before today) on purpose, so
+         *     the two admin date windows differ (issue #1166).
          *     Content scope is the currently public, undeleted forum content, using the
          *     repository's canonical public-topic predicate: a topic counts when
          *     `deleted_at IS NULL AND visibility_status = 'ACTIVE' AND process_status = 0 AND topic_type = 0 AND status = 1`
@@ -5044,7 +5193,7 @@ export interface paths {
          *     fail with HTTP 403 and `permission.denied`. `categoryId` is required and must be an
          *     existing category. Both dates are inclusive and sliced by server-local calendar
          *     day; omitted dates fall back to the `adminStatsCategorySummary` window (empty
-         *     `startDate` = 7 days before today, empty `endDate` = today, both inclusive, so 8
+         *     `startDate` = 6 days before today, empty `endDate` = today, both inclusive, so 7
          *     calendar days).
          *     `days` holds one entry per in-range day in ascending order, so days without any
          *     contribution are present with zero counts and `estimated: false`; a day whose
@@ -5059,11 +5208,14 @@ export interface paths {
          *     Validation failures (malformed date, `startDate > endDate`, a span over 366 days,
          *     a missing or unknown `categoryId`) return HTTP 200 `common.request.invalidParams`
          *     with `params.field` naming the rejected field — an inverted range blames `endDate`,
-         *     and an over-long range adds `params.maxRangeDays` with the enforced cap. A storage
-         *     failure returns HTTP 200 `admin.stats.fetchFailed` rather than a zero-filled
-         *     success. JSON binding is lenient: a malformed body binds to zero values, so a
-         *     missing `categoryId` is rejected as `common.request.invalidParams` instead of
-         *     returning a bind error.
+         *     and an over-long range adds `params.maxRangeDays` with the enforced cap. These
+         *     parameter errors are decided by validation and by a completed category lookup that
+         *     found nothing: a category lookup that fails at the storage layer is a storage
+         *     failure (HTTP 200 `admin.stats.fetchFailed`), never `common.request.invalidParams`.
+         *     A storage failure in the aggregate reads returns HTTP 200 `admin.stats.fetchFailed`
+         *     rather than a zero-filled success. JSON binding is lenient: a malformed body binds
+         *     to zero values, so a missing `categoryId` is rejected as
+         *     `common.request.invalidParams` instead of returning a bind error.
          */
         post: operations["adminStatsCategoryTrend"];
         delete?: never;
@@ -5087,8 +5239,8 @@ export interface paths {
          *     fail with HTTP 403 and `permission.denied`. Ranks accounts by their in-range
          *     contribution, optionally restricted to one category. Both dates are inclusive and
          *     sliced by server-local calendar day; omitted dates fall back to the
-         *     `adminStatsCategorySummary` window (empty `startDate` = 7 days before today, empty
-         *     `endDate` = today, both inclusive, so 8 calendar days); `categoryId` 0 or omitted
+         *     `adminStatsCategorySummary` window (empty `startDate` = 6 days before today, empty
+         *     `endDate` = today, both inclusive, so 7 calendar days); `categoryId` 0 or omitted
          *     means whole-site.
          *     Counted content obeys the same public scope as `adminStatsCategorySummary`
          *     (published, undeleted forum topics with a still-visible first floor, replies as
@@ -5140,10 +5292,12 @@ export interface paths {
          *     `common.request.invalidParams`. `userId` is the authoritative lookup because the
          *     forum user id is the identity key, `username` is the by-name convenience form.
          *     An unknown or soft-deleted (closed) account returns HTTP 200 `user.notFound`; a
-         *     closed account is never resurrected by this read.
+         *     closed account is never resurrected by this read. Only a completed lookup that
+         *     found no such account is `user.notFound`: a lookup that fails at the storage layer
+         *     is `admin.stats.fetchFailed`, never `user.notFound` or a parameter error.
          *     Both dates are inclusive and sliced by server-local calendar day; omitted dates
-         *     fall back to the `adminStatsCategorySummary` window (empty `startDate` = 7 days
-         *     before today, empty `endDate` = today, both inclusive, so 8 calendar days);
+         *     fall back to the `adminStatsCategorySummary` window (empty `startDate` = 6 days
+         *     before today, empty `endDate` = today, both inclusive, so 7 calendar days);
          *     `categoryId` 0 or omitted means whole-site. `summary` holds the account's in-range totals under
          *     the same scope as the ranking endpoint (`likes` counts likes still effective now),
          *     and `days` holds one entry per in-range day ascending, zero-filled for days without
@@ -5917,7 +6071,10 @@ export interface paths {
          *     offending entry; nothing is persisted. A request that omits
          *     `trustedExternalDomains` (or sends null) keeps the stored list — or the
          *     built-in default when nothing has been saved — while an explicit empty
-         *     array clears it. JSON binding stays
+         *     array clears it. `externalLinks` is normalized before persistence (see
+         *     the field description in `AdminSiteSettingsConfig`): only `<head>`
+         *     elements survive, so shell-emitted document metadata is never stored.
+         *     JSON binding stays
          *     lenient: a missing/malformed body binds to zero values (empty URL
          *     fields, hence valid) and is saved as-is.
          */
@@ -9992,6 +10149,11 @@ export interface components {
             applicationServerKey?: string;
             /** @description Native (mobile APNs/FCM) channel states; always present. */
             native: components["schemas"]["NativePushChannels"];
+            /**
+             * Format: uint64
+             * @description The caller's own numeric user id. The service worker compares it with the push payload recipient before showing a notification, so a recipient check never renders the /messages page.
+             */
+            viewerId: number;
         };
         PushConfigSuccess: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["PushConfigResult"];
@@ -10243,6 +10405,8 @@ export interface components {
             id: number;
             title: string;
             excerpt: string;
+            /** @description Topic gallery image URLs (topics.image_urls, falling back to the legacy firstImageUrl when empty, like the web topic list; usually site-relative `/file/img/...`), at most nine. The list only contains topics whose first post is visible, so this never exposes the gallery of a hidden, author-deleted or moderator-removed first post. Empty when the topic has no image. Older servers omit this field. */
+            images?: string[];
             categoryIds: number[];
             /** Format: uint64 */
             userId: number;
@@ -11740,6 +11904,23 @@ export interface components {
             siteKeywords: string;
             siteUrl: string;
             siteEmail: string;
+            /**
+             * @description Custom head markup: only elements that may live inside `<head>` are
+             *     accepted. The same normalization runs when the value is stored and when
+             *     it is rendered: document structure tags (`<!DOCTYPE>`/`<html>`/`<head>`/
+             *     `<body>`), body content and loose text are dropped, together with the
+             *     document metadata the shell emits for the page — the `<title>`, the
+             *     charset (including `http-equiv="content-type"`) / viewport / description /
+             *     robots / color-scheme / theme-color metas, metas whose `name` or
+             *     `property` starts with `og:`, `twitter:` or `article:`, and links whose
+             *     `rel` token set includes `canonical`, `prev`, `next`, `manifest`, `icon`
+             *     or `apple-touch-icon` — so dirty values are cleaned on the next save
+             *     (issue #1244). Other custom meta/link/script/style/noscript elements are
+             *     kept; `description` and `robots` are rendered by a page only when that
+             *     page has its own value.
+             *     No URL or script whitelist is applied — trusted administrator content,
+             *     bounded by the page CSP.
+             */
             externalLinks: string;
             /**
              * @description Trusted external-domain whitelist (issue #1200): lower-cased
@@ -11767,7 +11948,9 @@ export interface components {
          *     request fails with HTTP 200 `code: 1`, messageCode `admin.url.invalid`
          *     and params `field` naming the first offending field; nothing is
          *     persisted. A missing/malformed body binds to zero values (empty URL
-         *     fields, hence valid) and is saved as-is.
+         *     fields, hence valid) and is saved as-is, except `externalLinks`, which is
+         *     normalized before persistence (see the field description in
+         *     `AdminSiteSettingsConfig`).
          *     `trustedExternalDomains` entries are normalized before persistence
          *     (trimmed, lower-cased, IDN converted to punycode, de-duplicated, blank
          *     entries dropped) under the trusted-domain policy (issue #1200): entries
@@ -12354,6 +12537,77 @@ export interface components {
             /** @description Trimmed; blank fails with `admin.badge.codeRequired`. System badges fail with `admin.badge.systemDeleteBlocked`. */
             code?: string;
         };
+        ModerationAppealItem: {
+            /** Format: uint64 */
+            id: number;
+            /** @enum {string} */
+            kind: "topic" | "post";
+            /** Format: uint64 */
+            targetId: number;
+            /** Format: uint64 */
+            revisionId: number;
+            /** Format: uint64 */
+            topicId: number;
+            postNo: number;
+            title: string;
+            content: string;
+            images: string[];
+            reason: string;
+            /** @description The rejection reason being appealed. */
+            originalReviewReason: string;
+            /** @enum {string} */
+            status: "pending" | "approved" | "rejected" | "stale";
+            reviewReason: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            reviewedAt: string | null;
+        };
+        ModerationAppealSubmitRequest: {
+            /** @enum {string} */
+            kind: "topic" | "post";
+            /** Format: uint64 */
+            id: number;
+            /** Format: uint64 */
+            revisionId: number;
+            /** @description Required explanation; whitespace-only text is rejected. */
+            reason: string;
+        };
+        ModerationAppealActionRequest: {
+            /** Format: uint64 */
+            id: number;
+            approve: boolean;
+            /** @description A nonblank reason is required when rejecting an appeal. */
+            reason?: string;
+        };
+        ModerationAppealQueueRequest: {
+            page?: number;
+            pageSize?: number;
+            /**
+             * @default pending
+             * @enum {string}
+             */
+            status: "pending" | "approved" | "rejected" | "stale";
+        };
+        ModerationAppealHistoryResult: {
+            items: components["schemas"]["ModerationAppealItem"][];
+        };
+        ModerationAppealQueueResult: {
+            items: components["schemas"]["ModerationAppealItem"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        ModerationAppealSubmitResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ModerationAppealItem"];
+        }) | components["schemas"]["ApiFailure"];
+        ModerationAppealHistoryResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ModerationAppealHistoryResult"];
+        }) | components["schemas"]["ApiFailure"];
+        ModerationAppealQueueResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ModerationAppealQueueResult"];
+        }) | components["schemas"]["ApiFailure"];
         AdminReviewQueueRequest: {
             /**
              * @description Any other value (including empty) fails validation with HTTP 200 `common.request.invalidParams`.
@@ -12496,6 +12750,20 @@ export interface components {
             /** @constant */
             messageCode: "upload.success";
         }) | components["schemas"]["ApiFailure"];
+        BadgeAssetUploadResponse: (components["schemas"]["ApiSuccess"] & {
+            result: {
+                url: string;
+            };
+            /** @constant */
+            messageCode: "upload.success";
+        }) | components["schemas"]["ApiFailure"];
+        DecorationAssetUploadResponse: (components["schemas"]["ApiSuccess"] & {
+            result: {
+                url: string;
+            };
+            /** @constant */
+            messageCode: "upload.success";
+        }) | components["schemas"]["ApiFailure"];
         /**
          * @description Enqueues a background full-table export. The exported content is a verbatim table dump —
          *     for `users` this includes email addresses, freeze/activation state, role ids and profile
@@ -12594,6 +12862,8 @@ export interface components {
             isBookmarked: boolean;
             /** @description True only when the topic is a Question (contentType=1), the post is not the first post, and it replies to the question itself. */
             isAnswer: boolean;
+            /** @description Topic gallery image URLs (topics.image_urls, falling back to the legacy firstImageUrl when empty, like the web topic list; at most nine; usually site-relative `/file/img/...`, absolute when the storage public URL prefix is set). Present only on the first post (postNo 1) when it is visible; omitted for replies and when the first post is hidden, author-deleted or moderator-removed. Older servers omit this field. */
+            images?: string[];
         };
         ReplyTargetPayload: {
             /** Format: uint64 */
@@ -13193,6 +13463,10 @@ export interface components {
             reviewReason?: string;
             /** @description An approved version remains publicly readable while the submitted edit is pending or rejected. */
             hasPublishedVersion: boolean;
+            /** @description True when the latest rejected revision can still be appealed by this author (same rules as submitContentAppeal). */
+            canAppeal?: boolean;
+            /** @description Appeal filed for the latest revision, or null. Pending appeals whose target changed are reported as stale. */
+            appeal?: components["schemas"]["ModerationAppealOwnerSummary"] | null;
             /** @description Complete latest submitted Markdown for the authenticated author, including rejected content. */
             content: string;
             images: string[];
@@ -13613,7 +13887,7 @@ export interface components {
             };
         };
         AdminStatsCategorySummaryRequest: {
-            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago. */
+            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 6 days ago (7-day inclusive window ending today). */
             startDate?: string;
             /** @description Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today. */
             endDate?: string;
@@ -13628,7 +13902,7 @@ export interface components {
             result: components["schemas"]["AdminStatsCategorySummaryResult"];
         }) | components["schemas"]["ApiFailure"];
         AdminStatsCategoryTrendRequest: {
-            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago. */
+            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 6 days ago (7-day inclusive window ending today). */
             startDate?: string;
             /** @description Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today. */
             endDate?: string;
@@ -13652,7 +13926,7 @@ export interface components {
             result: components["schemas"]["AdminStatsCategoryTrendResult"];
         }) | components["schemas"]["ApiFailure"];
         AdminStatsUserRankingRequest: {
-            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago. */
+            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 6 days ago (7-day inclusive window ending today). */
             startDate?: string;
             /** @description Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today. */
             endDate?: string;
@@ -13695,7 +13969,7 @@ export interface components {
         }) | components["schemas"]["ApiFailure"];
         /** @description Exactly one of `userId` and `username` identifies the account; passing both or neither fails with `common.request.invalidParams`. `userId` is the authoritative form (the numeric forum user id), `username` the by-name convenience form. */
         AdminStatsUserDetailRequest: {
-            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 7 days ago. */
+            /** @description Inclusive range start (YYYY-MM-DD, server-local day); empty defaults to 6 days ago (7-day inclusive window ending today). */
             startDate?: string;
             /** @description Inclusive range end (YYYY-MM-DD, server-local day); empty defaults to today. */
             endDate?: string;
@@ -13852,7 +14126,7 @@ export interface components {
             likeCount: number;
         };
         AdminTrafficOverviewRequest: {
-            /** @description Inclusive range start (YYYY-MM-DD); empty defaults to 7 days ago. */
+            /** @description Inclusive range start (YYYY-MM-DD); empty defaults to 7 days ago (8-day inclusive window ending today). */
             startDate?: string;
             /** @description Inclusive range end (YYYY-MM-DD); empty defaults to today. */
             endDate?: string;
@@ -14896,11 +15170,18 @@ export interface components {
         ModerationApprovalActionRequest: {
             /** @description Signed quick-action token from the `token` query parameter of a notification button link (`/moderation/action?token=…`). */
             token: string;
+            /**
+             * @description Appeal decisions only (`subject=appeal`): the reviewer's explanation shown to the author,
+             *     at most 512 characters. Required to reject an appeal; optional when approving; ignored for
+             *     other subjects and by the preview.
+             */
+            reason?: string;
         };
         /**
          * @description Quick-action confirmation view (issue #1049). Target content (`title`, `excerpt`, `targetUrl`)
          *     is only present when the signed-in caller may moderate the target; anonymous targets only
-         *     expose the `anonymous` marker, never the author.
+         *     expose the `anonymous` marker, never the author. Appeals (`subject=appeal`) describe the
+         *     rejected revision plus `originalReason` and `appealReason`, never the author's identity.
          */
         ModerationApprovalActionView: {
             /**
@@ -14914,7 +15195,7 @@ export interface components {
              */
             state: "ready" | "done" | "processed" | "changed" | "expired" | "invalid" | "forbidden" | "notFound" | "failed";
             /** @enum {string} */
-            subject?: "review.topic" | "review.post" | "report";
+            subject?: "review.topic" | "review.post" | "report" | "appeal";
             /** @enum {string} */
             action?: "approve" | "reject" | "ban" | "hide" | "dismiss";
             /** @enum {string} */
@@ -14934,6 +15215,10 @@ export interface components {
              * @description Link expiry (UTC, RFC 3339).
              */
             expiresAt?: string;
+            /** @description Appeals only — the rejection being appealed. Shown on the confirmation page, never in external notifications. */
+            originalReason?: string;
+            /** @description Appeals only — the author's explanation. Shown on the confirmation page, never in external notifications. */
+            appealReason?: string;
         };
         ModerationApprovalActionResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["ModerationApprovalActionView"];
@@ -15307,6 +15592,16 @@ export interface components {
         MyStickerSaveResponse: components["schemas"]["MyStickerSaveSuccess"] | components["schemas"]["ApiFailure"];
         MyStickerDeleteRequest: {
             name: string;
+        };
+        ModerationAppealOwnerSummary: {
+            /** @enum {string} */
+            status: "pending" | "approved" | "rejected" | "stale";
+            reason: string;
+            reviewReason: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            reviewedAt: string | null;
         };
         CourseBookmarkRequest: {
             /**
@@ -15992,6 +16287,120 @@ export interface operations {
                 };
             };
             /** @description Frozen/pending account, or missing administration permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    uploadBadgeAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description SVG, PNG, WebP or animated GIF.
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Upload stored and preview path returned. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadgeAssetUploadResponse"];
+                };
+            };
+            /** @description Missing, unsupported, invalid, or oversized image. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account not writable, missing SiteManager permission, or CSRF rejected. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    uploadDecorationAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description Square or near-square SVG/PNG/WebP/GIF with a transparent circular center in every frame.
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Upload stored and preview path returned. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecorationAssetUploadResponse"];
+                };
+            };
+            /** @description Missing, unsupported, invalid, or oversized image. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account not writable, missing SiteManager permission, or CSRF rejected. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -19843,6 +20252,173 @@ export interface operations {
                 };
             };
             /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listContentAppeals: {
+        parameters: {
+            query: {
+                kind: "topic" | "post";
+                id: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful result or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationAppealHistoryResponse"];
+                };
+            };
+            /** @description Missing, invalid or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen or unactivated account for writes, or cookie CSRF rejection. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    submitContentAppeal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationAppealSubmitRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful result or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationAppealSubmitResponse"];
+                };
+            };
+            /** @description Missing, invalid or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen or unactivated account for writes, or cookie CSRF rejection. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listModerationAppeals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationAppealQueueRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful result or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationAppealQueueResponse"];
+                };
+            };
+            /** @description Missing, invalid or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen or unactivated account for writes, or cookie CSRF rejection. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    moderationAppealAction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationAppealActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful result or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccess"] | components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen or unactivated account for writes, or cookie CSRF rejection. */
             403: {
                 headers: {
                     [name: string]: unknown;

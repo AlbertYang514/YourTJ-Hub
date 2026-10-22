@@ -64,6 +64,28 @@ func transact(t *testing.T, conn *gorm.DB, fn func(*gorm.DB) error) {
 	}
 }
 
+func TestNicknameContrastAcceptsThreeToOneEndpointStops(t *testing.T) {
+	// Both palettes clear 3:1 but not the old 4.5:1 floor (light 3.68/3.34, dark 3.04/3.67).
+	s := testStyle("name", NicknameStyle)
+	s.LightColors = []string{"#3B82F6", "#059669"}
+	s.DarkColors = []string{"#6B7280", "#6B7280"}
+	if err := ValidateStyle(s); err != nil {
+		t.Fatalf("3:1 palette rejected: %v", err)
+	}
+	for _, colors := range [][]string{{"#9CA3AF", "#A3A3A3"}, {"#3B82F6", "#9CA3AF"}} {
+		s := testStyle("name", NicknameStyle)
+		s.LightColors = colors
+		if ValidateStyle(s) == nil {
+			t.Fatalf("accepted light palette below 3:1: %v", colors)
+		}
+	}
+	s = testStyle("name", NicknameStyle)
+	s.DarkColors = []string{"#4B5563", "#374151"}
+	if ValidateStyle(s) == nil {
+		t.Fatal("accepted dark palette below 3:1")
+	}
+}
+
 func TestDecorationStylesRejectUnsafeAndUnreadableColors(t *testing.T) {
 	for _, s := range []Style{testStyle("frame", AvatarFrame), testStyle("name", NicknameStyle)} {
 		if err := ValidateStyle(s); err != nil {
@@ -82,7 +104,7 @@ func TestDecorationStylesRejectUnsafeAndUnreadableColors(t *testing.T) {
 	if ValidateStyle(s) == nil {
 		t.Fatal("invalid code accepted")
 	}
-	for _, asset := range []string{"https://example.com/frame.png", "/static/other.png", "/static/decorations/../other.png", "/static/decorations/frame.svg", "data:image/svg+xml,<svg/>"} {
+	for _, asset := range []string{"https://example.com/frame.png", "/static/other.png", "/static/decorations/../other.png", "/static/decorations/frame.html", "data:image/svg+xml,<svg/>"} {
 		s := testStyle("frame", AvatarFrame)
 		s.AssetURL = asset
 		if ValidateStyle(s) == nil {
@@ -90,9 +112,11 @@ func TestDecorationStylesRejectUnsafeAndUnreadableColors(t *testing.T) {
 		}
 	}
 	s = testStyle("frame", AvatarFrame)
-	s.AssetURL = "/static/decorations/custom-frame.webp"
-	if err := ValidateStyle(s); err != nil {
-		t.Fatalf("valid frame asset rejected: %v", err)
+	for _, ext := range []string{"png", "webp", "gif", "svg"} {
+		s.AssetURL = "/static/decorations/custom-frame." + ext
+		if err := ValidateStyle(s); err != nil {
+			t.Fatalf("valid %s frame rejected: %v", ext, err)
+		}
 	}
 	s = testStyle("name", NicknameStyle)
 	s.AssetURL = "/static/decorations/custom-frame.png"

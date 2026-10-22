@@ -442,13 +442,22 @@ func runVersionedDataMigrations() error {
 		currentVersion = 32
 	}
 	if currentVersion < 33 {
-		if err := xpservice.EnsureInitialRules(context.Background(), dbconnect.Connect()); err != nil {
-			return fmt.Errorf("app migration v33 initial XP rules: %w", err)
+		if err := publicationservice.AdoptRejected(context.Background()); err != nil {
+			return fmt.Errorf("app migration v33 rejected submissions: %w", err)
 		}
 		if err := pageConfig.SyncMigrationVersion(33); err != nil {
 			return err
 		}
 		currentVersion = 33
+	}
+	if currentVersion < 34 {
+		if err := xpservice.EnsureInitialRules(context.Background(), dbconnect.Connect()); err != nil {
+			return fmt.Errorf("app migration v34 initial XP rules: %w", err)
+		}
+		if err := pageConfig.SyncMigrationVersion(34); err != nil {
+			return err
+		}
+		currentVersion = 34
 	}
 	slog.Info("app migration end", "version", currentVersion)
 	return nil

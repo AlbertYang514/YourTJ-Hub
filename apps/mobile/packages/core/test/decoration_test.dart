@@ -49,21 +49,31 @@ void main() {
       }
     },
   );
-  test('only safe local PNG and WebP paths are accepted as frame art', () {
+  test('only safe local PNG, WebP, GIF and SVG paths are accepted as frame art', () {
     const path = '/static/decorations/custom-frame.png';
     final data = {...style('avatarFrame'), 'assetUrl': path};
-    final parsed = DecorationStyle.parse(data, 'avatarFrame')!;
-    expect(parsed.assetUrl, path);
-    expect(parsed.toJson()['assetUrl'], path);
+    for (final accepted in [
+      path,
+      '/static/decorations/custom-frame.webp',
+      '/static/decorations/custom-frame.gif',
+      '/static/decorations/custom-frame.svg',
+    ]) {
+      final parsed = DecorationStyle.fromJson({...data, 'assetUrl': accepted});
+      expect(parsed.assetUrl, accepted, reason: accepted);
+      expect(parsed.toJson()['assetUrl'], accepted);
+    }
+    expect(DecorationStyle.parse(data, 'avatarFrame')!.assetUrl, path);
     for (final invalid in [
       'https://outside.test$path',
       '$path?v=1',
       '/static/decorations/../custom.png',
-      '/static/decorations/custom.svg',
+      '/static/decorations/custom-frame.apng',
+      '/static/decorations/custom-frame',
     ]) {
       expect(
         DecorationStyle.fromJson({...data, 'assetUrl': invalid}).assetUrl,
         isNull,
+        reason: invalid,
       );
     }
     expect(

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { notificationText as describeNotification } from '@/runtime/notification-text'
+import { appealNotice, notificationText as describeNotification } from '@/runtime/notification-text'
 import UserNickname from '@/site/components/UserNickname.vue'
 import { authorURL } from '@/runtime/anonymous-identity'
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { Award, Bell, Clock, Check, CheckCheck, CheckCircle2, Info, MessageCircle, ShieldAlert, UserPlus } from '@lucide/vue'
+import { Award, Bell, CircleSlash, Clock, Check, CheckCheck, CheckCircle2, Info, MessageCircle, Scale, ShieldAlert, UserPlus, XCircle } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import { fetchNotifications, markAllNotificationsRead, markNotificationRead } from '@/runtime/api'
 import { formatDateTime } from '@/runtime/format'
@@ -31,7 +31,8 @@ const activeFilter = ref<NotificationFilter>(page.props.filter ?? 'all')
 const activeCategory = ref<NotificationCategory>(page.props.category ?? 'all')
 const categories: NotificationCategory[] = ['all', 'mentions', 'replies', 'likes', 'following', 'system']
 let categoryGeneration = 0
-let propsCategoryUpdate = false
+// 用户最近一次主动选择的分类；服务端 payload 只在它为空或与 payload 分类相同时接管。
+let userCategory: NotificationCategory | null = null
 const unreadCount = ref(page.props.unreadCount)
 const markingAllRead = ref(false)
 const actionError = ref('')
@@ -71,23 +72,28 @@ if (page.props.unreadCount === 0) {
 watch(
   () => page.props.notifications,
   () => {
-    categoryGeneration++
     const incomingCategory = page.props.category ?? 'all'
     const incomingFilter = page.props.filter ?? 'all'
-    propsCategoryUpdate = activeCategory.value !== incomingCategory
-    activeCategory.value = incomingCategory
-    activeFilter.value = incomingFilter
-    for (const filter of ['all', 'unread'] as const) {
-      Object.assign(lists[filter], {
-        items: filter === incomingFilter ? copyNotifications(page.props.notifications) : [],
-        nextCursor: filter === incomingFilter ? initialNextCursor() : 0,
-        hasNext: filter === incomingFilter ? page.props.pagination.hasNext : true,
-        loaded: filter === incomingFilter,
-        loading: false,
-      })
+    // 服务端 payload 只在没有更新的用户选择时接管分类：同一次 flush 内既刷新
+    // props 又点击分类时，点击胜出（issue #1183 第 3 项），否则 props 刷新会
+    // 把选中项改回服务端分类而列表还停在用户刚加载的数据上。
+    if (userCategory === null || userCategory === incomingCategory) {
+      userCategory = null
+      categoryGeneration++
+      activeCategory.value = incomingCategory
+      activeFilter.value = incomingFilter
+      for (const filter of ['all', 'unread'] as const) {
+        Object.assign(lists[filter], {
+          items: filter === incomingFilter ? copyNotifications(page.props.notifications) : [],
+          nextCursor: filter === incomingFilter ? initialNextCursor() : 0,
+          hasNext: filter === incomingFilter ? page.props.pagination.hasNext : true,
+          loaded: filter === incomingFilter,
+          loading: false,
+        })
+      }
+      actionError.value = ''
     }
     unreadCount.value = page.props.unreadCount
-    actionError.value = ''
     if (page.props.unreadCount === 0) {
       unreadStatus.clearNotifications()
     }
@@ -95,14 +101,18 @@ watch(
   },
 )
 
-watch(activeCategory, async () => {
- if (propsCategoryUpdate) { propsCategoryUpdate = false; return }
- categoryGeneration++
- for (const filter of ['all', 'unread'] as const) {
- Object.assign(lists[filter], {items: [],nextCursor:0,hasNext:true,loading:false,loaded:false})
- }
- await loadNotifications(activeFilter.value, true)
-})
+// 分类点击直接加载，不经过 activeCategory watcher：用户意图必须一次点击即生效，
+// 不能与服务端 props 刷新共用握手状态。
+async function selectCategory(category: NotificationCategory) {
+  if (category === activeCategory.value) return
+  userCategory = category
+  activeCategory.value = category
+  categoryGeneration++
+  for (const filter of ['all', 'unread'] as const) {
+    Object.assign(lists[filter], { items: [], nextCursor: 0, hasNext: true, loading: false, loaded: false })
+  }
+  await loadNotifications(activeFilter.value, true)
+}
 
 watch(activeFilter, async (filter) => {
   actionError.value = ''
@@ -205,7 +215,19 @@ function isReviewResult(item: NotificationPayload) {
   return item.eventType === 'review_pending' || item.eventType === 'review_approved' || item.eventType === 'review_rejected'
 }
 
+// 申诉结论与审核结果同屏，但图标、详情和去向各自独立，避免“申诉被驳回”读成“新内容被拒”。
+const appealIcons = { appealSubmitted: Scale, appealApproved: CheckCircle2, appealRejected: XCircle, appealStale: CircleSlash }
+
+function reviewDetail(item: NotificationPayload) {
+  const appeal = appealNotice(item)
+  if (appeal) return t(`notifications.${appeal}Detail`)
+  if (item.eventType === 'review_pending') return t('notifications.reviewPendingDetail')
+  return item.eventType === 'review_approved' ? t('notifications.reviewApprovedDetail') : t('notifications.reviewRejectedDetail')
+}
+
 function notificationIcon(item: NotificationPayload) {
+  const appeal = appealNotice(item)
+  if (appeal) return appealIcons[appeal]
   if (item.eventType === 'review_pending') return Clock
   if (item.eventType === 'review_approved') return CheckCircle2
   if (item.eventType === 'review_rejected') return ShieldAlert
@@ -256,12 +278,18 @@ function notificationTemplateText(item: NotificationPayload) {
       return t('notifications.templates.reviewApproved')
     case 'notifications.templates.reviewRejected':
       return t('notifications.templates.reviewRejected')
+    case 'notifications.templates.appealSubmitted':
+    case 'notifications.templates.appealApproved':
+    case 'notifications.templates.appealRejected':
+    case 'notifications.templates.appealStale':
+      return t(`notifications.templates.${appealNotice(item)}`)
     default:
       return ''
   }
 }
 
 function notificationTone(item: NotificationPayload) {
+  if (appealNotice(item) === 'appealStale') return 'text-base-content/55'
   if (item.eventType === 'review_approved') return item.isRead ? 'text-base-content/55' : 'text-success'
   if (item.eventType === 'review_rejected') return item.isRead ? 'text-base-content/55' : 'text-error'
   if (item.eventType === 'follow') return item.isRead ? 'text-base-content/55' : 'text-success'
@@ -291,7 +319,7 @@ function actorURL(item: NotificationPayload) {
 }
 
 function targetURL(item: NotificationPayload) {
-  if (item.eventType === 'review_rejected') return '/settings?tab=content'
+  if (item.eventType === 'review_rejected' || appealNotice(item) === 'appealSubmitted') return '/settings?tab=content'
   if (item.topic) return item.topic.url
   if (item.eventType === 'badge') return item.payload.metadata?.profileUrl || actorURL(item)
   if (item.eventType === 'follow') return actorURL(item)
@@ -378,7 +406,7 @@ function markItemReadAndNavigate(item: NotificationPayload) {
         <button v-for="category in categories" :key="category" type="button" class="gf-tab"
           :aria-pressed="activeCategory === category"
           :class="activeCategory === category ? 'bg-base-100 text-base-content shadow-sm ring-1 ring-line' : 'text-base-content/55 hover:bg-base-100/70'"
-          @click="activeCategory = category">{{ t(`notifications.tabs.${category}`) }}</button>
+          @click="selectCategory(category)">{{ t(`notifications.tabs.${category}`) }}</button>
         <label class="ml-auto flex items-center gap-2 px-2 text-sm">
           <input type="checkbox" :checked="activeFilter === 'unread'" @change="setActiveFilter(activeFilter === 'unread' ? 'all' : 'unread')" />
           {{ t('notifications.tabs.unread') }}
@@ -442,7 +470,7 @@ function markItemReadAndNavigate(item: NotificationPayload) {
               <span v-if="!item.isRead" class="h-1.5 w-1.5 rounded-full bg-primary" />
             </div>
             <p v-if="isReviewResult(item)" class="mt-0.5 text-xs text-base-content/55">
-              {{ item.eventType === 'review_pending' ? t('notifications.reviewPendingDetail') : item.eventType === 'review_approved' ? t('notifications.reviewApprovedDetail') : t('notifications.reviewRejectedDetail') }}
+              {{ reviewDetail(item) }}
             </p>
             <p v-else-if="item.content && item.content !== notificationText(item)" class="mt-0.5 line-clamp-1 text-xs text-base-content/55">{{ item.content }}</p>
             <p v-if="!targetURL(item)" class="mt-0.5 text-xs text-base-content/55">{{ t('notifications.noDirectTarget') }}</p>

@@ -62,6 +62,10 @@ paths:
     $ref: ./paths/decorations.yaml#/listDecorations
   /api/admin/decoration-save:
     $ref: ./paths/decorations.yaml#/saveDecoration
+  /api/admin/badge-asset:
+    $ref: ./paths/decorations.yaml#/uploadBadgeAsset
+  /api/admin/decoration-asset:
+    $ref: ./paths/decorations.yaml#/uploadDecorationAsset
   /api/admin/user-decorations:
     $ref: ./paths/decorations.yaml#/getUserDecorations
   /api/admin/decoration-grant:
@@ -234,6 +238,12 @@ paths:
     $ref: ./paths/forum-moderation.yaml#/moderationUpdateReportStatus
   /api/forum/moderation/logs:
     $ref: ./paths/forum-moderation.yaml#/listModerationLogs
+  /api/forum/content/appeals:
+    $ref: ./paths/moderation-appeals.yaml#/contentAppeals
+  /api/forum/moderation/appeals:
+    $ref: ./paths/moderation-appeals.yaml#/moderationAppeals
+  /api/forum/moderation/appeal-action:
+    $ref: ./paths/moderation-appeals.yaml#/moderationAppealAction
   /api/forum/moderation/review-queue:
     $ref: ./paths/forum-moderation.yaml#/listModerationReviewQueue
   /api/forum/moderation/review-action:
@@ -1731,6 +1741,24 @@ components:
       $ref: ./components/schemas.yaml#/AdminSaveBadgeRequest
     AdminDeleteBadgeRequest:
       $ref: ./components/schemas.yaml#/AdminDeleteBadgeRequest
+    ModerationAppealItem:
+      $ref: ./components/schemas.yaml#/ModerationAppealItem
+    ModerationAppealSubmitRequest:
+      $ref: ./components/schemas.yaml#/ModerationAppealSubmitRequest
+    ModerationAppealActionRequest:
+      $ref: ./components/schemas.yaml#/ModerationAppealActionRequest
+    ModerationAppealQueueRequest:
+      $ref: ./components/schemas.yaml#/ModerationAppealQueueRequest
+    ModerationAppealHistoryResult:
+      $ref: ./components/schemas.yaml#/ModerationAppealHistoryResult
+    ModerationAppealQueueResult:
+      $ref: ./components/schemas.yaml#/ModerationAppealQueueResult
+    ModerationAppealSubmitResponse:
+      $ref: ./components/schemas.yaml#/ModerationAppealSubmitResponse
+    ModerationAppealHistoryResponse:
+      $ref: ./components/schemas.yaml#/ModerationAppealHistoryResponse
+    ModerationAppealQueueResponse:
+      $ref: ./components/schemas.yaml#/ModerationAppealQueueResponse
     AdminReviewQueueRequest:
       $ref: ./components/schemas.yaml#/AdminReviewQueueRequest
     AdminReviewQueueItem:
@@ -1753,6 +1781,10 @@ components:
       $ref: ./components/schemas.yaml#/AdminImgUploadResult
     AdminImgUploadResponse:
       $ref: ./components/schemas.yaml#/AdminImgUploadResponse
+    BadgeAssetUploadResponse:
+      $ref: ./components/schemas.yaml#/BadgeAssetUploadResponse
+    DecorationAssetUploadResponse:
+      $ref: ./components/schemas.yaml#/DecorationAssetUploadResponse
     AdminCreateExportTaskRequest:
       $ref: ./components/schemas.yaml#/AdminCreateExportTaskRequest
     AdminExportTaskListResponse:
